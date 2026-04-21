@@ -10,12 +10,16 @@ struct Args {
     file: String,
 
     /// Колона за търсене на повтарящи се текстове
-    #[arg(short = 't', long, default_value = "C")]
-    target_cell: String,
+    #[arg(short = 's', long = "src_col", default_value = "C")]
+    src_col: String,
 
     /// Колона за запис на уникалните номера
-    #[arg(short = 'i', long, default_value = "B")]
-    id_cell: String,
+    #[arg(short = 'd', long = "dest_col", default_value = "B")]
+    dest_col: String,
+
+    /// Презаписва входния файл вместо създаване на нов
+    #[arg(short = 'i', long = "inplace")]
+    inplace: bool,
 }
 
 fn column_to_index(col: &str) -> u32 {
@@ -25,12 +29,11 @@ fn column_to_index(col: &str) -> u32 {
     }
     index
 }
-
 fn main() {
     let args = Args::parse();
 
-    let column_index = column_to_index(&args.target_cell);
-    let output_column_index = column_to_index(&args.id_cell);
+    let column_index = column_to_index(&args.src_col);
+    let output_column_index = column_to_index(&args.dest_col);
 
     // 1. Зареждане на съществуващ файл
     let path = std::path::Path::new(&args.file);
@@ -66,7 +69,13 @@ fn main() {
         }
     }
 
-    // 5. Запазване на промените (може и в нов файл за безопасност)
-    let _ = writer::xlsx::write(&book, std::path::Path::new("result.xlsx")).expect("Грешка при запис");
-    println!("Готово! Резултатът е записан в 'result.xlsx'");
+    // 5. Запазване на промените
+    if args.inplace {
+        let _ = writer::xlsx::write(&book, path).expect("Грешка при запис");
+        println!("Готово! Резултатът е записан в '{}'", args.file);
+    } else {
+        let new_file = format!("{}_new.xlsx", args.file.trim_end_matches(".xlsx"));
+        let _ = writer::xlsx::write(&book, std::path::Path::new(&new_file)).expect("Грешка при запис");
+        println!("Готово! Резултатът е записан в '{}'", new_file);
+    }
 }
