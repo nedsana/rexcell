@@ -3,21 +3,21 @@ use clap::Parser;
 
 #[derive(Parser)]
 #[command(name = "rexcell")]
-#[command(about = "Обработка на Excel файл с уникални ID-та")]
+#[command(about = "Process an Excel file using unique IDs")]
 struct Args {
-    /// Път до Excel файла
+    /// Path to the Excel file
     #[arg(short, long, default_value = "data.xlsx")]
     file: String,
 
-    /// Колона за търсене на повтарящи се текстове
+    /// Column to search for duplicate text
     #[arg(short = 's', long = "src_col", default_value = "C")]
     src_col: String,
 
-    /// Колона за запис на уникалните номера
+    /// Column to write unique IDs into
     #[arg(short = 'd', long = "dest_col", default_value = "B")]
     dest_col: String,
 
-    /// Презаписва входния файл вместо създаване на нов
+    /// Overwrite the input file instead of creating a new one
     #[arg(short = 'i', long = "inplace")]
     inplace: bool,
 
@@ -62,19 +62,27 @@ fn get_ref_map(sheet: &Worksheet, col_key:u32, col_value: u32) -> std::collectio
     ref_map
 }
 
-fn apply_key_value_data(sheet: &mut Worksheet, ref_map: &std::collections::HashMap<String, String>, src_col: u32, dest_col: u32) {
+fn apply_key_value_data(sheet: &mut Worksheet, ref_map: &std::collections::HashMap<String, String>, src_col: u32, dest_col: u32) -> Result<usize, String> {
+    let mut applied = 0;
+
     for row in 1..=sheet.get_highest_row() {
         let cell_value = sheet.get_value((src_col, row));
         
         if !cell_value.is_empty() {
             if let Some(value) = ref_map.get(&cell_value) {
                 sheet.get_cell_mut((dest_col, row)).set_value(value.clone());
+                applied += 1;
                 // println!("Row {}: '{}' -> ID {}", row, cell_value, value);
-            }
-            else {
+            } else {
                 println!("Unable to find {} in ref_map!", cell_value);
             }
         }
+    }
+
+    if applied == 0 {
+        Err("No key-value mapping was applied".to_string())
+    } else {
+        Ok(applied)
     }
 }
 
@@ -97,9 +105,17 @@ fn main() {
     // Get the update sheet
     let utbl = book.get_sheet_by_name_mut(&args.upd_table).expect("The update sheet is not found");
 
-    apply_key_value_data(utbl, &ref_map, column_to_index(&args.src_col), column_to_index(&args.dest_col));
+    let applied = apply_key_value_data(
+        utbl,
+        &ref_map,
+        column_to_index(&args.src_col),
+        column_to_index(&args.dest_col),
+    )
+    .expect("No key-value mapping was applied");
 
-    // 5. Запазване на промените
+    println!("Applied {} key-value mapping(s).", applied);
+
+    // Save changes
     if args.inplace {
         let _ = writer::xlsx::write(&book, path).expect("Unable to write the file");
         println!("Done! The result is saved in '{}'", args.file);
