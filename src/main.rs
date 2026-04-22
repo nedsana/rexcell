@@ -55,11 +55,27 @@ fn get_ref_map(sheet: &Worksheet, col_key:u32, col_value: u32) -> std::collectio
         
         //invert: use the value as key
         if !cell_value.is_empty() && !cell_key.is_empty() {
-            ref_map.insert(cell_key.clone(), cell_value.clone());
-            // println!("Raw {} '{}:{}'", row, cell_key, cell_value);
+            ref_map.insert(cell_value.clone(), cell_key.clone());
+            // println!("Raw {} '{}:{}'", row, cell_value, cell_key);
         }
     }
     ref_map
+}
+
+fn apply_key_value_data(sheet: &mut Worksheet, ref_map: &std::collections::HashMap<String, String>, src_col: u32, dest_col: u32) {
+    for row in 1..=sheet.get_highest_row() {
+        let cell_value = sheet.get_value((src_col, row));
+        
+        if !cell_value.is_empty() {
+            if let Some(value) = ref_map.get(&cell_value) {
+                sheet.get_cell_mut((dest_col, row)).set_value(value.clone());
+                // println!("Row {}: '{}' -> ID {}", row, cell_value, value);
+            }
+            else {
+                println!("Unable to find {} in ref_map!", cell_value);
+            }
+        }
+    }
 }
 
 fn main() {
@@ -77,34 +93,19 @@ fn main() {
     let ref_map: HashMap<String, String> = get_ref_map(&rtbl, 
                                                 column_to_index(&args.ref_col_key), 
                                                 column_to_index(&args.ref_col_value));
-
-    // read the sheet to be updated and apply the key, based on value, why not reverse???
-    let column_index = column_to_index(&args.src_col);
-    let output_column_index = column_to_index(&args.dest_col);
     
     // Get the update sheet
-    let mut utbl = book.get_sheet_by_name(&args.upd_table).expect("The update sheet is not found");
-    let max_row = utbl.get_highest_row();
-    utbl.get_cell_mut((0, 0)).set_value("KUR");
-    // for row in 1..=max_row {
-    //     let cell_value = utbl.get_value((column_index, row));
-        
-    //     if !cell_value.is_empty() {
-    //         if let Some(value) = ref_map.get(&cell_value) {
-    //             utbl.get_cell_mut((output_column_index, row)).set_value(value.clone());
+    let utbl = book.get_sheet_by_name_mut(&args.upd_table).expect("The update sheet is not found");
 
-    //             println!("Ред {}: Текст '{}' -> ID {}", row, cell_value, value);
-    //         }
-    //     }
-    // }
+    apply_key_value_data(utbl, &ref_map, column_to_index(&args.src_col), column_to_index(&args.dest_col));
 
-    // // 5. Запазване на промените
-    // if args.inplace {
-    //     let _ = writer::xlsx::write(&book, path).expect("Грешка при запис");
-    //     println!("Готово! Резултатът е записан в '{}'", args.file);
-    // } else {
-    //     let new_file = format!("{}_new.xlsx", args.file.trim_end_matches(".xlsx"));
-    //     let _ = writer::xlsx::write(&book, std::path::Path::new(&new_file)).expect("Грешка при запис");
-    //     println!("Готово! Резултатът е записан в '{}'", new_file);
-    // }
+    // 5. Запазване на промените
+    if args.inplace {
+        let _ = writer::xlsx::write(&book, path).expect("Unable to write the file");
+        println!("Done! The result is saved in '{}'", args.file);
+    } else {
+        let new_file = format!("{}_new.xlsx", args.file.trim_end_matches(".xlsx"));
+        let _ = writer::xlsx::write(&book, std::path::Path::new(&new_file)).expect("Unable to write the file");
+        println!("Done! The result is saved in '{}'", new_file);
+    }
 }
