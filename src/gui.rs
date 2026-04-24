@@ -1,5 +1,6 @@
 use eframe::{egui, NativeOptions};
 use rexcell::get_worksheet_names_string;
+use rfd::FileDialog;
 use umya_spreadsheet::reader;
 
 struct GuiApp {
@@ -33,7 +34,11 @@ impl GuiApp {
                 ui.label("File:");
                 ui.text_edit_singleline(&mut self.path);
                 if ui.button("Browse").clicked() {
-                    // Placeholder for file selection.
+                    if let Some(path_buf) = FileDialog::new().pick_file() {
+                        if let Some(path_str) = path_buf.to_str() {
+                            self.path = path_str.to_string();
+                        }
+                    }
                 }
             });
 

@@ -7,6 +7,7 @@ edition = "2024"
 umya-spreadsheet = "2.2.0"
 clap = { version = "4.0", features = ["derive"] }
 eframe = "0.27"
+rfd = "0.12"
 [[bin]]
 name = "gui"
 path = "src/gui.rs"
