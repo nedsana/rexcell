@@ -1,13 +1,18 @@
 use umya_spreadsheet::*;
 use clap::Parser;
+use rexcell::*;
 
 #[derive(Parser)]
 #[command(name = "rexcell")]
 #[command(about = "Process an Excel file using unique IDs")]
 struct Args {
-    /// Path to the Excel file
-    #[arg(short, long, default_value = "data.xlsx")]
-    file: String,
+    /// Path to the Excel file, which will be updated
+    #[arg(short = 't', long = "target-file", default_value = "data.xlsx")]
+    target_file: String,
+
+    /// Path to the Excel file, where the reference data is stored. Can be the same as the target file.
+    #[arg(short = 'r', long = "reference-file", default_value = "data.xlsx")]
+    reference_file: String,
 
     /// Column to search for duplicate text
     #[arg(short = 's', long = "src-col", default_value = "C")]
@@ -22,7 +27,7 @@ struct Args {
     inplace: bool,
 
     /// reference table
-    #[arg(short = 'r', long = "ref", default_value = "")]
+    #[arg(short = 'e', long = "reference-sheet", default_value = "")]
     ref_table: String,
 
     /// reference table key column
@@ -34,7 +39,7 @@ struct Args {
     ref_col_value: String,
 
     /// update table
-    #[arg(short = 'u', long = "upd", default_value = "")]
+    #[arg(short = 'u', long = "update-sheet", default_value = "")]
     upd_table: String,
 
     /// list the worksheets in the file
@@ -42,69 +47,14 @@ struct Args {
     list_sheets: bool,
 }
 
-fn column_to_index(col: &str) -> u32 {
-    let mut index = 0;
-    for c in col.chars() {
-        index = index * 26 + (c.to_ascii_uppercase() as u32 - 'A' as u32 + 1);
-    }
-    index
-}
-
-fn get_ref_map(sheet: &Worksheet, col_key:u32, col_value: u32) -> std::collections::HashMap<String, String> {
-    let mut ref_map: std::collections::HashMap<String, String> = std::collections::HashMap::new();
-
-    for row in 1..=sheet.get_highest_row() {
-        let cell_key = sheet.get_value((col_key, row));
-        let cell_value = sheet.get_value((col_value, row));
-        
-        //invert: use the value as key
-        if !cell_value.is_empty() && !cell_key.is_empty() {
-            ref_map.insert(cell_value.clone(), cell_key.clone());
-            // println!("Raw {} '{}:{}'", row, cell_value, cell_key);
-        }
-    }
-    ref_map
-}
-
-fn apply_key_value_data(sheet: &mut Worksheet, ref_map: &std::collections::HashMap<String, String>, src_col: u32, dest_col: u32) -> Result<usize, String> {
-    let mut applied = 0;
-
-    for row in 1..=sheet.get_highest_row() {
-        let cell_value = sheet.get_value((src_col, row));
-        
-        if !cell_value.is_empty() {
-            if let Some(value) = ref_map.get(&cell_value) {
-                sheet.get_cell_mut((dest_col, row)).set_value(value.clone());
-                applied += 1;
-                // println!("Row {}: '{}' -> ID {}", row, cell_value, value);
-            } else {
-                println!("Unable to find {} in ref_map!", cell_value);
-            }
-        }
-    }
-
-    if applied == 0 {
-        Err("No key-value mapping was applied".to_string())
-    } else {
-        Ok(applied)
-    }
-}
-
-fn get_worksheet_names_list(book: & Spreadsheet) -> Vec<String> {
-    let sheets = book.get_sheet_collection();
-    sheets.iter().map(|s| s.get_name().to_string()).collect()
-}
-
-fn get_worksheet_names_string(book: & Spreadsheet) -> String {
-    get_worksheet_names_list(book).join(", ")
-}
+// cargo run --bin rexcell -- -t ../../Test_Twins.xlsx -e "Ед. Цени" -u "Ф200" -k B -v C -s C -d B -i
 
 fn main() {
     let args = Args::parse();
 
     // Load the Excel file
-    let path = std::path::Path::new(&args.file);
-    let mut book: Spreadsheet = reader::xlsx::read(path).expect("Can't read the file");
+    let target_path = std::path::Path::new(&args.target_file);
+    let mut book: Spreadsheet = reader::xlsx::read(target_path).expect("Can't read the file");
 
     if args.list_sheets {
         println!("{}", get_worksheet_names_string(&book)); 
@@ -134,10 +84,10 @@ fn main() {
 
         // Save changes
         if args.inplace {
-            let _ = writer::xlsx::write(&book, path).expect("Unable to write the file");
-            println!("Done! The result is saved in '{}'", args.file);
+            let _ = writer::xlsx::write(&book, target_path).expect("Unable to write the file");
+            println!("Done! The result is saved in '{}'", args.target_file);
         } else {
-            let new_file = format!("{}_new.xlsx", args.file.trim_end_matches(".xlsx"));
+            let new_file = format!("{}_new.xlsx", args.target_file.trim_end_matches(".xlsx"));
             let _ = writer::xlsx::write(&book, std::path::Path::new(&new_file)).expect("Unable to write the file");
             println!("Done! The result is saved in '{}'", new_file);
         }        
