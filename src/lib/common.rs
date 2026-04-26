@@ -60,8 +60,7 @@ pub const CMD_ARG_UPDATE: &str = "-u";
 pub const CMD_ARG_REFERENCE_SHEET: &str = "-e";
 pub const CMD_ARG_KEY: &str = "-k";
 pub const CMD_ARG_VALUE: &str = "-v";
-
-
+pub const CMD_ARG_INPLACE: &str = "-i";
 
 
 pub const DEFAULT_BOOL_FALSE: &str = "false";
@@ -75,6 +74,7 @@ pub const ERROR_CANT_READ_FILE: &str = "Can't read the file";
 pub const ERROR_REFERENCE_SHEET_NOT_FOUND: &str = "The reference sheet is not found";
 pub const ERROR_UPDATE_SHEET_NOT_FOUND: &str = "The update sheet is not found";
 pub const ERROR_UNABLE_TO_WRITE_FILE: &str = "Unable to write the file";
+pub const ERROR_MULTIPLE_REF_SHEETS: &str = "Multiple reference sheets provided!";
 pub const MESSAGE_NO_KEY_VALUE_MAPPING: &str = "No key-value mapping was applied";
 pub const MESSAGE_APPLIED_MAPPINGS: &str = "Applied {} key-value mapping(s).";
 pub const MESSAGE_DONE_SAVED: &str = "Done! The result is saved in '{}'";

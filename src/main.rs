@@ -3,7 +3,7 @@ use clap::Parser;
 use rexcell::*;
 use rexcell::common;
 
-#[derive(Parser)]
+#[derive(Parser, Debug)]
 #[command(name = common::APP_NAME)]
 #[command(about = common::APP_ABOUT)]
 struct Args {
@@ -45,18 +45,34 @@ struct Args {
 // cargo run --bin rexcell -- -t ../../Test_Twins.xlsx -e "Ед. Цени" -u "Ф200" -k B -v C -s C -d B -i
 
 fn main() {
-    let args = Args::parse();
+    let raw_args: Vec<_> = std::env::args_os().collect();
+    println!("cmdline args: {:?}", raw_args);
 
-    // Load the Excel file
-    let target_path = std::path::Path::new(&args.target_file);
-    let mut book: Spreadsheet = reader::xlsx::read(target_path).expect(common::ERROR_CANT_READ_FILE);
+    std::panic::set_hook(Box::new(move |info| {
+        eprintln!("Panic! cmdline args: {:?}", raw_args);
+        eprintln!("{}", info);
+    }));
+
+    let args = Args::parse();
+    println!("parsed args: {:?}", args);
 
     if args.list_sheets {
-        println!("{}", get_worksheet_names_string(&book)); 
+        // Load the update Excel file
+        let target_path = std::path::Path::new(&args.target_file);
+        let bk: Spreadsheet = reader::xlsx::read(target_path).expect(common::ERROR_CANT_READ_FILE);
+        println!("{}", get_worksheet_names_string(&bk)); 
     }
     else {
+        // Load the reference Excel file
+        let ref_path = std::path::Path::new(&args.reference_file);
+        let rbook: Spreadsheet = reader::xlsx::read(ref_path).expect(common::ERROR_CANT_READ_FILE);
+
+        // Load the update Excel file
+        let target_path = std::path::Path::new(&args.target_file);
+        let mut ubook: Spreadsheet = reader::xlsx::read(target_path).expect(common::ERROR_CANT_READ_FILE);
+
         // Get the reference sheet
-        let rtbl = book.get_sheet_by_name(&args.ref_table).expect(common::ERROR_REFERENCE_SHEET_NOT_FOUND);
+        let rtbl = rbook.get_sheet_by_name(&args.ref_table).expect(common::ERROR_REFERENCE_SHEET_NOT_FOUND);
 
         // Get the key-value entries from the reference table
         use std::collections::HashMap;
@@ -65,7 +81,7 @@ fn main() {
                                                     column_to_index(&args.ref_col_value));
         
         // Get the update sheet
-        let utbl = book.get_sheet_by_name_mut(&args.upd_table).expect(common::ERROR_UPDATE_SHEET_NOT_FOUND);
+        let utbl = ubook.get_sheet_by_name_mut(&args.upd_table).expect(common::ERROR_UPDATE_SHEET_NOT_FOUND);
 
         let applied = apply_key_value_data(
             utbl,
@@ -79,11 +95,11 @@ fn main() {
 
         // Save changes
         if args.inplace {
-            let _ = writer::xlsx::write(&book, target_path).expect(common::ERROR_UNABLE_TO_WRITE_FILE);
+            let _ = writer::xlsx::write(&ubook, target_path).expect(common::ERROR_UNABLE_TO_WRITE_FILE);
             println!("{}", common::formatted_done_saved(&args.target_file));
         } else {
             let new_file = format!("{}{}", args.target_file.trim_end_matches(common::XLSX_EXTENSION), common::NEW_FILE_SUFFIX);
-            let _ = writer::xlsx::write(&book, std::path::Path::new(&new_file)).expect(common::ERROR_UNABLE_TO_WRITE_FILE);
+            let _ = writer::xlsx::write(&ubook, std::path::Path::new(&new_file)).expect(common::ERROR_UNABLE_TO_WRITE_FILE);
             println!("{}", common::formatted_done_saved(&new_file));
         }        
     }
