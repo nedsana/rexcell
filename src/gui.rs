@@ -58,6 +58,27 @@ impl Default for GuiApp {
 }
 
 impl GuiApp {
+
+    fn get_sheets_list(&mut self, file_path: &str) -> Result<String, String> {
+        let mut cmd = Command::new(common::CMD_PATH);
+        cmd.args([
+            common::CMD_ARG_TARGET,
+            file_path,
+            common::ARG_LONG_LIST_SHEETS
+        ]);
+
+        match cmd.output() {
+            Ok(output) => {
+                if output.status.success() {
+                    Ok(String::from_utf8_lossy(&output.stdout).into_owned())
+                } else {
+                    Err(String::from_utf8_lossy(&output.stderr).into_owned())
+                }
+            }
+            Err(err) => Err(format!("{}{}", common::ERROR_FAILED_TO_SPAWN_REXCELL, err)),
+        }
+    }
+
     fn draw_target_section(&mut self, ui: &mut egui::Ui) {
         egui::Frame::group(ui.style()).show(ui, |ui| {
             ui.label(common::TGT_FILE_HELP);
@@ -69,6 +90,10 @@ impl GuiApp {
                     if let Some(path_buf) = FileDialog::new().pick_file() {
                         if let Some(path_str) = path_buf.to_str() {
                             self.target_section.path = path_str.to_string();
+                            self.get_sheets_list(path_str)
+                                .map(|sheets| self.target_section.update_sheet = sheets)
+                                .map_err(|err| self.error = err)
+                                .ok();
                         }
                     }
                 }
@@ -99,6 +124,10 @@ impl GuiApp {
                     if let Some(path_buf) = FileDialog::new().pick_file() {
                         if let Some(path_str) = path_buf.to_str() {
                             self.reference_section.path = path_str.to_string();
+                            self.get_sheets_list(path_str)
+                                .map(|sheets| self.reference_section.reference_sheet = sheets)
+                                .map_err(|err| self.error = err)
+                                .ok();
                         }
                     }
                 }
