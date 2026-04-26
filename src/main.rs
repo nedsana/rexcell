@@ -1,49 +1,44 @@
 use umya_spreadsheet::*;
 use clap::Parser;
 use rexcell::*;
+use rexcell::common;
 
 #[derive(Parser)]
-#[command(name = "rexcell")]
-#[command(about = "Process an Excel file using unique IDs")]
+#[command(name = common::APP_NAME)]
+#[command(about = common::APP_ABOUT)]
 struct Args {
-    /// Path to the Excel file, which will be updated
-    #[arg(short = 't', long = "target-file", default_value = "data.xlsx")]
+    #[arg(short = 't', long = common::ARG_LONG_TARGET_FILE, default_value = common::TGT_DEFAULT_EXCEL_FILE, help = common::TGT_FILE_HELP)]
     target_file: String,
-
-    /// Path to the Excel file, where the reference data is stored. Can be the same as the target file.
-    #[arg(short = 'r', long = "reference-file", default_value = "data.xlsx")]
-    reference_file: String,
-
-    /// Column to search for duplicate text
-    #[arg(short = 's', long = "src-col", default_value = "C")]
-    src_col: String,
-
-    /// Column to write unique IDs into
-    #[arg(short = 'd', long = "dest-col", default_value = "B")]
-    dest_col: String,
-
-    /// Overwrite the input file instead of creating a new one
-    #[arg(short = 'i', long = "inplace", default_value = "false")]
-    inplace: bool,
-
-    /// reference table
-    #[arg(short = 'e', long = "reference-sheet", default_value = "")]
-    ref_table: String,
-
-    /// reference table key column
-    #[arg(short = 'k', long = "key-col", default_value = "B")]
-    ref_col_key: String,
-
-    /// reference table value column
-    #[arg(short = 'v', long = "value-col", default_value = "C")]
-    ref_col_value: String,
-
-    /// update table
-    #[arg(short = 'u', long = "update-sheet", default_value = "")]
+    
+    #[arg(short = 'u', long = common::ARG_LONG_UPDATE_SHEET, default_value = common::TGT_DEFAULT_TABLE, help = common::TGT_UPDATE_SHEET_HELP)]
     upd_table: String,
 
-    /// list the worksheets in the file
-    #[arg(short = 'l', long = "list-sheets", default_value = "false")]
+    #[arg(short = 's', long = common::ARG_LONG_SRC_COL, default_value = common::TGT_DEFAULT_SRC_COL, help = common::TGT_SRC_COL_HELP)]
+    src_col: String,
+
+    #[arg(short = 'd', long = common::ARG_LONG_DEST_COL, default_value = common::TGT_DEFAULT_DST_COL, help = common::TGT_DEST_COL_HELP)]
+    dest_col: String,
+
+
+
+    #[arg(short = 'r', long = common::ARG_LONG_REFERENCE_FILE, default_value = common::REF_DEFAULT_EXCEL_FILE, help = common::REF_FILE_HELP)]
+    reference_file: String,
+
+    #[arg(short = 'e', long = common::ARG_LONG_REFERENCE_SHEET, default_value = common::REF_DEFAULT_TABLE, help = common::REF_SHEET_HELP)]
+    ref_table: String,
+
+    #[arg(short = 'k', long = common::ARG_LONG_KEY_COL, default_value = common::REF_DEFAULT_KEY_COL, help = common::REF_KEY_COL_HELP)]
+    ref_col_key: String,
+
+    #[arg(short = 'v', long = common::ARG_LONG_VALUE_COL, default_value = common::REF_DEFAULT_VALUE_COL, help = common::REF_VALUE_COL_HELP)]
+    ref_col_value: String,
+
+
+
+    #[arg(short = 'i', long = common::ARG_LONG_INPLACE, default_value = common::DEFAULT_BOOL_FALSE, help = common::INPLACE_HELP)]
+    inplace: bool,
+
+    #[arg(short = 'l', long = common::ARG_LONG_LIST_SHEETS, default_value = common::DEFAULT_BOOL_FALSE, help = common::LIST_SHEETS_HELP)]
     list_sheets: bool,
 }
 
@@ -54,14 +49,14 @@ fn main() {
 
     // Load the Excel file
     let target_path = std::path::Path::new(&args.target_file);
-    let mut book: Spreadsheet = reader::xlsx::read(target_path).expect("Can't read the file");
+    let mut book: Spreadsheet = reader::xlsx::read(target_path).expect(common::ERROR_CANT_READ_FILE);
 
     if args.list_sheets {
         println!("{}", get_worksheet_names_string(&book)); 
     }
     else {
         // Get the reference sheet
-        let rtbl = book.get_sheet_by_name(&args.ref_table).expect("The reference sheet is not found");
+        let rtbl = book.get_sheet_by_name(&args.ref_table).expect(common::ERROR_REFERENCE_SHEET_NOT_FOUND);
 
         // Get the key-value entries from the reference table
         use std::collections::HashMap;
@@ -70,7 +65,7 @@ fn main() {
                                                     column_to_index(&args.ref_col_value));
         
         // Get the update sheet
-        let utbl = book.get_sheet_by_name_mut(&args.upd_table).expect("The update sheet is not found");
+        let utbl = book.get_sheet_by_name_mut(&args.upd_table).expect(common::ERROR_UPDATE_SHEET_NOT_FOUND);
 
         let applied = apply_key_value_data(
             utbl,
@@ -78,18 +73,18 @@ fn main() {
             column_to_index(&args.src_col),
             column_to_index(&args.dest_col),
         )
-        .expect("No key-value mapping was applied");
+        .expect(common::MESSAGE_NO_KEY_VALUE_MAPPING);
 
-        println!("Applied {} key-value mapping(s).", applied);
+        println!("{}", common::formatted_applied_mappings(applied));
 
         // Save changes
         if args.inplace {
-            let _ = writer::xlsx::write(&book, target_path).expect("Unable to write the file");
-            println!("Done! The result is saved in '{}'", args.target_file);
+            let _ = writer::xlsx::write(&book, target_path).expect(common::ERROR_UNABLE_TO_WRITE_FILE);
+            println!("{}", common::formatted_done_saved(&args.target_file));
         } else {
-            let new_file = format!("{}_new.xlsx", args.target_file.trim_end_matches(".xlsx"));
-            let _ = writer::xlsx::write(&book, std::path::Path::new(&new_file)).expect("Unable to write the file");
-            println!("Done! The result is saved in '{}'", new_file);
+            let new_file = format!("{}{}", args.target_file.trim_end_matches(common::XLSX_EXTENSION), common::NEW_FILE_SUFFIX);
+            let _ = writer::xlsx::write(&book, std::path::Path::new(&new_file)).expect(common::ERROR_UNABLE_TO_WRITE_FILE);
+            println!("{}", common::formatted_done_saved(&new_file));
         }        
     }
 }

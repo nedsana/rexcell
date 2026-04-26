@@ -1,28 +1,47 @@
 use eframe::{egui, NativeOptions};
 use rfd::FileDialog;
 use std::process::Command;
+use rexcell::common;
 
-struct SectionData {
+struct TargetData {
     path: String,
-    text_a: String,
-    text_b: String,
-    text_c: String,
+    update_sheet: String,
+    src_col: String,
+    dest_col: String,
 }
 
-impl Default for SectionData {
+impl Default for TargetData {
     fn default() -> Self {
         Self {
-            path: String::from("data.xlsx"),
-            text_a: String::new(),
-            text_b: String::new(),
-            text_c: String::new(),
+            path: String::from(common::TGT_DEFAULT_EXCEL_FILE),
+            update_sheet: String::from(common::TGT_DEFAULT_TABLE),
+            src_col: String::from(common::TGT_DEFAULT_SRC_COL),
+            dest_col: String::from(common::TGT_DEFAULT_DST_COL),
+        }
+    }
+}
+
+struct ReferencesData { 
+    path: String,
+    reference_sheet: String,
+    col_key: String,
+    col_value: String,
+}
+
+impl Default for ReferencesData {
+    fn default() -> Self {
+        Self {
+            path: String::from(common::REF_DEFAULT_EXCEL_FILE),
+            reference_sheet: String::from(common::REF_DEFAULT_TABLE),
+            col_key: String::from(common::REF_DEFAULT_KEY_COL),
+            col_value: String::from(common::REF_DEFAULT_VALUE_COL),
         }
     }
 }
 
 struct GuiApp {
-    target_section:SectionData,
-    reference_section: SectionData,
+    target_section: TargetData,
+    reference_section: ReferencesData,
     output_text: String,
     error: String,
 }
@@ -30,8 +49,8 @@ struct GuiApp {
 impl Default for GuiApp {
     fn default() -> Self {
         Self {
-            target_section: SectionData::default(),
-            reference_section: SectionData::default(),
+            target_section: TargetData::default(),
+            reference_section: ReferencesData::default(),
             output_text: String::new(),
             error: String::new(),
         }
@@ -41,12 +60,12 @@ impl Default for GuiApp {
 impl GuiApp {
     fn draw_target_section(&mut self, ui: &mut egui::Ui) {
         egui::Frame::group(ui.style()).show(ui, |ui| {
-            ui.label("File browser");
+            ui.label(common::TGT_FILE_HELP);
             ui.add_space(4.0);
             ui.horizontal(|ui| {
-                ui.label("File:");
+                ui.label(common::LABEL_FILE);
                 ui.text_edit_singleline(&mut self.target_section.path);
-                if ui.button("Browse").clicked() {
+                if ui.button(common::BUTTON_BROWSE).clicked() {
                     if let Some(path_buf) = FileDialog::new().pick_file() {
                         if let Some(path_str) = path_buf.to_str() {
                             self.target_section.path = path_str.to_string();
@@ -56,27 +75,27 @@ impl GuiApp {
             });
 
             ui.add_space(8.0);
-            ui.label("Target Text field 1");
-            ui.text_edit_singleline(&mut self.target_section.text_a);
+            ui.label(common::LIST_SHEETS_TO_UPDATE);
+            ui.text_edit_singleline(&mut self.target_section.update_sheet);
 
             ui.add_space(4.0);
-            ui.label("Target Text field 2");
-            ui.text_edit_singleline(&mut self.target_section.text_b);
+            ui.label(common::TGT_SRC_COL_HELP);
+            ui.text_edit_singleline(&mut self.target_section.src_col);
 
             ui.add_space(4.0);
-            ui.label("Target Text field 3");
-            ui.text_edit_singleline(&mut self.target_section.text_c);
+            ui.label(common::TGT_DEST_COL_HELP);
+            ui.text_edit_singleline(&mut self.target_section.dest_col);
         });
     }
 
     fn draw_reference_section(&mut self, ui: &mut egui::Ui) {
         egui::Frame::group(ui.style()).show(ui, |ui| {
-            ui.label("File browser");
+            ui.label(common::REF_FILE_HELP);
             ui.add_space(4.0);
             ui.horizontal(|ui| {
-                ui.label("File:");
+                ui.label(common::LABEL_FILE);
                 ui.text_edit_singleline(&mut self.reference_section.path);
-                if ui.button("Browse").clicked() {
+                if ui.button(common::BUTTON_BROWSE).clicked() {
                     if let Some(path_buf) = FileDialog::new().pick_file() {
                         if let Some(path_str) = path_buf.to_str() {
                             self.reference_section.path = path_str.to_string();
@@ -86,16 +105,16 @@ impl GuiApp {
             });
 
             ui.add_space(8.0);
-            ui.label("Reference Text field 1");
-            ui.text_edit_singleline(&mut self.reference_section.text_a);
+            ui.label(common::REF_SHEET_HELP);
+            ui.text_edit_singleline(&mut self.reference_section.reference_sheet);
 
             ui.add_space(4.0);
-            ui.label("Reference Text field 2");
-            ui.text_edit_singleline(&mut self.reference_section.text_b);
+            ui.label(common::REF_KEY_COL_HELP);
+            ui.text_edit_singleline(&mut self.reference_section.col_key);
 
             ui.add_space(4.0);
-            ui.label("Reference Text field 3");
-            ui.text_edit_singleline(&mut self.reference_section.text_c);
+            ui.label(common::REF_VALUE_COL_HELP);
+            ui.text_edit_singleline(&mut self.reference_section.col_value);
         });
     }
 }
@@ -104,8 +123,9 @@ impl eframe::App for GuiApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.vertical(|ui| {
-                ui.heading("rexcell GUI");
-                ui.label("The top section has two identical panels.");
+                ui.heading(common::WINDOW_TITLE);
+                // ui.label(common::PANEL_DESCRIPTION);
+
                 ui.add_space(8.0);
 
                 egui::Frame::group(ui.style()).show(ui, |ui| {
@@ -117,39 +137,28 @@ impl eframe::App for GuiApp {
 
                 ui.add_space(12.0);
 
-                egui::Frame::group(ui.style()).show(ui, |ui| {
-                    ui.label("Output text");
-                    ui.add_space(4.0);
-                    ui.add(
-                        egui::TextEdit::multiline(&mut self.output_text)
-                            .desired_rows(12)
-                            .desired_width(f32::INFINITY)
-                            .lock_focus(true),
-                    );
-                });
-
-                if ui.button("Load workbook").clicked() {
+                if ui.button(common::BUTTON_RUN_UPDATES).clicked() {
                     self.error.clear();
                     self.output_text.clear();
 
-                    let mut cmd = Command::new("target/debug/rexcell");
+                    let mut cmd = Command::new(common::CMD_PATH);
                     cmd.args([
-                        "-t",
+                        common::CMD_ARG_TARGET,
                         &self.target_section.path,
-                        "-r",
+                        common::CMD_ARG_REFERENCE,
                         &self.reference_section.path,
-                        "-s",
-                        &self.target_section.text_a,
-                        "-d",
-                        &self.target_section.text_b,
-                        "-u",
-                        &self.reference_section.text_a,
-                        "-e",
-                        &self.reference_section.text_b,
-                        "-k",
-                        &self.reference_section.text_c,
-                        "-v",
-                        "C",
+                        common::CMD_ARG_SRC,
+                        &self.target_section.src_col,
+                        common::CMD_ARG_DEST,
+                        &self.target_section.dest_col,
+                        common::CMD_ARG_UPDATE,
+                        &self.reference_section.reference_sheet,
+                        common::CMD_ARG_REFERENCE_SHEET,
+                        &self.reference_section.reference_sheet,
+                        common::CMD_ARG_KEY,
+                        &self.reference_section.col_key,
+                        common::CMD_ARG_VALUE,
+                        &self.reference_section.col_value,
                     ]);
 
                     match cmd.output() {
@@ -161,10 +170,23 @@ impl eframe::App for GuiApp {
                             }
                         }
                         Err(err) => {
-                            self.error = format!("Failed to spawn rexcell: {}", err);
+                            self.error = format!("{}{}", common::ERROR_FAILED_TO_SPAWN_REXCELL, err);
                         }
                     }
                 }
+
+                ui.add_space(12.0);
+
+                egui::Frame::group(ui.style()).show(ui, |ui| {
+                    ui.label(common::LABEL_EXECUTION_RESULT);
+                    ui.add_space(4.0);
+                    ui.add(
+                        egui::TextEdit::multiline(&mut self.output_text)
+                            .desired_rows(12)
+                            .desired_width(f32::INFINITY)
+                            .lock_focus(true),
+                    );
+                });
 
                 if !self.error.is_empty() {
                     ui.add_space(8.0);
@@ -177,8 +199,8 @@ impl eframe::App for GuiApp {
 
 fn main() {
     let options = NativeOptions::default();
-    eframe::run_native("rexcell GUI", options, 
-        Box::new(|_cc| Box::new(GuiApp::default()))).expect("Failed to start GUI");
+    eframe::run_native(common::WINDOW_TITLE, options, 
+        Box::new(|_cc| Box::new(GuiApp::default()))).expect(common::ERROR_FAILED_TO_START_GUI);
 }
 
 // cargo run --bin gui
