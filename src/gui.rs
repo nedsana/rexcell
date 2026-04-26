@@ -1,7 +1,6 @@
 use eframe::{egui, NativeOptions};
-use rexcell::get_worksheet_names_string;
 use rfd::FileDialog;
-use umya_spreadsheet::reader;
+use std::process::Command;
 
 struct SectionData {
     path: String,
@@ -133,13 +132,36 @@ impl eframe::App for GuiApp {
                     self.error.clear();
                     self.output_text.clear();
 
-                    let path = std::path::Path::new(&self.target_section.path);
-                    match reader::xlsx::read(path) {
-                        Ok(book) => {
-                            self.output_text = get_worksheet_names_string(&book);
+                    let mut cmd = Command::new("target/debug/rexcell");
+                    cmd.args([
+                        "-t",
+                        &self.target_section.path,
+                        "-r",
+                        &self.reference_section.path,
+                        "-s",
+                        &self.target_section.text_a,
+                        "-d",
+                        &self.target_section.text_b,
+                        "-u",
+                        &self.reference_section.text_a,
+                        "-e",
+                        &self.reference_section.text_b,
+                        "-k",
+                        &self.reference_section.text_c,
+                        "-v",
+                        "C",
+                    ]);
+
+                    match cmd.output() {
+                        Ok(output) => {
+                            if output.status.success() {
+                                self.output_text = String::from_utf8_lossy(&output.stdout).into_owned();
+                            } else {
+                                self.error = String::from_utf8_lossy(&output.stderr).into_owned();
+                            }
                         }
                         Err(err) => {
-                            self.error = format!("Failed to load workbook: {}", err);
+                            self.error = format!("Failed to spawn rexcell: {}", err);
                         }
                     }
                 }
