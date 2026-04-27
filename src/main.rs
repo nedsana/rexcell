@@ -46,7 +46,6 @@ struct Args {
 
 fn main() {
     let raw_args: Vec<_> = std::env::args_os().collect();
-    println!("cmdline args: {:?}", raw_args);
 
     std::panic::set_hook(Box::new(move |info| {
         eprintln!("Panic! cmdline args: {:?}", raw_args);
@@ -54,7 +53,6 @@ fn main() {
     }));
 
     let args = Args::parse();
-    println!("parsed args: {:?}", args);
 
     if args.list_sheets {
         // Load the update Excel file
@@ -79,19 +77,20 @@ fn main() {
         let ref_map: HashMap<String, String> = get_ref_map(&rtbl, 
                                                     column_to_index(&args.ref_col_key), 
                                                     column_to_index(&args.ref_col_value));
-        
-        // Get the update sheet
-        let utbl = ubook.get_sheet_by_name_mut(&args.upd_table).expect(common::ERROR_UPDATE_SHEET_NOT_FOUND);
 
-        let applied = apply_key_value_data(
-            utbl,
-            &ref_map,
-            column_to_index(&args.src_col),
-            column_to_index(&args.dest_col),
-        )
-        .expect(common::MESSAGE_NO_KEY_VALUE_MAPPING);
+        for utbln in args.upd_table.split(',') {
+            // Get the update sheet
+            let utbl = ubook.get_sheet_by_name_mut(&utbln).expect(common::ERROR_UPDATE_SHEET_NOT_FOUND);
 
-        println!("{}", common::formatted_applied_mappings(applied));
+            let applied = apply_key_value_data(
+                utbl,
+                &ref_map,
+                column_to_index(&args.src_col),
+                column_to_index(&args.dest_col),
+            ).expect(common::MESSAGE_NO_KEY_VALUE_MAPPING);
+
+            println!("{}", common::formatted_applied_mappings(applied));
+        }
 
         // Save changes
         if args.inplace {

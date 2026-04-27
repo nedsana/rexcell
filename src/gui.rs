@@ -173,43 +173,39 @@ impl eframe::App for GuiApp {
                     let ref_sheets: Vec<String> = self.reference_section.reference_sheet.split(',').map(str::trim).map(String::from).collect();
                     
                     if 1 == ref_sheets.len() {
-                        // self.target_section.update_sheet
-                        for update_sheet in self.target_section.update_sheet.split(',') {
+                        let mut cmd = Command::new(common::CMD_PATH);
+                        cmd.args([
+                            common::CMD_ARG_TARGET,
+                            &self.target_section.path,
+                            common::CMD_ARG_REFERENCE,
+                            &self.reference_section.path,
+                            common::CMD_ARG_SRC,
+                            &self.target_section.src_col,
+                            common::CMD_ARG_DEST,
+                            &self.target_section.dest_col,
+                            common::CMD_ARG_UPDATE,
+                            &self.target_section.update_sheet,
+                            common::CMD_ARG_REFERENCE_SHEET,
+                            &self.reference_section.reference_sheet,
+                            common::CMD_ARG_KEY,
+                            &self.reference_section.col_key,
+                            common::CMD_ARG_VALUE,
+                            &self.reference_section.col_value,
+                            common::CMD_ARG_INPLACE
+                        ]);
 
-                            let mut cmd = Command::new(common::CMD_PATH);
-                            cmd.args([
-                                common::CMD_ARG_TARGET,
-                                &self.target_section.path,
-                                common::CMD_ARG_REFERENCE,
-                                &self.reference_section.path,
-                                common::CMD_ARG_SRC,
-                                &self.target_section.src_col,
-                                common::CMD_ARG_DEST,
-                                &self.target_section.dest_col,
-                                common::CMD_ARG_UPDATE,
-                                &update_sheet,
-                                common::CMD_ARG_REFERENCE_SHEET,
-                                &self.reference_section.reference_sheet,
-                                common::CMD_ARG_KEY,
-                                &self.reference_section.col_key,
-                                common::CMD_ARG_VALUE,
-                                &self.reference_section.col_value,
-                                common::CMD_ARG_INPLACE
-                            ]);
+                        // println!("Command: {:?}", cmd);
 
-                            // println!("Command: {:?}", cmd);
-
-                            match cmd.output() {
-                                Ok(output) => {
-                                    if output.status.success() {
-                                        self.output_text = String::from_utf8_lossy(&output.stdout).into_owned();
-                                    } else {
-                                        self.error = String::from_utf8_lossy(&output.stderr).into_owned();
-                                    }
+                        match cmd.output() {
+                            Ok(output) => {
+                                if output.status.success() {
+                                    self.output_text = String::from_utf8_lossy(&output.stdout).into_owned();
+                                } else {
+                                    self.error = String::from_utf8_lossy(&output.stderr).into_owned();
                                 }
-                                Err(err) => {
-                                    self.error = format!("{}{}", common::ERROR_FAILED_TO_SPAWN_REXCELL, err);
-                                }
+                            }
+                            Err(err) => {
+                                self.error = format!("{}{}", common::ERROR_FAILED_TO_SPAWN_REXCELL, err);
                             }
                         }
                     }
