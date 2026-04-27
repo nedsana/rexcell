@@ -75,8 +75,8 @@ pub const ERROR_REFERENCE_SHEET_NOT_FOUND: &str = "The reference sheet is not fo
 pub const ERROR_UPDATE_SHEET_NOT_FOUND: &str = "The update sheet is not found";
 pub const ERROR_UNABLE_TO_WRITE_FILE: &str = "Unable to write the file";
 pub const ERROR_MULTIPLE_REF_SHEETS: &str = "Multiple reference sheets provided!";
-pub const MESSAGE_NO_KEY_VALUE_MAPPING: &str = "No key-value mapping was applied";
-pub const MESSAGE_APPLIED_MAPPINGS: &str = "Applied {} key-value mapping(s).";
+pub const MESSAGE_NO_KEY_VALUE_MAPPING: &str = "No key-value mapping was applied!";
+pub const MESSAGE_APPLIED_MAPPINGS: &str = "Updated {} lines in table/sheet {}!";
 pub const MESSAGE_DONE_SAVED: &str = "Done! The result is saved in '{}'";
 
 pub fn formatted_applied_mappings(applied: usize) -> String {

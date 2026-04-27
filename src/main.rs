@@ -74,22 +74,16 @@ fn main() {
 
         // Get the key-value entries from the reference table
         use std::collections::HashMap;
-        let ref_map: HashMap<String, String> = get_ref_map(&rtbl, 
-                                                    column_to_index(&args.ref_col_key), 
-                                                    column_to_index(&args.ref_col_value));
+        let ref_map: HashMap<String, String> = get_ref_map_by_strings(&rtbl, &args.ref_col_key, &args.ref_col_value);
 
         for utbln in args.upd_table.split(',') {
             // Get the update sheet
             let utbl = ubook.get_sheet_by_name_mut(&utbln).expect(common::ERROR_UPDATE_SHEET_NOT_FOUND);
 
-            let applied = apply_key_value_data(
-                utbl,
-                &ref_map,
-                column_to_index(&args.src_col),
-                column_to_index(&args.dest_col),
-            ).expect(common::MESSAGE_NO_KEY_VALUE_MAPPING);
+            let applied = apply_key_value_data_by_strings(utbl, &ref_map, &args.src_col, &args.dest_col).expect(common::MESSAGE_NO_KEY_VALUE_MAPPING);
 
-            println!("{}", common::formatted_applied_mappings(applied));
+            println!("Updated {} lines in table/sheet '{}'!", applied, utbln);
+            println!("");
         }
 
         // Save changes
