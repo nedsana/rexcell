@@ -96,3 +96,48 @@ pub fn get_worksheet_names(path: &std::path::Path) -> String {
     let bk: Spreadsheet = reader::xlsx::read(path).expect(common::ERROR_CANT_READ_FILE);
     get_worksheet_names_string(&bk) 
 }
+
+pub fn execute(cfg: &common::Config) -> Result<usize, String> {
+    // Load the reference Excel file
+    let ref_path = std::path::Path::new(&cfg.ref_file);
+    let rbook: Spreadsheet = reader::xlsx::read(ref_path).expect(common::ERROR_CANT_READ_FILE);
+
+    // Load the update Excel file
+    let target_path = std::path::Path::new(&cfg.tgt_file);
+    let mut ubook: Spreadsheet = reader::xlsx::read(target_path).expect(common::ERROR_CANT_READ_FILE);
+
+    // Get the reference sheet
+    let rtbl = rbook.get_sheet_by_name(&cfg.ref_table).expect(common::ERROR_REFERENCE_SHEET_NOT_FOUND);
+
+    // Get the key-value entries from the reference table
+    use std::collections::HashMap;
+    let ref_map: HashMap<String, String> = get_ref_map_by_strings(&rtbl, &cfg.ref_col_key, &cfg.ref_col_value);
+
+    let mut applied: usize = 0;
+    for utbln in cfg.tgt_upd_table.split(',') {
+        // Get the update sheet
+        let utbl = ubook.get_sheet_by_name_mut(&utbln).expect(common::ERROR_UPDATE_SHEET_NOT_FOUND);
+
+        applied += apply_key_value_data_by_strings(utbl, &ref_map, &cfg.tgt_src_col, &cfg.tgt_dest_col).expect(common::MESSAGE_NO_KEY_VALUE_MAPPING);
+
+        // println!("Updated {} lines in table/sheet '{}'!", applied, utbln);
+    }
+
+    if applied > 0 {
+        // Save changes
+        if cfg.inplace {
+            let _ = writer::xlsx::write(&ubook, target_path).expect(common::ERROR_UNABLE_TO_WRITE_FILE);
+        } else {
+            let new_file = format!("{}{}", cfg.tgt_file.trim_end_matches(common::XLSX_EXTENSION), common::NEW_FILE_SUFFIX);
+            let _ = writer::xlsx::write(&ubook, std::path::Path::new(&new_file)).expect(common::ERROR_UNABLE_TO_WRITE_FILE);
+        }
+    }
+
+    // format!("Applied {} key-value mapping(s).", applied)
+
+    if applied == 0 {
+        Err(common::ERROR_NO_ROWS_UPDATED.to_string())
+    } else {
+        Ok(applied)
+    }
+}

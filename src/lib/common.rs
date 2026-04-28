@@ -75,10 +75,27 @@ pub const ERROR_REFERENCE_SHEET_NOT_FOUND: &str = "The reference sheet is not fo
 pub const ERROR_UPDATE_SHEET_NOT_FOUND: &str = "The update sheet is not found";
 pub const ERROR_UNABLE_TO_WRITE_FILE: &str = "Unable to write the file";
 pub const ERROR_MULTIPLE_REF_SHEETS: &str = "Multiple reference sheets provided!";
+pub const ERROR_NO_ROWS_UPDATED: &str = "No rows updated!";
 pub const MESSAGE_NO_KEY_VALUE_MAPPING: &str = "No key-value mapping was applied!";
 pub const MESSAGE_APPLIED_MAPPINGS: &str = "Updated {} lines in table/sheet {}!";
 pub const MESSAGE_DONE_SAVED: &str = "Done! The result is saved in '{}'";
 pub const NO_SHEETS_FOUND: &str = "No sheets found in the file";
+
+
+pub struct Config {
+    pub tgt_file: String,
+    pub tgt_upd_table: String,
+    pub tgt_src_col: String,
+    pub tgt_dest_col: String,
+    
+    pub ref_file: String,
+    pub ref_table: String,
+    pub ref_col_key: String,
+    pub ref_col_value: String,
+    
+    pub inplace: bool,
+    pub list_sheets: bool,
+}
 
 pub fn formatted_applied_mappings(applied: usize) -> String {
     format!("Applied {} key-value mapping(s).", applied)

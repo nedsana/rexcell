@@ -1,6 +1,6 @@
 use eframe::{egui, NativeOptions};
 use rfd::FileDialog;
-use std::process::Command;
+// use std::process::Command;
 use rexcell::common;
 
 struct TargetData {
@@ -58,7 +58,8 @@ impl Default for GuiApp {
 }
 
 impl GuiApp {
-/*     #[warn(dead_code)]
+/*
+    #[warn(dead_code)]
     fn get_sheets_list_cmd(&mut self, file_path: &str) -> Result<String, String> {
         let mut cmd = Command::new(common::CMD_PATH);
         cmd.args([
@@ -157,6 +158,8 @@ impl GuiApp {
     }
 }
 
+/*
+#[warn(dead_code)]
 impl eframe::App for GuiApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default().show(ctx, |ui| {
@@ -217,6 +220,75 @@ impl eframe::App for GuiApp {
                                 self.error = format!("{}{}", common::ERROR_FAILED_TO_SPAWN_REXCELL, err);
                             }
                         }
+                    }
+                    else
+                    {
+                        self.error = String::from(common::ERROR_MULTIPLE_REF_SHEETS);
+                    }
+                }
+
+                ui.add_space(12.0);
+
+                egui::Frame::group(ui.style()).show(ui, |ui| {
+                    ui.label(common::LABEL_EXECUTION_RESULT);
+                    ui.add_space(4.0);
+                    ui.add(
+                        egui::TextEdit::multiline(&mut self.output_text)
+                            .desired_rows(16)
+                            .desired_width(f32::INFINITY)
+                            .lock_focus(true),
+                    );
+                });
+
+                if !self.error.is_empty() {
+                    ui.add_space(8.0);
+                    ui.colored_label(egui::Color32::RED, &self.error);
+                }
+            });
+        });
+    }
+}
+*/
+
+impl eframe::App for GuiApp {
+    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        egui::CentralPanel::default().show(ctx, |ui| {
+            ui.vertical(|ui| {
+                ui.heading(common::WINDOW_TITLE);
+                // ui.label(common::PANEL_DESCRIPTION);
+
+                ui.add_space(8.0);
+
+                egui::Frame::group(ui.style()).show(ui, |ui| {
+                    ui.columns(2, |columns| {
+                        self.draw_target_section(&mut columns[0]);
+                        self.draw_reference_section(&mut columns[1]);
+                    });
+                });
+
+                ui.add_space(12.0);
+
+                if ui.button(common::BUTTON_RUN_UPDATES).clicked() {
+                    self.error.clear();
+                    self.output_text.clear();
+
+                    let ref_sheets: Vec<String> = self.reference_section.reference_sheet.split(',').map(str::trim).map(String::from).collect();
+                    
+                    if 1 == ref_sheets.len() {
+                        let cfg: common::Config = common::Config {
+                            tgt_file: self.target_section.path.clone(), 
+                            tgt_upd_table: self.target_section.update_sheet.clone(),
+                            tgt_src_col: self.target_section.src_col.clone(),
+                            tgt_dest_col: self.target_section.dest_col.clone(),
+                            ref_file: self.reference_section.path.clone(),
+                            ref_table: self.reference_section.reference_sheet.clone(),
+                            ref_col_key: self.reference_section.col_key.clone(),
+                            ref_col_value: self.reference_section.col_value.clone(),
+                            inplace: false,
+                            list_sheets: false,
+                        };
+
+                        rexcell::execute(&cfg);
                     }
                     else
                     {
