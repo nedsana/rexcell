@@ -78,6 +78,7 @@ pub const ERROR_MULTIPLE_REF_SHEETS: &str = "Multiple reference sheets provided!
 pub const MESSAGE_NO_KEY_VALUE_MAPPING: &str = "No key-value mapping was applied!";
 pub const MESSAGE_APPLIED_MAPPINGS: &str = "Updated {} lines in table/sheet {}!";
 pub const MESSAGE_DONE_SAVED: &str = "Done! The result is saved in '{}'";
+pub const NO_SHEETS_FOUND: &str = "No sheets found in the file";
 
 pub fn formatted_applied_mappings(applied: usize) -> String {
     format!("Applied {} key-value mapping(s).", applied)

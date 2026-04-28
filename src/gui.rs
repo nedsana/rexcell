@@ -58,8 +58,8 @@ impl Default for GuiApp {
 }
 
 impl GuiApp {
-
-    fn get_sheets_list(&mut self, file_path: &str) -> Result<String, String> {
+/*     #[warn(dead_code)]
+    fn get_sheets_list_cmd(&mut self, file_path: &str) -> Result<String, String> {
         let mut cmd = Command::new(common::CMD_PATH);
         cmd.args([
             common::CMD_ARG_TARGET,
@@ -76,6 +76,15 @@ impl GuiApp {
                 }
             }
             Err(err) => Err(format!("{}{}", common::ERROR_FAILED_TO_SPAWN_REXCELL, err)),
+        }
+    } */
+
+    fn get_sheets_list(&mut self, file_path: &str) -> Result<String, String> {
+        let names = rexcell::get_worksheet_names(std::path::Path::new(&file_path));
+        if names.len() > 0 {
+            Ok(names)
+        } else {
+            Err(format!("{} {}", common::NO_SHEETS_FOUND, file_path))
         }
     }
 
@@ -222,7 +231,7 @@ impl eframe::App for GuiApp {
                     ui.add_space(4.0);
                     ui.add(
                         egui::TextEdit::multiline(&mut self.output_text)
-                            .desired_rows(12)
+                            .desired_rows(16)
                             .desired_width(f32::INFINITY)
                             .lock_focus(true),
                     );

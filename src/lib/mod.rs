@@ -91,3 +91,8 @@ pub fn get_worksheet_names_list(book: &Spreadsheet) -> Vec<String> {
 pub fn get_worksheet_names_string(book: &Spreadsheet) -> String {
     get_worksheet_names_list(book).join(",")
 }
+
+pub fn get_worksheet_names(path: &std::path::Path) -> String {
+    let bk: Spreadsheet = reader::xlsx::read(path).expect(common::ERROR_CANT_READ_FILE);
+    get_worksheet_names_string(&bk) 
+}

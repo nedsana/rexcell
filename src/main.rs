@@ -55,10 +55,7 @@ fn main() {
     let args = Args::parse();
 
     if args.list_sheets {
-        // Load the update Excel file
-        let target_path = std::path::Path::new(&args.target_file);
-        let bk: Spreadsheet = reader::xlsx::read(target_path).expect(common::ERROR_CANT_READ_FILE);
-        println!("{}", get_worksheet_names_string(&bk)); 
+        println!("{}", rexcell::get_worksheet_names(std::path::Path::new(&args.target_file))); 
     }
     else {
         // Load the reference Excel file
