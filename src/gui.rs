@@ -288,7 +288,21 @@ impl eframe::App for GuiApp {
                             list_sheets: false,
                         };
 
-                        rexcell::execute(&cfg);
+                        let res = rexcell::execute(&cfg);
+
+                        match res {
+                            Ok(lines) => {
+                                if cfg.inplace {
+                                    self.output_text = format!("Updated {} lines. {}", lines, common::formatted_done_saved(&cfg.tgt_file));
+                                } else {
+                                    let new_file = format!("{}{}", cfg.tgt_file.trim_end_matches(common::XLSX_EXTENSION), common::NEW_FILE_SUFFIX);
+                                    self.output_text = format!("Updated {} lines. {}", lines, common::formatted_done_saved(&new_file));
+                                }
+                            }
+                            Err(err) => {
+                                self.error = format!("Failed to update {}: {}", cfg.tgt_file, err);
+                            }
+                        }
                     }
                     else
                     {

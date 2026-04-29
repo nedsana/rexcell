@@ -72,12 +72,12 @@ fn main() {
         let res =rexcell::execute(&cfg);
 
         match res {
-            Ok(output) => {
+            Ok(lines) => {
                 if cfg.inplace {
-                    println!("{}", common::formatted_done_saved(&cfg.tgt_file));
+                    println!("Updated {} lines. {}", lines, common::formatted_done_saved(&cfg.tgt_file));
                 } else {
                     let new_file = format!("{}{}", cfg.tgt_file.trim_end_matches(common::XLSX_EXTENSION), common::NEW_FILE_SUFFIX);
-                    println!("{}", common::formatted_done_saved(&new_file));
+                    println!("Updated {} lines. {}", lines, common::formatted_done_saved(&new_file));
                 }
             }
             Err(err) => {
