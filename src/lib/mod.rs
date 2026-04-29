@@ -42,14 +42,15 @@ pub fn get_ref_map_by_strings(sheet: &Worksheet, col_key: &String, col_value: &S
 
 pub fn apply_key_value_data_by_indexes(
     sheet: &mut Worksheet,
+    extra_sheet: &mut Worksheet,
     ref_map: &HashMap<String, String>,
     src_col: u32,
     dest_col: u32,
 ) -> Result<usize, String> {
     let mut applied = 0;
 
-    let max_col = sheet.get_highest_row();
-    for row in 1..=max_col {
+    let max_row = sheet.get_highest_row();
+    for row in 1..=max_row {
         let cell_value = sheet.get_value((src_col, row));
 
         if !cell_value.is_empty() {
@@ -59,10 +60,14 @@ pub fn apply_key_value_data_by_indexes(
             } else {
                 println!("[Col:{} Raw:{}]: Unable to find '{}' in '{}'!", index_to_column(src_col), row, cell_value, sheet.get_name());
 
-                // Print all available values in the source column for this row. Lots of them are empty!
-                // let values: Vec<String> = (1..=max_col)
-                //     .map(|col| sheet.get_value((col, row)).to_string()).collect();
-                // println!("Available values in row {}: {}", row, values.join(","));
+                let max_col = sheet.get_highest_column();
+                let next_row = extra_sheet.get_highest_row() + 1;
+                for col in 1..=max_col {
+                    let cell_value = sheet.get_value((col, row));
+                    if !cell_value.is_empty() {
+                        extra_sheet.get_cell_mut((col, next_row)).set_value(cell_value.clone());
+                    }
+                }
             }
         }
     }
@@ -76,11 +81,12 @@ pub fn apply_key_value_data_by_indexes(
 
 pub fn apply_key_value_data_by_strings(
     sheet: &mut Worksheet,
+    extra_sheet: &mut Worksheet,
     ref_map: &HashMap<String, String>,
     src_col: &String,
     dest_col: &String,
 ) -> Result<usize, String> {
-    apply_key_value_data_by_indexes(sheet, ref_map, column_to_index(src_col), column_to_index(dest_col))
+    apply_key_value_data_by_indexes(sheet, extra_sheet, ref_map, column_to_index(src_col), column_to_index(dest_col))
 }
 
 pub fn get_worksheet_names_list(book: &Spreadsheet) -> Vec<String> {
@@ -106,6 +112,9 @@ pub fn execute(cfg: &common::Config) -> Result<usize, String> {
     let target_path = std::path::Path::new(&cfg.tgt_file);
     let mut ubook: Spreadsheet = reader::xlsx::read(target_path).expect(common::ERROR_CANT_READ_FILE);
 
+    let mut extra_sheet = Worksheet::default();
+    extra_sheet.set_name(common::LABEL_NEW_SHEET.to_string());
+
     // Get the reference sheet
     let rtbl = rbook.get_sheet_by_name(&cfg.ref_table).expect(common::ERROR_REFERENCE_SHEET_NOT_FOUND);
 
@@ -118,10 +127,12 @@ pub fn execute(cfg: &common::Config) -> Result<usize, String> {
         // Get the update sheet
         let utbl = ubook.get_sheet_by_name_mut(&utbln).expect(common::ERROR_UPDATE_SHEET_NOT_FOUND);
 
-        applied += apply_key_value_data_by_strings(utbl, &ref_map, &cfg.tgt_src_col, &cfg.tgt_dest_col).expect(common::MESSAGE_NO_KEY_VALUE_MAPPING);
+        applied += apply_key_value_data_by_strings(utbl, &mut extra_sheet, &ref_map, &cfg.tgt_src_col, &cfg.tgt_dest_col).expect(common::MESSAGE_NO_KEY_VALUE_MAPPING);
 
         // println!("Updated {} lines in table/sheet '{}'!", applied, utbln);
     }
+
+    ubook.add_sheet(extra_sheet).expect(common::ERROR_FAILED_TO_ADD_SHEET);
 
     if applied > 0 {
         // Save changes
