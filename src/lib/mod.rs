@@ -59,7 +59,7 @@ pub fn apply_key_value_data_by_indexes(
                         index_to_column(src_col), row, cell_value, sheet.get_name()));
             } else {
                 
-                res.1.push(format!("[Col:{} Raw:{}]: Unable to find '{}' in '{}'! Adding to sheet {}!", 
+                res.1.push(format!("[Col:{} Raw:{}]: Can't find '{}' in '{}'! Adding to sheet '{}'!", 
                             index_to_column(src_col), row, cell_value, sheet.get_name(), extra_sheet.get_name()));
 
                 let max_col = sheet.get_highest_column();
@@ -105,7 +105,7 @@ pub fn get_worksheet_names(path: &std::path::Path) -> String {
     get_worksheet_names_string(&bk) 
 }
 
-pub fn execute(cfg: &common::Config) -> Result<usize, String> {
+pub fn execute(cfg: &common::Config) -> Result<(Vec<String>, Vec<String>), String> {
     // Load the reference Excel file
     let ref_path = std::path::Path::new(&cfg.ref_file);
     let rbook: Spreadsheet = reader::xlsx::read(ref_path).expect(common::ERROR_CANT_READ_FILE);
@@ -124,18 +124,19 @@ pub fn execute(cfg: &common::Config) -> Result<usize, String> {
     use std::collections::HashMap;
     let ref_map: HashMap<String, String> = get_ref_map_by_strings(&rtbl, &cfg.ref_col_key, &cfg.ref_col_value);
 
-    let mut applied: usize = 0;
+    let mut res:(Vec<String>, Vec<String>) = (Vec::new(), Vec::new());
     for utbln in cfg.tgt_upd_table.split(',') {
         // Get the update sheet
         let utbl = ubook.get_sheet_by_name_mut(&utbln).expect(common::ERROR_UPDATE_SHEET_NOT_FOUND);
 
         let r = apply_key_value_data_by_strings(utbl, &mut extra_sheet, &ref_map, &cfg.tgt_src_col, &cfg.tgt_dest_col).expect(common::MESSAGE_NO_KEY_VALUE_MAPPING);
-        applied += r.0.len(); 
+        res.0.extend(r.0);
+        res.1.extend(r.1); 
     }
 
     ubook.add_sheet(extra_sheet).expect(common::ERROR_FAILED_TO_ADD_SHEET);
 
-    if applied > 0 {
+    if res.0.len() > 0 {
         // Save changes
         if cfg.inplace {
             let _ = writer::xlsx::write(&ubook, target_path).expect(common::ERROR_UNABLE_TO_WRITE_FILE);
@@ -143,13 +144,9 @@ pub fn execute(cfg: &common::Config) -> Result<usize, String> {
             let new_file = format!("{}{}", cfg.tgt_file.trim_end_matches(common::XLSX_EXTENSION), common::NEW_FILE_SUFFIX);
             let _ = writer::xlsx::write(&ubook, std::path::Path::new(&new_file)).expect(common::ERROR_UNABLE_TO_WRITE_FILE);
         }
+        Ok(res)
     }
-
-    // format!("Applied {} key-value mapping(s).", applied)
-
-    if applied == 0 {
+    else {
         Err(common::ERROR_NO_ROWS_UPDATED.to_string())
-    } else {
-        Ok(applied)
     }
 }

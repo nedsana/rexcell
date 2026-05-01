@@ -73,11 +73,17 @@ fn main() {
 
         match res {
             Ok(lines) => {
+                for line in &lines.0 {
+                    println!("{}", line);
+                }
+                for line in &lines.1 {
+                    println!("{}", line);
+                }
                 if cfg.inplace {
-                    println!("Updated {} lines. {}", lines, common::formatted_done_saved(&cfg.tgt_file));
+                    println!("Updated {} lines. {}", lines.0.len(), common::formatted_done_saved(&cfg.tgt_file));
                 } else {
                     let new_file = format!("{}{}", cfg.tgt_file.trim_end_matches(common::XLSX_EXTENSION), common::NEW_FILE_SUFFIX);
-                    println!("Updated {} lines. {}", lines, common::formatted_done_saved(&new_file));
+                    println!("Updated {} lines. {}", lines.0.len(), common::formatted_done_saved(&new_file));
                 }
             }
             Err(err) => {

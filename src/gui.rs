@@ -292,11 +292,19 @@ impl eframe::App for GuiApp {
 
                         match res {
                             Ok(lines) => {
+                                for line in &lines.0 {
+                                    self.output_text.push_str(line);
+                                    self.output_text.push_str("\n");
+                                }
+                                for line in &lines.1 {
+                                    self.output_text.push_str(line);
+                                    self.output_text.push_str("\n");
+                                }
                                 if cfg.inplace {
-                                    self.output_text = format!("Updated {} lines. {}", lines, common::formatted_done_saved(&cfg.tgt_file));
+                                    self.output_text.push_str(format!("Updated {} lines. {}\n", lines.0.len(), common::formatted_done_saved(&cfg.tgt_file)).as_str());
                                 } else {
                                     let new_file = format!("{}{}", cfg.tgt_file.trim_end_matches(common::XLSX_EXTENSION), common::NEW_FILE_SUFFIX);
-                                    self.output_text = format!("Updated {} lines. {}", lines, common::formatted_done_saved(&new_file));
+                                    self.output_text.push_str(format!("Updated {} lines. {}\n", lines.1.len(), common::formatted_done_saved(&new_file)).as_str());
                                 }
                             }
                             Err(err) => {
