@@ -46,19 +46,21 @@ pub fn apply_key_value_data_by_indexes(
     ref_map: &HashMap<String, String>,
     src_col: u32,
     dest_col: u32,
-) -> Result<usize, String> {
-    let mut applied = 0;
-
+) -> Result<(Vec<String>, Vec<String>), String> {
+    let mut res = (Vec::new(), Vec::new());
     let max_row = sheet.get_highest_row();
     for row in 1..=max_row {
         let cell_value = sheet.get_value((src_col, row));
-
         if !cell_value.is_empty() {
             if let Some(value) = ref_map.get(&cell_value) {
                 sheet.get_cell_mut((dest_col, row)).set_value(value.clone());
-                applied += 1;
+
+                res.0.push(format!("[Col:{} Raw:{}]: Updated '{}' in '{}'!", 
+                        index_to_column(src_col), row, cell_value, sheet.get_name()));
             } else {
-                println!("[Col:{} Raw:{}]: Unable to find '{}' in '{}'!", index_to_column(src_col), row, cell_value, sheet.get_name());
+                
+                res.1.push(format!("[Col:{} Raw:{}]: Unable to find '{}' in '{}'! Adding to sheet {}!", 
+                            index_to_column(src_col), row, cell_value, sheet.get_name(), extra_sheet.get_name()));
 
                 let max_col = sheet.get_highest_column();
                 let next_row = extra_sheet.get_highest_row() + 1;
@@ -72,10 +74,10 @@ pub fn apply_key_value_data_by_indexes(
         }
     }
 
-    if applied == 0 {
+    if res.0.is_empty(){
         Err(common::MESSAGE_NO_KEY_VALUE_MAPPING.to_string())
     } else {
-        Ok(applied)
+        Ok(res)
     }
 }
 
@@ -85,7 +87,7 @@ pub fn apply_key_value_data_by_strings(
     ref_map: &HashMap<String, String>,
     src_col: &String,
     dest_col: &String,
-) -> Result<usize, String> {
+) -> Result<(Vec<String>, Vec<String>), String> {
     apply_key_value_data_by_indexes(sheet, extra_sheet, ref_map, column_to_index(src_col), column_to_index(dest_col))
 }
 
@@ -127,9 +129,8 @@ pub fn execute(cfg: &common::Config) -> Result<usize, String> {
         // Get the update sheet
         let utbl = ubook.get_sheet_by_name_mut(&utbln).expect(common::ERROR_UPDATE_SHEET_NOT_FOUND);
 
-        applied += apply_key_value_data_by_strings(utbl, &mut extra_sheet, &ref_map, &cfg.tgt_src_col, &cfg.tgt_dest_col).expect(common::MESSAGE_NO_KEY_VALUE_MAPPING);
-
-        // println!("Updated {} lines in table/sheet '{}'!", applied, utbln);
+        let r = apply_key_value_data_by_strings(utbl, &mut extra_sheet, &ref_map, &cfg.tgt_src_col, &cfg.tgt_dest_col).expect(common::MESSAGE_NO_KEY_VALUE_MAPPING);
+        applied += r.0.len(); 
     }
 
     ubook.add_sheet(extra_sheet).expect(common::ERROR_FAILED_TO_ADD_SHEET);
