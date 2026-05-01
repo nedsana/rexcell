@@ -304,7 +304,7 @@ impl eframe::App for GuiApp {
                                     self.output_text.push_str(format!("Updated {} lines. {}\n", lines.0.len(), common::formatted_done_saved(&cfg.tgt_file)).as_str());
                                 } else {
                                     let new_file = format!("{}{}", cfg.tgt_file.trim_end_matches(common::XLSX_EXTENSION), common::NEW_FILE_SUFFIX);
-                                    self.output_text.push_str(format!("Updated {} lines. {}\n", lines.1.len(), common::formatted_done_saved(&new_file)).as_str());
+                                    self.output_text.push_str(format!("Updated {} lines. {}\n", lines.0.len(), common::formatted_done_saved(&new_file)).as_str());
                                 }
                             }
                             Err(err) => {
@@ -323,12 +323,20 @@ impl eframe::App for GuiApp {
                 egui::Frame::group(ui.style()).show(ui, |ui| {
                     ui.label(common::LABEL_EXECUTION_RESULT);
                     ui.add_space(4.0);
-                    ui.add(
-                        egui::TextEdit::multiline(&mut self.output_text)
-                            .desired_rows(16)
-                            .desired_width(f32::INFINITY)
-                            .lock_focus(true),
-                    );
+
+                    egui::ScrollArea::vertical()
+                        .id_source("execution_result_scroll") 
+                        .max_height(400.0) 
+                        .auto_shrink([false; 2]) 
+                        .show(ui, |ui| {
+                            ui.add(
+                                egui::TextEdit::multiline(&mut self.output_text)
+                                    .desired_rows(16)
+                                    .desired_width(f32::INFINITY)
+                                    .interactive(false) 
+                                    .lock_focus(true),
+                            );
+                        });
                 });
 
                 if !self.error.is_empty() {
