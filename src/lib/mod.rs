@@ -106,10 +106,6 @@ pub fn get_worksheet_names(path: &std::path::Path) -> String {
 }
 
 pub fn execute(cfg: &common::Config) -> Result<(Vec<String>, Vec<String>), String> {
-    // Load the reference Excel file
-    let ref_path = std::path::Path::new(&cfg.ref_file);
-    let rbook: Spreadsheet = reader::xlsx::read(ref_path).expect(common::ERROR_CANT_READ_FILE);
-
     // Load the update Excel file
     let target_path = std::path::Path::new(&cfg.tgt_file);
     let mut ubook: Spreadsheet = reader::xlsx::read(target_path).expect(common::ERROR_CANT_READ_FILE);
@@ -117,21 +113,79 @@ pub fn execute(cfg: &common::Config) -> Result<(Vec<String>, Vec<String>), Strin
     let mut extra_sheet = Worksheet::default();
     extra_sheet.set_name(common::LABEL_NEW_SHEET.to_string());
 
-    // Get the reference sheet
-    let rtbl = rbook.get_sheet_by_name(&cfg.ref_table).expect(common::ERROR_REFERENCE_SHEET_NOT_FOUND);
-
-    // Get the key-value entries from the reference table
-    use std::collections::HashMap;
-    let ref_map: HashMap<String, String> = get_ref_map_by_strings(&rtbl, &cfg.ref_col_key, &cfg.ref_col_value);
-
     let mut res:(Vec<String>, Vec<String>) = (Vec::new(), Vec::new());
-    for utbln in cfg.tgt_upd_table.split(',') {
-        // Get the update sheet
-        let utbl = ubook.get_sheet_by_name_mut(&utbln).expect(common::ERROR_UPDATE_SHEET_NOT_FOUND);
 
-        let r = apply_key_value_data_by_strings(utbl, &mut extra_sheet, &ref_map, &cfg.tgt_src_col, &cfg.tgt_dest_col).expect(common::MESSAGE_NO_KEY_VALUE_MAPPING);
-        res.0.extend(r.0);
-        res.1.extend(r.1); 
+    if cfg.ref_file.is_empty() 
+    {
+        let col_id = column_to_index(&cfg.tgt_src_col);
+        for utbln in cfg.tgt_upd_table.split(',') 
+        {
+            // Get the update sheet
+            let utbl = ubook.get_sheet_by_name_mut(&utbln).expect(common::ERROR_UPDATE_SHEET_NOT_FOUND);
+            let max_row = utbl.get_highest_row();
+            for row in 1..=max_row 
+            {
+                println!("{}: Row:{} has {} columns!", utbln, row, utbl.get_highest_column().to_string());
+
+                let cell_value = utbl.get_value((col_id, row));
+                if cell_value.len() > 0 
+                {
+                    // find cell_value in extra_sheet and if not found, copy the whole row to extra_sheet
+                    let mut found = false;
+                    let e_max_row = extra_sheet.get_highest_row();
+                    if 0 != e_max_row
+                    {
+                        for erow in 1..=extra_sheet.get_highest_row() 
+                        {
+                            let cell_key = extra_sheet.get_value((col_id, erow));
+                            if cell_key.len() > 0 && cell_value == cell_key 
+                            {
+                                let r = format!("{}:[Row:{} Col:{}]: Already in extra sheet:{}", extra_sheet.get_name(), erow, col_id, cell_key);
+                                res.1.push(r);
+
+                                found = true;
+                                break; // found the value in extra_sheet, break the loop
+                            }
+                        }
+                    }
+                    
+                    if !found
+                    {
+                        let next_row = e_max_row+1;
+                        extra_sheet.get_cell_mut((col_id, next_row)).set_value(cell_value.clone());
+
+                        let r = format!("{}:[Row:{} Col:{}]: adding to extra sheet:{}", utbln, next_row, col_id, cell_value);
+                        res.0.push(r);
+                    }
+                }
+            }
+        }
+    }
+    else
+    {
+        // Load the reference Excel file
+        let ref_path = std::path::Path::new(&cfg.ref_file);
+        let rbook: Spreadsheet = reader::xlsx::read(ref_path).expect(common::ERROR_CANT_READ_FILE);
+
+        // Get the reference sheet
+        let rtbl = rbook.get_sheet_by_name(&cfg.ref_table).expect(common::ERROR_REFERENCE_SHEET_NOT_FOUND);
+
+        // Get the key-value entries from the reference table
+        use std::collections::HashMap;
+        let ref_map: HashMap<String, String> = get_ref_map_by_strings(&rtbl, &cfg.ref_col_key, &cfg.ref_col_value);
+
+        for utbln in cfg.tgt_upd_table.split(',') {
+            // Get the update sheet
+            let utbl = ubook.get_sheet_by_name_mut(&utbln).expect(common::ERROR_UPDATE_SHEET_NOT_FOUND);
+
+            let r = apply_key_value_data_by_strings(utbl, 
+                                                                                &mut extra_sheet, 
+                                                                                &ref_map, 
+                                                                                &cfg.tgt_src_col, 
+                                                                                &cfg.tgt_dest_col).expect(common::MESSAGE_NO_KEY_VALUE_MAPPING);
+            res.0.extend(r.0);
+            res.1.extend(r.1); 
+        }
     }
 
     ubook.add_sheet(extra_sheet).expect(common::ERROR_FAILED_TO_ADD_SHEET);
