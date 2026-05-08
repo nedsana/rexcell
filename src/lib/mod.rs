@@ -190,6 +190,7 @@ pub fn execute(cfg: &common::Config) -> Result<(Vec<String>, Vec<String>), Strin
     if cfg.ref_file.is_empty() 
     {
         let tgt_col = column_to_index(&cfg.tgt_src_col);
+        let quantity_col = tgt_col + 2; //think how to pass it as a parameter
 
         for utbln in cfg.tgt_upd_table.split(',') {
             // Get the update sheet
@@ -203,7 +204,7 @@ pub fn execute(cfg: &common::Config) -> Result<(Vec<String>, Vec<String>), Strin
                     if let Some(src_cell) = o_src_cell 
                     {
                         let src_cell_value = src_cell.get_value();
-
+                        // println!("======================================");
                         // Check if the value already exists in the output sheet
                         let max_row_out = sheet_out.get_highest_row();
                         for row_out in 1..=max_row_out 
@@ -214,11 +215,27 @@ pub fn execute(cfg: &common::Config) -> Result<(Vec<String>, Vec<String>), Strin
                             {
                                 let dst_cell_value = dst_cell.get_value();
 
-                                // println!("DST [row:{} col:{}] '{}' <-> SRC [row:{} col:{}] '{}'", row_out, tgt_col, dst_cell_value, row, tgt_col, src_cell_value);
-
                                 if dst_cell_value == src_cell_value 
                                 {
+                                    // println!("  <FOUND> DST [row:{} col:{}] '{}' <-> SRC [row:{} col:{}] '{}'", row_out, tgt_col, dst_cell_value, row, tgt_col, src_cell_value);
+
+                                    //the entry is found, but we have to update the cell with quantity
+                                    let mut q_cell_value_src = 0.0;
+                                    let o_q_cell_src = sheet_in.get_cell((quantity_col, row));
+                                    if let Some(q_cell_src) = o_q_cell_src
+                                    {
+                                        q_cell_value_src = q_cell_src.get_value().parse::<f32>().unwrap_or(0.0);
+                                    }
+
+                                    let q_cell_dst = sheet_out.get_cell_mut((quantity_col, row_out));
+                                    let q_cell_value_dst = q_cell_dst.get_value().parse::<f32>().unwrap_or(0.0) + q_cell_value_src;
+                                    q_cell_dst.set_value(q_cell_value_dst.to_string());
+
                                     return false; // already exists, don't copy
+                                }
+                                else
+                                {
+                                    // println!("<MISSING> DST [row:{} col:{}] '{}' <-> SRC [row:{} col:{}] '{}'", row_out, tgt_col, dst_cell_value, row, tgt_col, src_cell_value);
                                 }
                             }
                         }
@@ -232,52 +249,6 @@ pub fn execute(cfg: &common::Config) -> Result<(Vec<String>, Vec<String>), Strin
 
         res.0.push("SOME DUMMY CONTENT!".to_string());
 
-        
-        /*
-        let col_id = column_to_index(&cfg.tgt_src_col);
-        for utbln in cfg.tgt_upd_table.split(',') 
-        {
-            // Get the update sheet
-            let utbl = ubook.get_sheet_by_name_mut(&utbln).expect(common::ERROR_UPDATE_SHEET_NOT_FOUND);
-            let max_row = utbl.get_highest_row();
-            for row in 1..=max_row 
-            {
-                println!("{}: Row:{} has {} columns!", utbln, row, utbl.get_highest_column().to_string());
-
-                let cell_value = utbl.get_value((col_id, row));
-                if cell_value.len() > 0 
-                {
-                    // find cell_value in extra_sheet and if not found, copy the whole row to extra_sheet
-                    let mut found = false;
-                    let e_max_row = extra_sheet.get_highest_row();
-                    if 0 != e_max_row
-                    {
-                        for erow in 1..=extra_sheet.get_highest_row() 
-                        {
-                            let cell_key = extra_sheet.get_value((col_id, erow));
-                            if cell_key.len() > 0 && cell_value == cell_key 
-                            {
-                                let r = format!("{}:[Row:{} Col:{}]: Already in extra sheet:{}", extra_sheet.get_name(), erow, col_id, cell_key);
-                                res.1.push(r);
-
-                                found = true;
-                                break; // found the value in extra_sheet, break the loop
-                            }
-                        }
-                    }
-                    
-                    if !found
-                    {
-                        let next_row = e_max_row+1;
-                        extra_sheet.get_cell_mut((col_id, next_row)).set_value(cell_value.clone());
-
-                        let r = format!("{}:[Row:{} Col:{}]: adding to extra sheet:{}", utbln, next_row, col_id, cell_value);
-                        res.0.push(r);
-                    }
-                }
-            }
-        }
-        */
     }
     else
     {
