@@ -105,67 +105,11 @@ pub fn get_worksheet_names(path: &std::path::Path) -> String {
     get_worksheet_names_string(&bk) 
 }
 
-/*
-use umya_spreadsheet::*;
-
-fn main() {
-    let mut book = reader::xlsx::read("input.xlsx").unwrap();
-    
-    // 1. Подготовка на листовете
-    let sheet_in = "Sheet1";
-    let new_sheet_name = "FilteredRows";
-    book.new_sheet(new_sheet_name).unwrap();
-
-    // Вземаме инстанции на листовете (използваме unsafe или разделяме достъпа за borrow checker-а)
-    let merge_cells = book.get_sheet_by_name(sheet_in).unwrap().get_merge_cells().clone();
-    let max_row = *book.get_sheet_by_name(sheet_in).unwrap().get_highest_row();
-    let max_col = *book.get_sheet_by_name(sheet_in).unwrap().get_highest_column();
-
-    let mut current_new_row = 1;
-
-    for row in 1..=max_row {
-        // 2. Проверка дали редът съдържа каквато и да е част от обединена клетка
-        let is_merged = merge_cells.iter().any(|range| {
-            let range_set = range.get_range_set();
-            row >= *range_set.get_row_start() && row <= *range_set.get_row_end()
-        });
-
-        if !is_merged {
-            // 3. Копиране на стойности и форматиране клетка по клетка
-            for col in 1..=max_col {
-                // Копиране на стойност и стил
-                let source_cell = book.get_sheet_by_name(sheet_in).unwrap()
-                    .get_cell_by_column_and_row(&col, &row);
-                
-                if let Some(cell) = source_cell {
-                    let cell_value = cell.get_value().clone();
-                    let cell_style = cell.get_style().clone();
-
-                    let new_sheet = book.get_sheet_by_name_mut(new_sheet_name).unwrap();
-                    new_sheet.get_cell_by_column_and_row_mut(&col, &current_new_row)
-                        .set_value(cell_value)
-                        .set_style(cell_style);
-                }
-            }
-            
-            // 4. Копиране на височината на реда (опционално)
-            let row_height = book.get_sheet_by_name(sheet_in).unwrap()
-                .get_row_dimension(&row).get_height().clone();
-            book.get_sheet_by_name_mut(new_sheet_name).unwrap()
-                .get_row_dimension_mut(&current_new_row).set_height(row_height);
-
-            current_new_row += 1;
-        }
-    }
-
-    writer::xlsx::write(&book, "output.xlsx").unwrap();
-}
-*/
-
-pub fn create_unique_entries_sheet(
-    sheet_in:  &Worksheet,
+pub fn create_unique_entries_sheet<F>(
+    sheet_in:  &Worksheet, 
     sheet_out: &mut Worksheet,
-) 
+    filter: Option<F>,
+) where F: Fn(&Worksheet, u32, u32, &mut Worksheet) -> bool
 {
     let sheet_in_merged_cells = sheet_in.get_merge_cells(); 
 
@@ -184,37 +128,47 @@ pub fn create_unique_entries_sheet(
 
         if !is_merged 
         {
-            // Copy the data and formatting cell by cell
-            for col in 1..=max_col 
+            // Execute the filter logic if provided
+            let passes_filter = match &filter {
+                Some(f) => f(sheet_in, row, 0, sheet_out),
+                None => true,
+            };
+
+            if passes_filter
             {
-                let o_src_cell = sheet_in.get_cell((col, row));
-
-                if let Some(src_cell) = o_src_cell 
+                // Copy the data and formatting cell by cell
+                for col in 1..=max_col 
                 {
-                    let cell_value = src_cell.get_value().clone();
-                    let cell_style = src_cell.get_style().clone();
-
-                    let dst_cell = sheet_out.get_cell_mut((col, current_new_row));
-                    dst_cell.set_value(cell_value);
-                    dst_cell.set_style(cell_style);
-
-                    let o_col_dim = sheet_in.get_column_dimension_by_number(&col);
-                    if let Some(col_dim) = o_col_dim 
+                    let o_src_cell = sheet_in.get_cell((col, row));
+                    if let Some(src_cell) = o_src_cell 
                     {
-                        let col_width = col_dim.get_width().clone();
-                        sheet_out.get_column_dimension_by_number_mut(&col).set_width(col_width);
+                        let cell_value = src_cell.get_value().clone();
+                        let cell_style = src_cell.get_style().clone();
+
+                        let dst_cell = sheet_out.get_cell_mut((col, current_new_row));
+                        dst_cell.set_value(cell_value);
+                        dst_cell.set_style(cell_style);
+
+                        // Copy column width if defined
+                        let o_col_dim = sheet_in.get_column_dimension_by_number(&col);
+                        if let Some(col_dim) = o_col_dim 
+                        {
+                            let col_width = col_dim.get_width().clone();
+                            sheet_out.get_column_dimension_by_number_mut(&col).set_width(col_width);
+                        }
                     }
                 }
-            }
 
-            let o_row_dim = sheet_in.get_row_dimension(&row);
-            if let Some(row_dim) = o_row_dim 
-            {
-                let row_height = row_dim.get_height().clone();
-                sheet_out.get_row_dimension_mut(&current_new_row).set_height(row_height);
-            }
+                // Copy row height if defined
+                let o_row_dim = sheet_in.get_row_dimension(&row);
+                if let Some(row_dim) = o_row_dim 
+                {
+                    let row_height = row_dim.get_height().clone();
+                    sheet_out.get_row_dimension_mut(&current_new_row).set_height(row_height);
+                }
 
-            current_new_row += 1;
+                current_new_row += 1;
+            }
         }
         else
         {
@@ -235,10 +189,45 @@ pub fn execute(cfg: &common::Config) -> Result<(Vec<String>, Vec<String>), Strin
 
     if cfg.ref_file.is_empty() 
     {
+        let tgt_col = column_to_index(&cfg.tgt_src_col);
+
         for utbln in cfg.tgt_upd_table.split(',') {
             // Get the update sheet
             let utbl = ubook.get_sheet_by_name_mut(&utbln).expect(common::ERROR_UPDATE_SHEET_NOT_FOUND);
-            create_unique_entries_sheet(utbl, &mut extra_sheet);
+
+            // create_unique_entries_sheet::<fn(&Worksheet, u32, u32, &mut Worksheet) -> bool>(utbl, &mut extra_sheet, None);
+
+            create_unique_entries_sheet(utbl, &mut extra_sheet, Some(|sheet_in: &Worksheet, row: u32, _col: u32, sheet_out: &mut Worksheet| 
+                {
+                    let o_src_cell = sheet_in.get_cell((tgt_col, row));
+                    if let Some(src_cell) = o_src_cell 
+                    {
+                        let src_cell_value = src_cell.get_value();
+
+                        // Check if the value already exists in the output sheet
+                        let max_row_out = sheet_out.get_highest_row();
+                        for row_out in 1..=max_row_out 
+                        {
+                            let o_dst_cell = sheet_out.get_cell((tgt_col, row_out));
+
+                            if let Some(dst_cell) = o_dst_cell 
+                            {
+                                let dst_cell_value = dst_cell.get_value();
+
+                                // println!("DST [row:{} col:{}] '{}' <-> SRC [row:{} col:{}] '{}'", row_out, tgt_col, dst_cell_value, row, tgt_col, src_cell_value);
+
+                                if dst_cell_value == src_cell_value 
+                                {
+                                    return false; // already exists, don't copy
+                                }
+                            }
+                        }
+                        return true;
+                    }
+                    false
+                })
+            ); //create_unique_entries_sheet
+
         }
 
         res.0.push("SOME DUMMY CONTENT!".to_string());
