@@ -105,6 +105,124 @@ pub fn get_worksheet_names(path: &std::path::Path) -> String {
     get_worksheet_names_string(&bk) 
 }
 
+/*
+use umya_spreadsheet::*;
+
+fn main() {
+    let mut book = reader::xlsx::read("input.xlsx").unwrap();
+    
+    // 1. Подготовка на листовете
+    let sheet_in = "Sheet1";
+    let new_sheet_name = "FilteredRows";
+    book.new_sheet(new_sheet_name).unwrap();
+
+    // Вземаме инстанции на листовете (използваме unsafe или разделяме достъпа за borrow checker-а)
+    let merge_cells = book.get_sheet_by_name(sheet_in).unwrap().get_merge_cells().clone();
+    let max_row = *book.get_sheet_by_name(sheet_in).unwrap().get_highest_row();
+    let max_col = *book.get_sheet_by_name(sheet_in).unwrap().get_highest_column();
+
+    let mut current_new_row = 1;
+
+    for row in 1..=max_row {
+        // 2. Проверка дали редът съдържа каквато и да е част от обединена клетка
+        let is_merged = merge_cells.iter().any(|range| {
+            let range_set = range.get_range_set();
+            row >= *range_set.get_row_start() && row <= *range_set.get_row_end()
+        });
+
+        if !is_merged {
+            // 3. Копиране на стойности и форматиране клетка по клетка
+            for col in 1..=max_col {
+                // Копиране на стойност и стил
+                let source_cell = book.get_sheet_by_name(sheet_in).unwrap()
+                    .get_cell_by_column_and_row(&col, &row);
+                
+                if let Some(cell) = source_cell {
+                    let cell_value = cell.get_value().clone();
+                    let cell_style = cell.get_style().clone();
+
+                    let new_sheet = book.get_sheet_by_name_mut(new_sheet_name).unwrap();
+                    new_sheet.get_cell_by_column_and_row_mut(&col, &current_new_row)
+                        .set_value(cell_value)
+                        .set_style(cell_style);
+                }
+            }
+            
+            // 4. Копиране на височината на реда (опционално)
+            let row_height = book.get_sheet_by_name(sheet_in).unwrap()
+                .get_row_dimension(&row).get_height().clone();
+            book.get_sheet_by_name_mut(new_sheet_name).unwrap()
+                .get_row_dimension_mut(&current_new_row).set_height(row_height);
+
+            current_new_row += 1;
+        }
+    }
+
+    writer::xlsx::write(&book, "output.xlsx").unwrap();
+}
+*/
+
+pub fn create_unique_entries_sheet(
+    sheet_in:  &Worksheet,
+    sheet_out: &mut Worksheet,
+) 
+{
+    let sheet_in_merged_cells = sheet_in.get_merge_cells(); 
+
+    let max_row = sheet_in.get_highest_row();
+    let max_col = sheet_in.get_highest_column();
+    let mut current_new_row = 1;
+
+    for row in 1..=max_row 
+    {
+        // Are there any merged cells that include this row?
+        let is_merged = sheet_in_merged_cells.iter().any(|range| {
+            let start_row = range.get_coordinate_start_row().unwrap();
+            let end_row = range.get_coordinate_end_row().unwrap();
+            row >= *start_row.get_num() && row <= *end_row.get_num()
+        });
+
+        if !is_merged 
+        {
+            // Copy the data and formatting cell by cell
+            for col in 1..=max_col 
+            {
+                let o_src_cell = sheet_in.get_cell((col, row));
+
+                if let Some(src_cell) = o_src_cell 
+                {
+                    let cell_value = src_cell.get_value().clone();
+                    let cell_style = src_cell.get_style().clone();
+
+                    let dst_cell = sheet_out.get_cell_mut((col, current_new_row));
+                    dst_cell.set_value(cell_value);
+                    dst_cell.set_style(cell_style);
+
+                    let o_col_dim = sheet_in.get_column_dimension_by_number(&col);
+                    if let Some(col_dim) = o_col_dim 
+                    {
+                        let col_width = col_dim.get_width().clone();
+                        sheet_out.get_column_dimension_by_number_mut(&col).set_width(col_width);
+                    }
+                }
+            }
+
+            let o_row_dim = sheet_in.get_row_dimension(&row);
+            if let Some(row_dim) = o_row_dim 
+            {
+                let row_height = row_dim.get_height().clone();
+                sheet_out.get_row_dimension_mut(&current_new_row).set_height(row_height);
+            }
+
+            current_new_row += 1;
+        }
+        else
+        {
+            println!("Row {} is part of a merged cell, skipping!", row);
+        }
+    }
+}
+
 pub fn execute(cfg: &common::Config) -> Result<(Vec<String>, Vec<String>), String> {
     // Load the update Excel file
     let target_path = std::path::Path::new(&cfg.tgt_file);
@@ -117,6 +235,16 @@ pub fn execute(cfg: &common::Config) -> Result<(Vec<String>, Vec<String>), Strin
 
     if cfg.ref_file.is_empty() 
     {
+        for utbln in cfg.tgt_upd_table.split(',') {
+            // Get the update sheet
+            let utbl = ubook.get_sheet_by_name_mut(&utbln).expect(common::ERROR_UPDATE_SHEET_NOT_FOUND);
+            create_unique_entries_sheet(utbl, &mut extra_sheet);
+        }
+
+        res.0.push("SOME DUMMY CONTENT!".to_string());
+
+        
+        /*
         let col_id = column_to_index(&cfg.tgt_src_col);
         for utbln in cfg.tgt_upd_table.split(',') 
         {
@@ -160,6 +288,7 @@ pub fn execute(cfg: &common::Config) -> Result<(Vec<String>, Vec<String>), Strin
                 }
             }
         }
+        */
     }
     else
     {
