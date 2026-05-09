@@ -105,12 +105,16 @@ pub fn get_worksheet_names(path: &std::path::Path) -> String {
     get_worksheet_names_string(&bk) 
 }
 
-pub fn create_unique_entries_sheet<F>(
+pub fn create_unique_entries_sheet<FRow, FCol, FCell>(
     sheet_in:  &Worksheet, 
     sheet_out: &mut Worksheet,
-    filter: Option<F>,
+    filter_row:  Option<FRow>,
+    filter_col:  Option<FCol>,
+    filter_cell: Option<FCell>,
 ) -> bool 
-where F: Fn(&Worksheet, u32, u32, &mut Worksheet) -> bool
+where FRow:  Fn(&Worksheet, u32,      &mut Worksheet) -> bool,
+      FCol:  Fn(&Worksheet, u32,      &mut Worksheet) -> bool,
+      FCell: Fn(&Worksheet, u32, u32, &mut Worksheet) -> bool
 {
     let sheet_in_merged_cells = sheet_in.get_merge_cells(); 
 
@@ -129,9 +133,11 @@ where F: Fn(&Worksheet, u32, u32, &mut Worksheet) -> bool
 
         if !is_merged 
         {
-            // Execute the filter logic if provided
-            let passes_filter = match &filter {
-                Some(f) => f(sheet_in, row, 0, sheet_out),
+            let mut added_col = false;
+            // Execute per row filter logic, if provided. 
+            let mut passes_filter = match &filter_row 
+            {
+                Some(f) => f(sheet_in, row, sheet_out),
                 None => true,
             };
 
@@ -140,32 +146,58 @@ where F: Fn(&Worksheet, u32, u32, &mut Worksheet) -> bool
                 // Copy the data and formatting cell by cell
                 for col in 1..=max_col 
                 {
-                    let o_src_cell = sheet_in.get_cell((col, row));
-                    if let Some(src_cell) = o_src_cell 
+                    // Execute per col filter logic, if provided.
+                    passes_filter = match &filter_col {
+                        Some(f) => f(sheet_in, col, sheet_out),
+                        None => true,
+                    };
+
+                    if passes_filter 
                     {
-                        let cell_value = src_cell.get_value().clone();
-                        let cell_style = src_cell.get_style().clone();
+                        // Execute per row and col filter logic, if provided.
+                        passes_filter = match &filter_cell {
+                            Some(f) => f(sheet_in, row, col, sheet_out),
+                            None => true,
+                        };
 
-                        let dst_cell = sheet_out.get_cell_mut((col, current_new_row));
-                        dst_cell.set_value(cell_value);
-                        dst_cell.set_style(cell_style);
-
-                        // Copy column width if defined
-                        let o_col_dim = sheet_in.get_column_dimension_by_number(&col);
-                        if let Some(col_dim) = o_col_dim 
+                        if passes_filter
                         {
-                            let col_width = col_dim.get_width().clone();
-                            sheet_out.get_column_dimension_by_number_mut(&col).set_width(col_width);
+                            let o_src_cell = sheet_in.get_cell((col, row));
+                            if let Some(src_cell) = o_src_cell 
+                            {
+                                let cell_value = src_cell.get_value().clone();
+                                let cell_style = src_cell.get_style().clone();
+
+                                let dst_cell = sheet_out.get_cell_mut((col, current_new_row));
+                                dst_cell.set_value(cell_value);
+                                dst_cell.set_style(cell_style);
+                                added_col = true;
+
+                                // Copy column width if defined
+                                let o_col_dim = sheet_in.get_column_dimension_by_number(&col);
+                                if let Some(col_dim) = o_col_dim 
+                                {
+                                    let col_width = col_dim.get_width().clone();
+                                    sheet_out.get_column_dimension_by_number_mut(&col).set_width(col_width);
+                                }
+                            }
+                            else
+                            {
+                                added_col = false;
+                            }
                         }
                     }
                 }
 
-                // Copy row height if defined
-                let o_row_dim = sheet_in.get_row_dimension(&row);
-                if let Some(row_dim) = o_row_dim 
+                if added_col
                 {
-                    let row_height = row_dim.get_height().clone();
-                    sheet_out.get_row_dimension_mut(&current_new_row).set_height(row_height);
+                    // Copy row height if defined
+                    let o_row_dim = sheet_in.get_row_dimension(&row);
+                    if let Some(row_dim) = o_row_dim 
+                    {
+                        let row_height = row_dim.get_height().clone();
+                        sheet_out.get_row_dimension_mut(&current_new_row).set_height(row_height);
+                    }
                 }
 
                 current_new_row += 1;
@@ -189,7 +221,7 @@ pub fn filter_sheet_by_col_and_accum(
     let tgt_col = column_to_index(col_filter);
     let quantity_col = column_to_index(col_accum);
 
-    create_unique_entries_sheet(sheet_in, sheet_out, Some(|sheet_in: &Worksheet, row: u32, _col: u32, sheet_out: &mut Worksheet| 
+    create_unique_entries_sheet(sheet_in, sheet_out, Some(|sheet_in: &Worksheet, row: u32, sheet_out: &mut Worksheet| 
         {
             let o_src_cell = sheet_in.get_cell((tgt_col, row));
             if let Some(src_cell) = o_src_cell 
@@ -233,7 +265,9 @@ pub fn filter_sheet_by_col_and_accum(
                 return true;
             }
             false
-        })
+        }),
+None::<fn(&Worksheet, u32, &mut Worksheet) -> bool>,
+None::<fn(&Worksheet, u32, u32, &mut Worksheet) -> bool>,
     )
 }
 
