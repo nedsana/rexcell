@@ -274,27 +274,41 @@ None::<fn(&Worksheet, u32, u32, &mut Worksheet) -> bool>,
     )
 }
 
-pub fn execute(cfg: &common::Config) -> Result<(Vec<String>, Vec<String>), String> {
+pub fn execute(cfg: &common::Config) -> Result<(Vec<String>, Vec<String>), String> 
+{
+    let mut res:(Vec<String>, Vec<String>) = (Vec::new(), Vec::new());
+
     // Load the update Excel file
     let target_path = std::path::Path::new(&cfg.tgt_file);
-    let mut ubook: Spreadsheet = reader::xlsx::read(target_path).expect(common::ERROR_CANT_READ_FILE);
+    let result = reader::xlsx::read(target_path);
+    let mut ubook = match result
+    {
+        Ok(bk) => bk,
+        Err(err) => {
+            return Err(format!("{}:{} {}", common::ERROR_CANT_READ_FILE, target_path.display(), err));
+        }
+    };
 
     let mut extra_sheet = Worksheet::default();
     extra_sheet.set_name(common::LABEL_NEW_SHEET.to_string());
-
-    let mut res:(Vec<String>, Vec<String>) = (Vec::new(), Vec::new());
 
     if cfg.ref_file.is_empty() 
     {
         let tgt_col = column_to_index(&cfg.tgt_src_col);
         let quantity_col = tgt_col + 2; //think how to pass it as a parameter
 
-        for utbln in cfg.tgt_upd_table.split(',') {
+        for utbln in cfg.tgt_upd_table.split(',') 
+        {
             // Get the update sheet
-            let utbl = ubook.get_sheet_by_name_mut(&utbln).expect(common::ERROR_UPDATE_SHEET_NOT_FOUND);
-
+            let result = ubook.get_sheet_by_name_mut(&utbln);
+            let utbl = match result
+            {
+                Some(tbl) => tbl,
+                None => {
+                    return Err(format!("{}:{}", common::ERROR_UPDATE_SHEET_NOT_FOUND, utbln));
+                }
+            };
             // create_unique_entries_sheet::<fn(&Worksheet, u32, u32, &mut Worksheet) -> bool>(utbl, &mut extra_sheet, None);
-
             filter_sheet_by_col_and_accum(utbl, &mut extra_sheet, &cfg.tgt_src_col, &index_to_column(quantity_col));
         }
 
@@ -305,42 +319,88 @@ pub fn execute(cfg: &common::Config) -> Result<(Vec<String>, Vec<String>), Strin
     {
         // Load the reference Excel file
         let ref_path = std::path::Path::new(&cfg.ref_file);
-        let rbook: Spreadsheet = reader::xlsx::read(ref_path).expect(common::ERROR_CANT_READ_FILE);
+        let result = reader::xlsx::read(ref_path);
+        let mut rbook = match result
+        {
+            Ok(bk) => bk,
+            Err(err) => {
+                return Err(format!("{}:{} {}", common::ERROR_CANT_READ_FILE, ref_path.display(), err));
+            }
+        };        
 
         // Get the reference sheet
-        let rtbl = rbook.get_sheet_by_name(&cfg.ref_table).expect(common::ERROR_REFERENCE_SHEET_NOT_FOUND);
+        let result = rbook.get_sheet_by_name_mut(&cfg.ref_table);
+        let rtbl = match result
+        {
+            Some(tbl) => tbl,
+            None => {
+                return Err(format!("{}:{}", common::ERROR_REFERENCE_SHEET_NOT_FOUND, cfg.ref_table));
+            }
+        };
 
         // Get the key-value entries from the reference table
         use std::collections::HashMap;
         let ref_map: HashMap<String, String> = get_ref_map_by_strings(&rtbl, &cfg.ref_col_key, &cfg.ref_col_value);
 
-        for utbln in cfg.tgt_upd_table.split(',') {
+        for utbln in cfg.tgt_upd_table.split(',') 
+        {
             // Get the update sheet
-            let utbl = ubook.get_sheet_by_name_mut(&utbln).expect(common::ERROR_UPDATE_SHEET_NOT_FOUND);
+            let result = ubook.get_sheet_by_name_mut(&utbln);
+            let utbl = match result
+            {
+                Some(tbl) => tbl,
+                None => {
+                    return Err(format!("{}:{}", common::ERROR_UPDATE_SHEET_NOT_FOUND, utbln));
+                }
+            };
 
-            let r = apply_key_value_data_by_strings(utbl, 
-                                                                                &mut extra_sheet, 
-                                                                                &ref_map, 
-                                                                                &cfg.tgt_src_col, 
-                                                                                &cfg.tgt_dest_col).expect(common::MESSAGE_NO_KEY_VALUE_MAPPING);
+            let result = apply_key_value_data_by_strings(utbl, 
+                                                                                           &mut extra_sheet, 
+                                                                                           &ref_map, 
+                                                                                           &cfg.tgt_src_col, 
+                                                                                           &cfg.tgt_dest_col);
+            let r = match result {
+                Ok(r) => r,                
+                Err(e) => {
+                    return Err(format!("{}:{}", common::MESSAGE_NO_KEY_VALUE_MAPPING, e));
+                }
+            };
+
             res.0.extend(r.0);
             res.1.extend(r.1); 
         }
     }
 
-    ubook.add_sheet(extra_sheet).expect(common::ERROR_FAILED_TO_ADD_SHEET);
+    let result = ubook.add_sheet(extra_sheet);
+    if let Err(err) = result
+    {
+        return Err(format!("{}:{}", common::ERROR_FAILED_TO_ADD_SHEET, err));
+    }; 
 
-    if res.0.len() > 0 {
+    if res.0.len() > 0 
+    {
         // Save changes
-        if cfg.inplace {
-            let _ = writer::xlsx::write(&ubook, target_path).expect(common::ERROR_UNABLE_TO_WRITE_FILE);
-        } else {
+        if cfg.inplace 
+        {
+            let result = writer::xlsx::write(&ubook, target_path);
+            if let Err(err) = result 
+            {
+                return Err(format!("{}:{} {}", common::ERROR_UNABLE_TO_WRITE_FILE, target_path.display(), err));
+            }
+        } 
+        else 
+        {
             let new_file = format!("{}{}", cfg.tgt_file.trim_end_matches(common::XLSX_EXTENSION), common::NEW_FILE_SUFFIX);
-            let _ = writer::xlsx::write(&ubook, std::path::Path::new(&new_file)).expect(common::ERROR_UNABLE_TO_WRITE_FILE);
+            let result = writer::xlsx::write(&ubook, std::path::Path::new(&new_file));
+            if let Err(err) = result 
+            {
+                return Err(format!("{}:{} {}", common::ERROR_UNABLE_TO_WRITE_FILE, new_file, err));
+            }
         }
         Ok(res)
     }
-    else {
+    else 
+    {
         Err(common::ERROR_NO_ROWS_UPDATED.to_string())
     }
 }
