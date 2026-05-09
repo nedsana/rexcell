@@ -53,7 +53,22 @@ fn main() {
     let args = Args::parse();
 
     if args.list_sheets {
-        println!("{}", rexcell::get_worksheet_names(std::path::Path::new(&args.tgt_file))); 
+        let result = rexcell::get_worksheet_names(std::path::Path::new(&args.tgt_file));
+        match result 
+        {
+            Ok(names) => 
+            {
+                if names.len() > 0 
+                {
+                    println!("{}", names); 
+                } 
+                else 
+                {
+                    eprintln!("{} {}", common::NO_SHEETS_FOUND, args.tgt_file); 
+                }
+            }
+            Err(err) => eprintln!("{}", err),
+        }
     }
     else {
         let cfg: common::Config = common::Config {

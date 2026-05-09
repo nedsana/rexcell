@@ -57,8 +57,9 @@ impl Default for GuiApp {
     }
 }
 
-impl GuiApp {
-/*
+impl GuiApp 
+{
+    /*
     #[warn(dead_code)]
     fn get_sheets_list_cmd(&mut self, file_path: &str) -> Result<String, String> {
         let mut cmd = Command::new(common::CMD_PATH);
@@ -78,14 +79,25 @@ impl GuiApp {
             }
             Err(err) => Err(format!("{}{}", common::ERROR_FAILED_TO_SPAWN_REXCELL, err)),
         }
-    } */
+    }
+    */
 
-    fn get_sheets_list(&mut self, file_path: &str) -> Result<String, String> {
-        let names = rexcell::get_worksheet_names(std::path::Path::new(&file_path));
-        if names.len() > 0 {
-            Ok(names)
-        } else {
-            Err(format!("{} {}", common::NO_SHEETS_FOUND, file_path))
+    fn get_sheets_list(&mut self, file_path: &str) -> Result<String, String> 
+    {
+        let result = rexcell::get_worksheet_names(std::path::Path::new(&file_path));
+        match result 
+        {
+            Ok(names) => {
+                if names.len() > 0 
+                {
+                    Ok(names)
+                } 
+                else 
+                {
+                    Err(format!("{} {}", common::NO_SHEETS_FOUND, file_path))
+                }
+            }
+            Err(err) => Err(format!("{}", err)),
         }
     }
 

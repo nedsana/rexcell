@@ -100,9 +100,12 @@ pub fn get_worksheet_names_string(book: &Spreadsheet) -> String {
     get_worksheet_names_list(book).join(",")
 }
 
-pub fn get_worksheet_names(path: &std::path::Path) -> String {
-    let bk: Spreadsheet = reader::xlsx::read(path).expect(common::ERROR_CANT_READ_FILE);
-    get_worksheet_names_string(&bk) 
+pub fn get_worksheet_names(path: &std::path::Path) -> Result<String, String> {
+    let result = reader::xlsx::read(path);
+    match result {
+        Ok(bk) => Ok(get_worksheet_names_string(&bk)),
+        Err(err) => Err(format!("{}: {}", err, path.display())),
+    }   
 }
 
 pub fn create_unique_entries_sheet<FRow, FCol, FCell>(
