@@ -109,7 +109,8 @@ pub fn create_unique_entries_sheet<F>(
     sheet_in:  &Worksheet, 
     sheet_out: &mut Worksheet,
     filter: Option<F>,
-) where F: Fn(&Worksheet, u32, u32, &mut Worksheet) -> bool
+) -> bool 
+where F: Fn(&Worksheet, u32, u32, &mut Worksheet) -> bool
 {
     let sheet_in_merged_cells = sheet_in.get_merge_cells(); 
 
@@ -175,6 +176,65 @@ pub fn create_unique_entries_sheet<F>(
             println!("Row {} is part of a merged cell, skipping!", row);
         }
     }
+    true
+}
+
+pub fn filter_sheet_by_col_and_accum(
+    sheet_in:  &Worksheet, 
+    sheet_out: &mut Worksheet,
+    col_filter: &String,
+    col_accum: &String
+) -> bool
+{
+    let tgt_col = column_to_index(col_filter);
+    let quantity_col = column_to_index(col_accum);
+
+    create_unique_entries_sheet(sheet_in, sheet_out, Some(|sheet_in: &Worksheet, row: u32, _col: u32, sheet_out: &mut Worksheet| 
+        {
+            let o_src_cell = sheet_in.get_cell((tgt_col, row));
+            if let Some(src_cell) = o_src_cell 
+            {
+                let src_cell_value = src_cell.get_value();
+                // println!("======================================");
+                // Check if the value already exists in the output sheet
+                let max_row_out = sheet_out.get_highest_row();
+                for row_out in 1..=max_row_out 
+                {
+                    let o_dst_cell = sheet_out.get_cell((tgt_col, row_out));
+
+                    if let Some(dst_cell) = o_dst_cell 
+                    {
+                        let dst_cell_value = dst_cell.get_value();
+
+                        if dst_cell_value == src_cell_value 
+                        {
+                            // println!("  <FOUND> DST [row:{} col:{}] '{}' <-> SRC [row:{} col:{}] '{}'", row_out, tgt_col, dst_cell_value, row, tgt_col, src_cell_value);
+
+                            //the entry is found, but we have to update the cell with quantity
+                            let mut q_cell_value_src = 0.0;
+                            let o_q_cell_src = sheet_in.get_cell((quantity_col, row));
+                            if let Some(q_cell_src) = o_q_cell_src
+                            {
+                                q_cell_value_src = q_cell_src.get_value().parse::<f32>().unwrap_or(0.0);
+                            }
+
+                            let q_cell_dst = sheet_out.get_cell_mut((quantity_col, row_out));
+                            let q_cell_value_dst = q_cell_dst.get_value().parse::<f32>().unwrap_or(0.0) + q_cell_value_src;
+                            q_cell_dst.set_value(q_cell_value_dst.to_string());
+
+                            return false; // already exists, don't copy
+                        }
+                        else
+                        {
+                            // println!("<MISSING> DST [row:{} col:{}] '{}' <-> SRC [row:{} col:{}] '{}'", row_out, tgt_col, dst_cell_value, row, tgt_col, src_cell_value);
+                        }
+                    }
+                }
+                return true;
+            }
+            false
+        })
+    )
 }
 
 pub fn execute(cfg: &common::Config) -> Result<(Vec<String>, Vec<String>), String> {
@@ -198,53 +258,7 @@ pub fn execute(cfg: &common::Config) -> Result<(Vec<String>, Vec<String>), Strin
 
             // create_unique_entries_sheet::<fn(&Worksheet, u32, u32, &mut Worksheet) -> bool>(utbl, &mut extra_sheet, None);
 
-            create_unique_entries_sheet(utbl, &mut extra_sheet, Some(|sheet_in: &Worksheet, row: u32, _col: u32, sheet_out: &mut Worksheet| 
-                {
-                    let o_src_cell = sheet_in.get_cell((tgt_col, row));
-                    if let Some(src_cell) = o_src_cell 
-                    {
-                        let src_cell_value = src_cell.get_value();
-                        // println!("======================================");
-                        // Check if the value already exists in the output sheet
-                        let max_row_out = sheet_out.get_highest_row();
-                        for row_out in 1..=max_row_out 
-                        {
-                            let o_dst_cell = sheet_out.get_cell((tgt_col, row_out));
-
-                            if let Some(dst_cell) = o_dst_cell 
-                            {
-                                let dst_cell_value = dst_cell.get_value();
-
-                                if dst_cell_value == src_cell_value 
-                                {
-                                    // println!("  <FOUND> DST [row:{} col:{}] '{}' <-> SRC [row:{} col:{}] '{}'", row_out, tgt_col, dst_cell_value, row, tgt_col, src_cell_value);
-
-                                    //the entry is found, but we have to update the cell with quantity
-                                    let mut q_cell_value_src = 0.0;
-                                    let o_q_cell_src = sheet_in.get_cell((quantity_col, row));
-                                    if let Some(q_cell_src) = o_q_cell_src
-                                    {
-                                        q_cell_value_src = q_cell_src.get_value().parse::<f32>().unwrap_or(0.0);
-                                    }
-
-                                    let q_cell_dst = sheet_out.get_cell_mut((quantity_col, row_out));
-                                    let q_cell_value_dst = q_cell_dst.get_value().parse::<f32>().unwrap_or(0.0) + q_cell_value_src;
-                                    q_cell_dst.set_value(q_cell_value_dst.to_string());
-
-                                    return false; // already exists, don't copy
-                                }
-                                else
-                                {
-                                    // println!("<MISSING> DST [row:{} col:{}] '{}' <-> SRC [row:{} col:{}] '{}'", row_out, tgt_col, dst_cell_value, row, tgt_col, src_cell_value);
-                                }
-                            }
-                        }
-                        return true;
-                    }
-                    false
-                })
-            ); //create_unique_entries_sheet
-
+            filter_sheet_by_col_and_accum(utbl, &mut extra_sheet, &cfg.tgt_src_col, &index_to_column(quantity_col));
         }
 
         res.0.push("SOME DUMMY CONTENT!".to_string());
