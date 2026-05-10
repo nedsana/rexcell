@@ -5,6 +5,10 @@ use rexcell::common;
 #[command(name = common::APP_NAME)]
 #[command(about = common::APP_ABOUT)]
 struct Args {
+    #[arg(value_enum)]
+    #[arg(short = 'c', long = common::ARG_LONG_COMMAND, help = common::COMMAND_FILE_HELP)]
+    command: common::Command,
+
     #[arg(short = 't', long = common::ARG_LONG_TARGET_FILE, default_value = common::TGT_DEFAULT_EXCEL_FILE, help = common::TGT_FILE_HELP)]
     tgt_file: String,
     
@@ -52,26 +56,27 @@ fn main() {
 
     let args = Args::parse();
 
-    if args.list_sheets {
-        let result = rexcell::get_worksheet_names(std::path::Path::new(&args.tgt_file));
-        match result 
-        {
-            Ok(names) => 
-            {
-                if names.len() > 0 
-                {
-                    println!("{}", names); 
-                } 
-                else 
-                {
-                    eprintln!("{} {}", common::NO_SHEETS_FOUND, args.tgt_file); 
-                }
-            }
-            Err(err) => eprintln!("{}", err),
-        }
-    }
-    else {
+    // if args.list_sheets {
+    //     let result = rexcell::get_worksheet_names(std::path::Path::new(&args.tgt_file));
+    //     match result 
+    //     {
+    //         Ok(names) => 
+    //         {
+    //             if names.len() > 0 
+    //             {
+    //                 println!("{}", names); 
+    //             } 
+    //             else 
+    //             {
+    //                 eprintln!("{} {}", common::NO_SHEETS_FOUND, args.tgt_file); 
+    //             }
+    //         }
+    //         Err(err) => eprintln!("{}", err),
+    //     }
+    // }
+    // else {
         let cfg: common::Config = common::Config {
+            command: args.command,
             tgt_file: args.tgt_file,
             tgt_upd_table: args.tgt_upd_table,
             tgt_src_col: args.tgt_src_col,
@@ -94,6 +99,7 @@ fn main() {
                 for line in &lines.1 {
                     println!("{}", line);
                 }
+                
                 if cfg.inplace {
                     println!("Updated {} lines. {}", lines.0.len(), common::formatted_done_saved(&cfg.tgt_file));
                 } else {
@@ -105,5 +111,5 @@ fn main() {
                 println!("Failed to update {}: {}", cfg.tgt_file, err);
             }
         }
-    }
+    // }
 }

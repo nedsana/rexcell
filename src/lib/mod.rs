@@ -1,3 +1,4 @@
+// use clap::error;
 use umya_spreadsheet::*;
 use std::collections::HashMap;
 pub mod common;
@@ -276,7 +277,8 @@ None::<fn(&Worksheet, u32, u32, &mut Worksheet) -> bool>,
 
 pub fn execute(cfg: &common::Config) -> Result<(Vec<String>, Vec<String>), String> 
 {
-    let mut res:(Vec<String>, Vec<String>) = (Vec::new(), Vec::new());
+    let mut res_error: String = String::new();
+    let mut res_success:(Vec<String>, Vec<String>) = (Vec::new(), Vec::new());
 
     // Load the update Excel file
     let target_path = std::path::Path::new(&cfg.tgt_file);
@@ -292,92 +294,131 @@ pub fn execute(cfg: &common::Config) -> Result<(Vec<String>, Vec<String>), Strin
     let mut extra_sheet = Worksheet::default();
     extra_sheet.set_name(common::LABEL_NEW_SHEET.to_string());
 
-    if cfg.ref_file.is_empty() 
+    match cfg.command 
     {
-        let tgt_col = column_to_index(&cfg.tgt_src_col);
-        let quantity_col = tgt_col + 2; //think how to pass it as a parameter
-
-        for utbln in cfg.tgt_upd_table.split(',') 
+        common::Command::CmdListSheets => 
         {
-            // Get the update sheet
-            let result = ubook.get_sheet_by_name_mut(&utbln);
-            let utbl = match result
+            let result = get_worksheet_names(std::path::Path::new(&cfg.tgt_file));
+            match result 
+            {
+                Ok(names) => 
+                {
+                    if names.len() > 0 
+                    {
+                        res_success.0.push(names);
+                    } 
+                    else 
+                    {
+                        return Err(format!("{} {}", common::NO_SHEETS_FOUND, cfg.tgt_file));
+                    }
+                }
+                Err(err) => {
+                    return Err(format!("{} {}", common::ERROR_CANT_READ_FILE, err));
+                }
+            }
+        },
+
+        common::Command::CmdFilterSheets => 
+        {
+            let tgt_col = column_to_index(&cfg.tgt_src_col);
+            let quantity_col = tgt_col + 2; //think how to pass it as a parameter
+
+            for utbln in cfg.tgt_upd_table.split(',') 
+            {
+                // Get the update sheet
+                let result = ubook.get_sheet_by_name_mut(&utbln);
+                let utbl = match result
+                {
+                    Some(tbl) => tbl,
+                    None => {
+                        return Err(format!("{}:{}", common::ERROR_UPDATE_SHEET_NOT_FOUND, utbln));
+                    }
+                };
+                // create_unique_entries_sheet::<fn(&Worksheet, u32, u32, &mut Worksheet) -> bool>(utbl, &mut extra_sheet, None);
+                let r = filter_sheet_by_col_and_accum(utbl, &mut extra_sheet, &cfg.tgt_src_col, &index_to_column(quantity_col));
+                if !r 
+                {
+                    res_error = format!("{}:{}", common::ERROR_FAILED_FILTER_SHEET, utbln);
+                    break;
+                }
+                else
+                {
+                    res_success.0.push(format!("{} '{}'", common::FILTERED_SHEET, utbln));
+                }
+            }
+        },
+
+        common::Command::CmdUpdateSheets => 
+        {
+            // Load the reference Excel file
+            let ref_path = std::path::Path::new(&cfg.ref_file);
+            let result = reader::xlsx::read(ref_path);
+            let mut rbook = match result
+            {
+                Ok(bk) => bk,
+                Err(err) => {
+                    return Err(format!("{}:{} {}", common::ERROR_CANT_READ_FILE, ref_path.display(), err));
+                }
+            };        
+
+            // Get the reference sheet
+            let result = rbook.get_sheet_by_name_mut(&cfg.ref_table);
+            let rtbl = match result
             {
                 Some(tbl) => tbl,
                 None => {
-                    return Err(format!("{}:{}", common::ERROR_UPDATE_SHEET_NOT_FOUND, utbln));
+                    return Err(format!("{}:{}", common::ERROR_REFERENCE_SHEET_NOT_FOUND, cfg.ref_table));
                 }
             };
-            // create_unique_entries_sheet::<fn(&Worksheet, u32, u32, &mut Worksheet) -> bool>(utbl, &mut extra_sheet, None);
-            filter_sheet_by_col_and_accum(utbl, &mut extra_sheet, &cfg.tgt_src_col, &index_to_column(quantity_col));
-        }
 
-        res.0.push("SOME DUMMY CONTENT!".to_string());
+            // Get the key-value entries from the reference table
+            use std::collections::HashMap;
+            let ref_map: HashMap<String, String> = get_ref_map_by_strings(&rtbl, &cfg.ref_col_key, &cfg.ref_col_value);
 
-    }
-    else
-    {
-        // Load the reference Excel file
-        let ref_path = std::path::Path::new(&cfg.ref_file);
-        let result = reader::xlsx::read(ref_path);
-        let mut rbook = match result
-        {
-            Ok(bk) => bk,
-            Err(err) => {
-                return Err(format!("{}:{} {}", common::ERROR_CANT_READ_FILE, ref_path.display(), err));
-            }
-        };        
-
-        // Get the reference sheet
-        let result = rbook.get_sheet_by_name_mut(&cfg.ref_table);
-        let rtbl = match result
-        {
-            Some(tbl) => tbl,
-            None => {
-                return Err(format!("{}:{}", common::ERROR_REFERENCE_SHEET_NOT_FOUND, cfg.ref_table));
-            }
-        };
-
-        // Get the key-value entries from the reference table
-        use std::collections::HashMap;
-        let ref_map: HashMap<String, String> = get_ref_map_by_strings(&rtbl, &cfg.ref_col_key, &cfg.ref_col_value);
-
-        for utbln in cfg.tgt_upd_table.split(',') 
-        {
-            // Get the update sheet
-            let result = ubook.get_sheet_by_name_mut(&utbln);
-            let utbl = match result
+            for utbln in cfg.tgt_upd_table.split(',') 
             {
-                Some(tbl) => tbl,
-                None => {
-                    return Err(format!("{}:{}", common::ERROR_UPDATE_SHEET_NOT_FOUND, utbln));
-                }
-            };
+                // Get the update sheet
+                let result = ubook.get_sheet_by_name_mut(&utbln);
+                let utbl = match result
+                {
+                    Some(tbl) => tbl,
+                    None => {
+                        return Err(format!("{}:{}", common::ERROR_UPDATE_SHEET_NOT_FOUND, utbln));
+                    }
+                };
 
-            let result = apply_key_value_data_by_strings(utbl, 
-                                                                                           &mut extra_sheet, 
-                                                                                           &ref_map, 
-                                                                                           &cfg.tgt_src_col, 
-                                                                                           &cfg.tgt_dest_col);
-            let r = match result {
-                Ok(r) => r,                
-                Err(e) => {
-                    return Err(format!("{}:{}", common::MESSAGE_NO_KEY_VALUE_MAPPING, e));
-                }
-            };
+                let result = apply_key_value_data_by_strings(utbl, 
+                                                                                            &mut extra_sheet, 
+                                                                                            &ref_map, 
+                                                                                            &cfg.tgt_src_col, 
+                                                                                            &cfg.tgt_dest_col);
+                let r = match result {
+                    Ok(r) => r,                
+                    Err(e) => {
+                        return Err(format!("{}:{}", common::MESSAGE_NO_KEY_VALUE_MAPPING, e));
+                    }
+                };
 
-            res.0.extend(r.0);
-            res.1.extend(r.1); 
-        }
+                res_success.0.extend(r.0);
+                res_success.1.extend(r.1); 
+            }
+        },
+
+        _ => 
+        {
+            res_error = format!("{}:{:?}", common::ERROR_INVALID_COMMAND, cfg.command);
+        },
     }
 
+    //Add the extra sheet to the book
     let result = ubook.add_sheet(extra_sheet);
     if let Err(err) = result
     {
         return Err(format!("{}:{}", common::ERROR_FAILED_TO_ADD_SHEET, err));
     }; 
 
-    if res.0.len() > 0 
+    // Save the changes if there are any successful updates, otherwise return the error message
+    if res_success.0.len() > 0 
     {
         // Save changes
         if cfg.inplace 
@@ -397,10 +438,10 @@ pub fn execute(cfg: &common::Config) -> Result<(Vec<String>, Vec<String>), Strin
                 return Err(format!("{}:{} {}", common::ERROR_UNABLE_TO_WRITE_FILE, new_file, err));
             }
         }
-        Ok(res)
+        Ok(res_success)
     }
     else 
     {
-        Err(common::ERROR_NO_ROWS_UPDATED.to_string())
+        Err(format!("{} {}", common::ERROR_NO_ROWS_UPDATED.to_string(), res_error))
     }
 }

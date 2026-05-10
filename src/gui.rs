@@ -280,7 +280,8 @@ impl eframe::App for GuiApp {
 
                 ui.add_space(12.0);
 
-                if ui.button(common::BUTTON_RUN_UPDATES).clicked() {
+                if ui.button(common::BUTTON_RUN_UPDATES).clicked() // to do ... extend to support multiple commands!
+                {
                     self.error.clear();
                     self.output_text.clear();
 
@@ -288,6 +289,7 @@ impl eframe::App for GuiApp {
                     
                     if 1 == ref_sheets.len() {
                         let cfg: common::Config = common::Config {
+                            command: common::Command::CmdUndefined,
                             tgt_file: self.target_section.path.clone(), 
                             tgt_upd_table: self.target_section.update_sheet.clone(),
                             tgt_src_col: self.target_section.src_col.clone(),

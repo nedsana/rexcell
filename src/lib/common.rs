@@ -1,5 +1,18 @@
+use clap::{ValueEnum};
+
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum, Debug)]
+pub enum Command {
+    CmdListSheets,
+    CmdFilterSheets,
+    CmdUpdateSheets,
+    CmdUndefined,
+}
+
 pub const APP_NAME: &str = "rexcell";
 pub const APP_ABOUT: &str = "Process an Excel file using unique IDs";
+
+pub const COMMAND_DEFAULT: Command = Command::CmdFilterSheets;
+pub const COMMAND_FILE_HELP: &str = "Command to execute.";
 
 pub const TGT_FILE_HELP: &str = "Excel file to update";
 pub const TGT_SRC_COL_HELP: &str = "Column to search for duplicate text";
@@ -24,8 +37,9 @@ pub const INPLACE_HELP: &str = "Overwrite the input file instead of creating a n
 
 pub const LIST_SHEETS_HELP: &str = "List of tables(sheets) in the file";
 pub const LIST_SHEETS_TO_UPDATE: &str = "List of tables(sheets) to update";
+pub const FILTERED_SHEET: &str = "Filtered content from sheet";
 
-
+pub const ARG_LONG_COMMAND: &str = "command";
 pub const ARG_LONG_TARGET_FILE: &str = "tgt-file";
 pub const ARG_LONG_SRC_COL: &str = "tgt-src-col";
 pub const ARG_LONG_DEST_COL: &str = "tgt-dest-col";
@@ -79,6 +93,8 @@ pub const ERROR_MULTIPLE_REF_SHEETS: &str = "Multiple reference sheets provided!
 pub const ERROR_NO_ROWS_UPDATED: &str = "No rows updated!";
 pub const ERROR_FAILED_TO_CREATE_SHEET: &str = "Failed to create new sheet!";
 pub const ERROR_FAILED_TO_ADD_SHEET: &str = "Failed to add new sheet!";
+pub const ERROR_FAILED_FILTER_SHEET: &str = "Failed to filter sheet!";
+pub const ERROR_INVALID_COMMAND: &str = "Invalid command!";
 pub const MESSAGE_NO_KEY_VALUE_MAPPING: &str = "No key-value mapping was applied!";
 pub const MESSAGE_APPLIED_MAPPINGS: &str = "Updated {} lines in table/sheet {}!";
 pub const MESSAGE_DONE_SAVED: &str = "Done! The result is saved in '{}'";
@@ -86,6 +102,8 @@ pub const NO_SHEETS_FOUND: &str = "No sheets found in the file";
 
 
 pub struct Config {
+    pub command: Command,
+
     pub tgt_file: String,
     pub tgt_upd_table: String,
     pub tgt_src_col: String,
