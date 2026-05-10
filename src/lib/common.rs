@@ -85,7 +85,9 @@ pub const NEW_FILE_SUFFIX: &str = "_new.xlsx";
 
 pub const ERROR_FAILED_TO_SPAWN_REXCELL: &str = "Failed to spawn rexcell: ";
 pub const ERROR_FAILED_TO_START_GUI: &str = "Failed to start GUI";
-pub const ERROR_CANT_READ_FILE: &str = "Can't read the file";
+pub const ERROR_CANT_READ_FILE: &str = "Can't read file";
+pub const ERROR_CANT_READ_REF_FILE: &str = "Can't read reference file";
+pub const ERROR_CANT_READ_TGT_FILE: &str = "Can't read target file";
 pub const ERROR_REFERENCE_SHEET_NOT_FOUND: &str = "The reference sheet is not found";
 pub const ERROR_UPDATE_SHEET_NOT_FOUND: &str = "The update sheet is not found";
 pub const ERROR_UNABLE_TO_WRITE_FILE: &str = "Unable to write the file";

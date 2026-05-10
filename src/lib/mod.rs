@@ -287,7 +287,7 @@ pub fn execute(cfg: &common::Config) -> Result<(Vec<String>, Vec<String>), Strin
     {
         Ok(bk) => bk,
         Err(err) => {
-            return Err(format!("{}:{} {}", common::ERROR_CANT_READ_FILE, target_path.display(), err));
+            return Err(format!("{}:'{}' {}", common::ERROR_CANT_READ_TGT_FILE, target_path.display(), err));
         }
     };
 
@@ -313,7 +313,7 @@ pub fn execute(cfg: &common::Config) -> Result<(Vec<String>, Vec<String>), Strin
                     }
                 }
                 Err(err) => {
-                    return Err(format!("{} {}", common::ERROR_CANT_READ_FILE, err));
+                    return Err(format!("{}:'{}' {}", common::ERROR_CANT_READ_TGT_FILE, cfg.tgt_file, err));
                 }
             }
         },
@@ -357,7 +357,7 @@ pub fn execute(cfg: &common::Config) -> Result<(Vec<String>, Vec<String>), Strin
             {
                 Ok(bk) => bk,
                 Err(err) => {
-                    return Err(format!("{}:{} {}", common::ERROR_CANT_READ_FILE, ref_path.display(), err));
+                    return Err(format!("{}:'{}' {}", common::ERROR_CANT_READ_REF_FILE, ref_path.display(), err));
                 }
             };        
 
@@ -410,7 +410,7 @@ pub fn execute(cfg: &common::Config) -> Result<(Vec<String>, Vec<String>), Strin
         },
     }
 
-    if cfg.command == common::Command::CmdFilterSheets || cfg.command == common::Command::CmdUpdateSheets
+    if cfg.command == common::Command::CmdFilterSheets
     {
         //Add the extra sheet to the book
         let result = ubook.add_sheet(extra_sheet);
