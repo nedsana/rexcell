@@ -43,53 +43,48 @@ pub fn get_ref_map_by_strings(sheet: &Worksheet, col_key: &String, col_value: &S
 
 pub fn apply_key_value_data_by_indexes(
     sheet: &mut Worksheet,
-    extra_sheet: &mut Worksheet,
     ref_map: &HashMap<String, String>,
     src_col: u32,
     dest_col: u32,
-) -> Result<(Vec<String>, Vec<String>), String> {
+) -> Result<(Vec<String>, Vec<String>), String> 
+{
     let mut res = (Vec::new(), Vec::new());
     let max_row = sheet.get_highest_row();
-    for row in 1..=max_row {
+    for row in 1..=max_row 
+    {
         let cell_value = sheet.get_value((src_col, row));
-        if !cell_value.is_empty() {
-            if let Some(value) = ref_map.get(&cell_value) {
+        if !cell_value.is_empty() 
+        {
+            if let Some(value) = ref_map.get(&cell_value) 
+            {
                 sheet.get_cell_mut((dest_col, row)).set_value(value.clone());
 
-                res.0.push(format!("[Col:{} Raw:{}]: Updated '{}' in '{}'!", 
-                        index_to_column(src_col), row, cell_value, sheet.get_name()));
-            } else {
-                
-                res.1.push(format!("[Col:{} Raw:{}]: Can't find '{}' in '{}'! Adding to sheet '{}'!", 
-                            index_to_column(src_col), row, cell_value, sheet.get_name(), extra_sheet.get_name()));
-
-                let max_col = sheet.get_highest_column();
-                let next_row = extra_sheet.get_highest_row() + 1;
-                for col in 1..=max_col {
-                    let cell_value = sheet.get_value((col, row));
-                    if !cell_value.is_empty() {
-                        extra_sheet.get_cell_mut((col, next_row)).set_value(cell_value.clone());
-                    }
-                }
+                res.0.push(format!("[Col:{} Raw:{}]: Updated '{}' in '{}'!", index_to_column(src_col), row, cell_value, sheet.get_name()));
+            } 
+            else 
+            {
+                res.1.push(format!("[Col:{} Raw:{}]: Can't find '{}' in '{}'!", index_to_column(src_col), row, cell_value, sheet.get_name()));
             }
         }
     }
 
-    if res.0.is_empty(){
+    if res.0.is_empty()
+    {
         Err(common::MESSAGE_NO_KEY_VALUE_MAPPING.to_string())
-    } else {
+    } 
+    else 
+    {
         Ok(res)
     }
 }
 
 pub fn apply_key_value_data_by_strings(
     sheet: &mut Worksheet,
-    extra_sheet: &mut Worksheet,
     ref_map: &HashMap<String, String>,
     src_col: &String,
     dest_col: &String,
 ) -> Result<(Vec<String>, Vec<String>), String> {
-    apply_key_value_data_by_indexes(sheet, extra_sheet, ref_map, column_to_index(src_col), column_to_index(dest_col))
+    apply_key_value_data_by_indexes(sheet, ref_map, column_to_index(src_col), column_to_index(dest_col))
 }
 
 pub fn get_worksheet_names_list(book: &Spreadsheet) -> Vec<String> {
@@ -388,7 +383,6 @@ pub fn execute(cfg: &common::Config) -> Result<(Vec<String>, Vec<String>), Strin
                 };
 
                 let result = apply_key_value_data_by_strings(utbl, 
-                                                                                            &mut extra_sheet, 
                                                                                             &ref_map, 
                                                                                             &cfg.tgt_src_col, 
                                                                                             &cfg.tgt_dest_col);
