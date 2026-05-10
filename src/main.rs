@@ -40,8 +40,6 @@ struct Args {
     #[arg(short = 'i', long = common::ARG_LONG_INPLACE, default_value = common::DEFAULT_BOOL_FALSE, help = common::INPLACE_HELP)]
     inplace: bool,
 
-    #[arg(short = 'l', long = common::ARG_LONG_LIST_SHEETS, default_value = common::DEFAULT_BOOL_FALSE, help = common::LIST_SHEETS_HELP)]
-    list_sheets: bool,
 }
 
 // cargo run --bin rexcell -- -t ../../Test_Twins.xlsx -e "Ед. Цени" -u "Ф200" -k B -v C -s C -d B -i
@@ -56,60 +54,39 @@ fn main() {
 
     let args = Args::parse();
 
-    // if args.list_sheets {
-    //     let result = rexcell::get_worksheet_names(std::path::Path::new(&args.tgt_file));
-    //     match result 
-    //     {
-    //         Ok(names) => 
-    //         {
-    //             if names.len() > 0 
-    //             {
-    //                 println!("{}", names); 
-    //             } 
-    //             else 
-    //             {
-    //                 eprintln!("{} {}", common::NO_SHEETS_FOUND, args.tgt_file); 
-    //             }
-    //         }
-    //         Err(err) => eprintln!("{}", err),
-    //     }
-    // }
-    // else {
-        let cfg: common::Config = common::Config {
-            command: args.command,
-            tgt_file: args.tgt_file,
-            tgt_upd_table: args.tgt_upd_table,
-            tgt_src_col: args.tgt_src_col,
-            tgt_dest_col: args.tgt_dest_col,
-            ref_file: args.ref_file,
-            ref_table: args.ref_table,
-            ref_col_key: args.ref_col_key,
-            ref_col_value: args.ref_col_value,
-            inplace: args.inplace,
-            list_sheets: args.list_sheets,
-        };
+    let cfg: common::Config = common::Config {
+        command: args.command,
+        tgt_file: args.tgt_file,
+        tgt_upd_table: args.tgt_upd_table,
+        tgt_src_col: args.tgt_src_col,
+        tgt_dest_col: args.tgt_dest_col,
+        ref_file: args.ref_file,
+        ref_table: args.ref_table,
+        ref_col_key: args.ref_col_key,
+        ref_col_value: args.ref_col_value,
+        inplace: args.inplace,
+    };
 
-        let res =rexcell::execute(&cfg);
+    let res =rexcell::execute(&cfg);
 
-        match res {
-            Ok(lines) => {
-                for line in &lines.0 {
-                    println!("{}", line);
-                }
-                for line in &lines.1 {
-                    println!("{}", line);
-                }
-                
-                if cfg.inplace {
-                    println!("Updated {} lines. {}", lines.0.len(), common::formatted_done_saved(&cfg.tgt_file));
-                } else {
-                    let new_file = format!("{}{}", cfg.tgt_file.trim_end_matches(common::XLSX_EXTENSION), common::NEW_FILE_SUFFIX);
-                    println!("Updated {} lines. {}", lines.0.len(), common::formatted_done_saved(&new_file));
-                }
+    match res {
+        Ok(lines) => {
+            for line in &lines.0 {
+                println!("{}", line);
             }
-            Err(err) => {
-                println!("Failed to update {}: {}", cfg.tgt_file, err);
+            for line in &lines.1 {
+                println!("{}", line);
+            }
+            
+            if cfg.inplace {
+                println!("Updated {} lines. {}", lines.0.len(), common::formatted_done_saved(&cfg.tgt_file));
+            } else {
+                let new_file = format!("{}{}", cfg.tgt_file.trim_end_matches(common::XLSX_EXTENSION), common::NEW_FILE_SUFFIX);
+                println!("Updated {} lines. {}", lines.0.len(), common::formatted_done_saved(&new_file));
             }
         }
-    // }
+        Err(err) => {
+            println!("Failed to update {}: {}", cfg.tgt_file, err);
+        }
+    }
 }

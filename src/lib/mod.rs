@@ -346,6 +346,13 @@ pub fn execute(cfg: &common::Config) -> Result<(Vec<String>, Vec<String>), Strin
                     res_success.0.push(format!("{} '{}'", common::FILTERED_SHEET, utbln));
                 }
             }
+
+            //Add the extra sheet to the book
+            let result = ubook.add_sheet(extra_sheet);
+            if let Err(err) = result
+            {
+                return Err(format!("{}:{}", common::ERROR_FAILED_TO_ADD_SHEET, err));
+            }; 
         },
 
         common::Command::CmdUpdateSheets => 
@@ -402,6 +409,13 @@ pub fn execute(cfg: &common::Config) -> Result<(Vec<String>, Vec<String>), Strin
                 res_success.0.extend(r.0);
                 res_success.1.extend(r.1); 
             }
+
+            //Add the extra sheet to the book
+            let result = ubook.add_sheet(extra_sheet);
+            if let Err(err) = result
+            {
+                return Err(format!("{}:{}", common::ERROR_FAILED_TO_ADD_SHEET, err));
+            }; 
         },
 
         _ => 
@@ -410,12 +424,7 @@ pub fn execute(cfg: &common::Config) -> Result<(Vec<String>, Vec<String>), Strin
         },
     }
 
-    //Add the extra sheet to the book
-    let result = ubook.add_sheet(extra_sheet);
-    if let Err(err) = result
-    {
-        return Err(format!("{}:{}", common::ERROR_FAILED_TO_ADD_SHEET, err));
-    }; 
+
 
     // Save the changes if there are any successful updates, otherwise return the error message
     if res_success.0.len() > 0 

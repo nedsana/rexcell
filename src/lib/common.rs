@@ -115,7 +115,6 @@ pub struct Config {
     pub ref_col_value: String,
     
     pub inplace: bool,
-    pub list_sheets: bool,
 }
 
 pub fn formatted_applied_mappings(applied: usize) -> String {

@@ -299,7 +299,6 @@ impl eframe::App for GuiApp {
                             ref_col_key: self.reference_section.col_key.clone(),
                             ref_col_value: self.reference_section.col_value.clone(),
                             inplace: false,
-                            list_sheets: false,
                         };
 
                         let res = rexcell::execute(&cfg);
