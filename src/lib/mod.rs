@@ -346,13 +346,6 @@ pub fn execute(cfg: &common::Config) -> Result<(Vec<String>, Vec<String>), Strin
                     res_success.0.push(format!("{} '{}'", common::FILTERED_SHEET, utbln));
                 }
             }
-
-            //Add the extra sheet to the book
-            let result = ubook.add_sheet(extra_sheet);
-            if let Err(err) = result
-            {
-                return Err(format!("{}:{}", common::ERROR_FAILED_TO_ADD_SHEET, err));
-            }; 
         },
 
         common::Command::CmdUpdateSheets => 
@@ -409,13 +402,6 @@ pub fn execute(cfg: &common::Config) -> Result<(Vec<String>, Vec<String>), Strin
                 res_success.0.extend(r.0);
                 res_success.1.extend(r.1); 
             }
-
-            //Add the extra sheet to the book
-            let result = ubook.add_sheet(extra_sheet);
-            if let Err(err) = result
-            {
-                return Err(format!("{}:{}", common::ERROR_FAILED_TO_ADD_SHEET, err));
-            }; 
         },
 
         _ => 
@@ -424,27 +410,38 @@ pub fn execute(cfg: &common::Config) -> Result<(Vec<String>, Vec<String>), Strin
         },
     }
 
-
+    if cfg.command == common::Command::CmdFilterSheets || cfg.command == common::Command::CmdUpdateSheets
+    {
+        //Add the extra sheet to the book
+        let result = ubook.add_sheet(extra_sheet);
+        if let Err(err) = result
+        {
+            return Err(format!("{}:{}", common::ERROR_FAILED_TO_ADD_SHEET, err));
+        }; 
+    }
 
     // Save the changes if there are any successful updates, otherwise return the error message
     if res_success.0.len() > 0 
     {
-        // Save changes
-        if cfg.inplace 
+        if cfg.command == common::Command::CmdFilterSheets || cfg.command == common::Command::CmdUpdateSheets
         {
-            let result = writer::xlsx::write(&ubook, target_path);
-            if let Err(err) = result 
+            // Save changes
+            if cfg.inplace 
             {
-                return Err(format!("{}:{} {}", common::ERROR_UNABLE_TO_WRITE_FILE, target_path.display(), err));
-            }
-        } 
-        else 
-        {
-            let new_file = format!("{}{}", cfg.tgt_file.trim_end_matches(common::XLSX_EXTENSION), common::NEW_FILE_SUFFIX);
-            let result = writer::xlsx::write(&ubook, std::path::Path::new(&new_file));
-            if let Err(err) = result 
+                let result = writer::xlsx::write(&ubook, target_path);
+                if let Err(err) = result 
+                {
+                    return Err(format!("{}:{} {}", common::ERROR_UNABLE_TO_WRITE_FILE, target_path.display(), err));
+                }
+            } 
+            else 
             {
-                return Err(format!("{}:{} {}", common::ERROR_UNABLE_TO_WRITE_FILE, new_file, err));
+                let new_file = format!("{}{}", cfg.tgt_file.trim_end_matches(common::XLSX_EXTENSION), common::NEW_FILE_SUFFIX);
+                let result = writer::xlsx::write(&ubook, std::path::Path::new(&new_file));
+                if let Err(err) = result 
+                {
+                    return Err(format!("{}:{} {}", common::ERROR_UNABLE_TO_WRITE_FILE, new_file, err));
+                }
             }
         }
         Ok(res_success)
