@@ -41,11 +41,19 @@ impl Default for ReferencesData {
     }
 }
 
+#[derive(PartialEq)]
+enum Tab 
+{
+    Filter,
+    Update,
+}
+
 struct GuiApp {
     target_section: TargetData,
     reference_section: ReferencesData,
     output_text: String,
     error: String,
+    active_tab: Tab,
 }
 
 impl Default for GuiApp {
@@ -55,35 +63,13 @@ impl Default for GuiApp {
             reference_section: ReferencesData::default(),
             output_text: String::new(),
             error: String::new(),
+            active_tab: Tab::Filter,
         }
     }
 }
 
 impl GuiApp 
 {
-    /*
-    #[warn(dead_code)]
-    fn get_sheets_list_cmd(&mut self, file_path: &str) -> Result<String, String> {
-        let mut cmd = Command::new(common::CMD_PATH);
-        cmd.args([
-            common::CMD_ARG_TARGET,
-            file_path,
-            format!("--{}", common::ARG_LONG_LIST_SHEETS).as_str()
-        ]);
-
-        match cmd.output() {
-            Ok(output) => {
-                if output.status.success() {
-                    Ok(String::from_utf8_lossy(&output.stdout).into_owned())
-                } else {
-                    Err(String::from_utf8_lossy(&output.stderr).into_owned())
-                }
-            }
-            Err(err) => Err(format!("{}{}", common::ERROR_FAILED_TO_SPAWN_REXCELL, err)),
-        }
-    }
-    */
-
     fn get_sheets_list(&mut self, file_path: &str) -> Result<String, String> 
     {
         let result = rexcell::get_worksheet_names(std::path::Path::new(&file_path));
@@ -103,8 +89,10 @@ impl GuiApp
         }
     }
 
-    fn draw_target_section(&mut self, ui: &mut egui::Ui) {
-        egui::Frame::group(ui.style()).show(ui, |ui| {
+    fn draw_target_section(&mut self, ui: &mut egui::Ui) 
+    {
+        egui::Frame::group(ui.style()).show(ui, |ui| 
+        {
             ui.label(common::TGT_FILE_HELP);
             ui.add_space(4.0);
             ui.horizontal(|ui| {
@@ -196,8 +184,10 @@ impl GuiApp
         });
     }
 
-    fn draw_reference_section(&mut self, ui: &mut egui::Ui) {
-        egui::Frame::group(ui.style()).show(ui, |ui| {
+    fn draw_reference_section(&mut self, ui: &mut egui::Ui) 
+    {
+        egui::Frame::group(ui.style()).show(ui, |ui| 
+        {
             ui.label(common::REF_FILE_HELP);
             ui.add_space(4.0);
             ui.horizontal(|ui| {
@@ -286,113 +276,33 @@ impl GuiApp
     }
 }
 
-/*
-#[warn(dead_code)]
-impl eframe::App for GuiApp {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        egui::CentralPanel::default().show(ctx, |ui| {
-            ui.vertical(|ui| {
+impl eframe::App for GuiApp 
+{
+    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) 
+    {
+        egui::CentralPanel::default().show(ctx, |ui| 
+        {
+            ui.vertical(|ui| 
+            {
                 ui.heading(common::WINDOW_TITLE);
                 // ui.label(common::PANEL_DESCRIPTION);
 
                 ui.add_space(8.0);
 
-                egui::Frame::group(ui.style()).show(ui, |ui| {
-                    ui.columns(2, |columns| {
-                        self.draw_target_section(&mut columns[0]);
-                        self.draw_reference_section(&mut columns[1]);
-                    });
+                ui.horizontal(|ui| 
+                {
+                    ui.selectable_value(&mut self.active_tab, Tab::Filter, common::TAB_LABEL_FILTER);
+                    ui.selectable_value(&mut self.active_tab, Tab::Update, common::TAB_LABEL_UPDATE);
                 });
 
-                ui.add_space(12.0);
-
-                if ui.button(common::BUTTON_RUN_UPDATES).clicked() {
-                    self.error.clear();
-                    self.output_text.clear();
-
-                    let ref_sheets: Vec<String> = self.reference_section.reference_sheet.split(',').map(str::trim).map(String::from).collect();
-                    
-                    if 1 == ref_sheets.len() {
-                        let mut cmd = Command::new(common::CMD_PATH);
-                        cmd.args([
-                            common::CMD_ARG_TARGET,
-                            &self.target_section.path,
-                            common::CMD_ARG_REFERENCE,
-                            &self.reference_section.path,
-                            common::CMD_ARG_SRC,
-                            &self.target_section.src_col,
-                            common::CMD_ARG_DEST,
-                            &self.target_section.dest_col,
-                            common::CMD_ARG_UPDATE,
-                            &self.target_section.update_sheet,
-                            common::CMD_ARG_REFERENCE_SHEET,
-                            &self.reference_section.reference_sheet,
-                            common::CMD_ARG_KEY,
-                            &self.reference_section.col_key,
-                            common::CMD_ARG_VALUE,
-                            &self.reference_section.col_value,
-                            common::CMD_ARG_INPLACE
-                        ]);
-
-                        // println!("Command: {:?}", cmd);
-
-                        match cmd.output() {
-                            Ok(output) => {
-                                if output.status.success() {
-                                    self.output_text = String::from_utf8_lossy(&output.stdout).into_owned();
-                                } else {
-                                    self.error = String::from_utf8_lossy(&output.stderr).into_owned();
-                                }
-                            }
-                            Err(err) => {
-                                self.error = format!("{}{}", common::ERROR_FAILED_TO_SPAWN_REXCELL, err);
-                            }
-                        }
+                match self.active_tab {
+                    Tab::Filter => {
+                        self.draw_target_section(ui);
                     }
-                    else
-                    {
-                        self.error = String::from(common::ERROR_MULTIPLE_REF_SHEETS);
+                    Tab::Update => {
+                        self.draw_reference_section(ui);
                     }
                 }
-
-                ui.add_space(12.0);
-
-                egui::Frame::group(ui.style()).show(ui, |ui| {
-                    ui.label(common::LABEL_EXECUTION_RESULT);
-                    ui.add_space(4.0);
-                    ui.add(
-                        egui::TextEdit::multiline(&mut self.output_text)
-                            .desired_rows(16)
-                            .desired_width(f32::INFINITY)
-                            .lock_focus(true),
-                    );
-                });
-
-                if !self.error.is_empty() {
-                    ui.add_space(8.0);
-                    ui.colored_label(egui::Color32::RED, &self.error);
-                }
-            });
-        });
-    }
-}
-*/
-
-impl eframe::App for GuiApp {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        egui::CentralPanel::default().show(ctx, |ui| {
-            ui.vertical(|ui| {
-                ui.heading(common::WINDOW_TITLE);
-                // ui.label(common::PANEL_DESCRIPTION);
-
-                ui.add_space(8.0);
-
-                egui::Frame::group(ui.style()).show(ui, |ui| {
-                    ui.columns(2, |columns| {
-                        self.draw_target_section(&mut columns[0]);
-                        self.draw_reference_section(&mut columns[1]);
-                    });
-                });
 
                 ui.add_space(12.0);
 
@@ -422,6 +332,7 @@ impl eframe::App for GuiApp {
             });
         });
     }
+
 }
 
 fn main() {

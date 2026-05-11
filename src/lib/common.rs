@@ -85,6 +85,8 @@ pub const CMD_ARG_KEY: &str = "-k";
 pub const CMD_ARG_VALUE: &str = "-v";
 pub const CMD_ARG_INPLACE: &str = "-i";
 
+pub const TAB_LABEL_FILTER: &str = "Filter Tables";
+pub const TAB_LABEL_UPDATE: &str = "Update Tables";
 
 pub const DEFAULT_BOOL_FALSE: &str = "false";
 
