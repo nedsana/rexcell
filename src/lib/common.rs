@@ -18,10 +18,15 @@ pub const TGT_FILE_HELP: &str = "Excel file to update";
 pub const TGT_SRC_COL_HELP: &str = "Column to search for duplicate text";
 pub const TGT_DEST_COL_HELP: &str = "Column to write unique IDs into";
 pub const TGT_UPDATE_SHEET_HELP: &str = "Update tables(sheets). Comma-separated list.";
+pub const NEW_SHEET_NAME_HELP: &str = "Name of the new sheet";
+
+
 pub const TGT_DEFAULT_EXCEL_FILE: &str = "";
 pub const TGT_DEFAULT_SRC_COL: &str = "C";
 pub const TGT_DEFAULT_DST_COL: &str = "B";
 pub const TGT_DEFAULT_TABLE: &str = "";
+pub const TGT_DEFAULT_NEW_SHEET_NAME: &str = "New-Sheet";
+
 
 pub const REF_FILE_HELP: &str = "Excel file, with reference data";
 pub const REF_SHEET_HELP: &str = "Reference table(sheet) name";
@@ -50,6 +55,8 @@ pub const ARG_LONG_KEY_COL: &str = "ref-col-key";
 pub const ARG_LONG_VALUE_COL: &str = "ref-col-value";
 pub const ARG_LONG_INPLACE: &str = "inplace";
 pub const ARG_LONG_LIST_SHEETS: &str = "list-sheets";
+pub const ARG_LONG_NEW_SHEET_NAME: &str = "new-sheet-name";
+
 
 pub const LABEL_FILE_BROWSER: &str = "File browser";
 pub const LABEL_FILE: &str = "File:";
@@ -116,6 +123,7 @@ pub struct Config {
     pub ref_col_key: String,
     pub ref_col_value: String,
     
+    pub new_sheet_name: String,
     pub inplace: bool,
 }
 

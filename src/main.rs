@@ -36,10 +36,11 @@ struct Args {
     ref_col_value: String,
 
 
+    #[arg(short = 'n', long = common::ARG_LONG_NEW_SHEET_NAME, default_value = common::TGT_DEFAULT_NEW_SHEET_NAME, help = common::NEW_SHEET_NAME_HELP)]
+    new_sheet_name: String,
 
     #[arg(short = 'i', long = common::ARG_LONG_INPLACE, default_value = common::DEFAULT_BOOL_FALSE, help = common::INPLACE_HELP)]
     inplace: bool,
-
 }
 
 // cargo run --bin rexcell -- -t ../../Test_Twins.xlsx -e "Ед. Цени" -u "Ф200" -k B -v C -s C -d B -i
@@ -64,6 +65,7 @@ fn main() {
         ref_table: args.ref_table,
         ref_col_key: args.ref_col_key,
         ref_col_value: args.ref_col_value,
+        new_sheet_name: args.new_sheet_name,
         inplace: args.inplace,
     };
 

@@ -286,9 +286,6 @@ pub fn execute(cfg: &common::Config) -> Result<(Vec<String>, Vec<String>), Strin
         }
     };
 
-    let mut extra_sheet = Worksheet::default();
-    extra_sheet.set_name(common::LABEL_NEW_SHEET.to_string());
-
     match cfg.command 
     {
         common::Command::CmdListSheets => 
@@ -315,6 +312,9 @@ pub fn execute(cfg: &common::Config) -> Result<(Vec<String>, Vec<String>), Strin
 
         common::Command::CmdFilterSheets => 
         {
+            let mut extra_sheet = Worksheet::default();
+            extra_sheet.set_name(cfg.new_sheet_name.clone());
+
             let tgt_col = column_to_index(&cfg.tgt_src_col);
             let quantity_col = tgt_col + 2; //think how to pass it as a parameter
 
@@ -341,6 +341,13 @@ pub fn execute(cfg: &common::Config) -> Result<(Vec<String>, Vec<String>), Strin
                     res_success.0.push(format!("{} '{}'", common::FILTERED_SHEET, utbln));
                 }
             }
+
+            //Add the extra sheet to the book
+            let result = ubook.add_sheet(extra_sheet);
+            if let Err(err) = result
+            {
+                return Err(format!("{}:{}", common::ERROR_FAILED_TO_ADD_SHEET, err));
+            }; 
         },
 
         common::Command::CmdUpdateSheets => 
@@ -383,9 +390,9 @@ pub fn execute(cfg: &common::Config) -> Result<(Vec<String>, Vec<String>), Strin
                 };
 
                 let result = apply_key_value_data_by_strings(utbl, 
-                                                                                            &ref_map, 
-                                                                                            &cfg.tgt_src_col, 
-                                                                                            &cfg.tgt_dest_col);
+                                                            &ref_map, 
+                                                            &cfg.tgt_src_col, 
+                                                            &cfg.tgt_dest_col);
                 let r = match result {
                     Ok(r) => r,                
                     Err(e) => {
@@ -402,16 +409,6 @@ pub fn execute(cfg: &common::Config) -> Result<(Vec<String>, Vec<String>), Strin
         {
             res_error = format!("{}:{:?}", common::ERROR_INVALID_COMMAND, cfg.command);
         },
-    }
-
-    if cfg.command == common::Command::CmdFilterSheets
-    {
-        //Add the extra sheet to the book
-        let result = ubook.add_sheet(extra_sheet);
-        if let Err(err) = result
-        {
-            return Err(format!("{}:{}", common::ERROR_FAILED_TO_ADD_SHEET, err));
-        }; 
     }
 
     // Save the changes if there are any successful updates, otherwise return the error message
