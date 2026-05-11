@@ -315,9 +315,6 @@ pub fn execute(cfg: &common::Config) -> Result<(Vec<String>, Vec<String>), Strin
             let mut extra_sheet = Worksheet::default();
             extra_sheet.set_name(cfg.new_sheet_name.clone());
 
-            let tgt_col = column_to_index(&cfg.tgt_src_col);
-            let quantity_col = tgt_col + 2; //think how to pass it as a parameter
-
             for utbln in cfg.tgt_upd_table.split(',') 
             {
                 // Get the update sheet
@@ -329,8 +326,12 @@ pub fn execute(cfg: &common::Config) -> Result<(Vec<String>, Vec<String>), Strin
                         return Err(format!("{}:{}", common::ERROR_UPDATE_SHEET_NOT_FOUND, utbln));
                     }
                 };
+
+                // Just create new table with unique values
                 // create_unique_entries_sheet::<fn(&Worksheet, u32, u32, &mut Worksheet) -> bool>(utbl, &mut extra_sheet, None);
-                let r = filter_sheet_by_col_and_accum(utbl, &mut extra_sheet, &cfg.tgt_src_col, &index_to_column(quantity_col));
+
+                // Create new table with unique values from cfg.tgt_src_col.When repetition is found, accumulate the values in cfg.tgt_dest_col.
+                let r = filter_sheet_by_col_and_accum(utbl, &mut extra_sheet, &cfg.tgt_src_col, &cfg.tgt_dest_col);
                 if !r 
                 {
                     res_error = format!("{}:{}", common::ERROR_FAILED_FILTER_SHEET, utbln);
