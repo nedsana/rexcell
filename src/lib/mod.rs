@@ -22,6 +22,13 @@ pub fn index_to_column(mut index: u32) -> String {
     col.chars().rev().collect()
 }
 
+//compare strings, ignoring white spaces (' ',\t, \n, \r)
+fn cmp_strs(s1: &str, s2: &str) -> bool {
+    let words1 = s1.split_whitespace();
+    let words2 = s2.split_whitespace();
+    words1.eq(words2)
+}
+
 pub fn get_ref_map_by_indexes(sheet: &Worksheet, col_key: u32, col_value: u32) -> HashMap<String, String> {
     let mut ref_map: HashMap<String, String> = HashMap::new();
 
@@ -55,13 +62,21 @@ pub fn apply_key_value_data_by_indexes(
         let cell_value = sheet.get_value((src_col, row));
         if !cell_value.is_empty() 
         {
-            if let Some(value) = ref_map.get(&cell_value) 
+            let mut found = false;
+            for (key, value) in ref_map 
             {
-                sheet.get_cell_mut((dest_col, row)).set_value(value.clone());
+                if cmp_strs(&key, &cell_value)
+                {
+                    sheet.get_cell_mut((dest_col, row)).set_value(value.clone());
 
-                res.0.push(format!("[Col:{} Raw:{}]: Updated '{}' in '{}'!", index_to_column(src_col), row, cell_value, sheet.get_name()));
-            } 
-            else 
+                    res.0.push(format!("[Col:{} Raw:{}]: Updated '{}' in '{}'!", index_to_column(src_col), row, cell_value, sheet.get_name()));
+
+                    found = true;
+                    break;
+                }
+            }
+
+            if !found
             {
                 res.1.push(format!("[Col:{} Raw:{}]: Can't find '{}' in '{}'!", index_to_column(src_col), row, cell_value, sheet.get_name()));
             }
@@ -253,7 +268,8 @@ pub fn filter_sheet_by_col_and_accum(
                     {
                         let dst_cell_value = dst_cell.get_value();
 
-                        if dst_cell_value == src_cell_value 
+                        if cmp_strs(&dst_cell_value, &src_cell_value)
+                        // if dst_cell_value == src_cell_value
                         {
                             // println!("  <FOUND> DST({}) [row:{} col:{}] '{}' <-> SRC({}) [row:{} col:{}] '{}'", 
                             //     sheet_out.get_name(), row_out, tgt_col, dst_cell_value, sheet_in.get_name(), row, tgt_col, src_cell_value);
