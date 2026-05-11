@@ -298,6 +298,7 @@ impl eframe::App for GuiApp {
                             ref_table: self.reference_section.reference_sheet.clone(),
                             ref_col_key: self.reference_section.col_key.clone(),
                             ref_col_value: self.reference_section.col_value.clone(),
+                            new_sheet_name: "to do".to_string(),
                             inplace: false,
                         };
 
