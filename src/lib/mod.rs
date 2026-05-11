@@ -128,7 +128,7 @@ where FRow:  Fn(&Worksheet, u32,      &mut Worksheet) -> bool,
 
     let max_row = sheet_in.get_highest_row();
     let max_col = sheet_in.get_highest_column();
-    let mut current_new_row = 1;
+    let mut current_new_row = sheet_out.get_highest_row()+1;
 
     for row in 1..=max_row 
     {
@@ -213,7 +213,7 @@ where FRow:  Fn(&Worksheet, u32,      &mut Worksheet) -> bool,
         }
         else
         {
-            println!("Row {} is part of a merged cell, skipping!", row);
+            // println!("[{}] Row {} is part of a merged cell, skipping!", sheet_in.get_name(), row);
         }
     }
     true
@@ -242,7 +242,7 @@ pub fn filter_sheet_by_col_and_accum(
             if let Some(src_cell) = o_src_cell 
             {
                 let src_cell_value = src_cell.get_value();
-                // println!("======================================");
+                // println!("================== {} ====================", src_cell_value);
                 // Check if the value already exists in the output sheet
                 let max_row_out = sheet_out.get_highest_row();
                 for row_out in 1..=max_row_out 
@@ -255,7 +255,8 @@ pub fn filter_sheet_by_col_and_accum(
 
                         if dst_cell_value == src_cell_value 
                         {
-                            // println!("  <FOUND> DST [row:{} col:{}] '{}' <-> SRC [row:{} col:{}] '{}'", row_out, tgt_col, dst_cell_value, row, tgt_col, src_cell_value);
+                            // println!("  <FOUND> DST({}) [row:{} col:{}] '{}' <-> SRC({}) [row:{} col:{}] '{}'", 
+                            //     sheet_out.get_name(), row_out, tgt_col, dst_cell_value, sheet_in.get_name(), row, tgt_col, src_cell_value);
 
                             //the entry is found, but we have to update the cell with quantity
                             let mut q_cell_value_src = 0.0;
@@ -273,10 +274,13 @@ pub fn filter_sheet_by_col_and_accum(
                         }
                         else
                         {
-                            // println!("<MISSING> DST [row:{} col:{}] '{}' <-> SRC [row:{} col:{}] '{}'", row_out, tgt_col, dst_cell_value, row, tgt_col, src_cell_value);
+                            // println!("<MISSING> DST({}) [row:{} col:{}] '{}' <-> SRC({}) [row:{} col:{}] '{}'. Trying next row ...", 
+                            //     sheet_out.get_name(), row_out, tgt_col, dst_cell_value, sheet_in.get_name(), row, tgt_col, src_cell_value);
                         }
                     }
                 }
+                // println!("< APPEND> DST({}) [row:{} col:{}] '{}' <-> SRC({}) [row:{} col:{}] '{}'", 
+                //     sheet_out.get_name(), max_row_out, tgt_col, src_cell_value, sheet_in.get_name(), row, tgt_col, src_cell_value);
                 return true;
             }
             false
@@ -333,6 +337,8 @@ pub fn execute(cfg: &common::Config) -> Result<(Vec<String>, Vec<String>), Strin
 
             for utbln in cfg.tgt_upd_table.split(',') 
             {
+                // println!("\n ### PROCESSING {} ###\n", utbln);
+
                 // Get the update sheet
                 let result = ubook.get_sheet_by_name_mut(&utbln);
                 let utbl = match result
