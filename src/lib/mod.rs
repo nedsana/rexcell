@@ -104,6 +104,15 @@ pub fn get_worksheet_names(path: &std::path::Path) -> Result<String, String> {
     }   
 }
 
+/**
+ * Copy all rows, which don't contain merged cells, from sheet_in to sheet_out. 
+ * Further filtering can be provided via the filter_* arguments.
+ * sheet_in: source sheet, from which we read
+ * sheet_out: destination sheet, to which we write
+ * filter_row: filter lambda, applied per row
+ * filter_col: filter lambda, applied per column
+ * filter_cell: filter lambda, applied per cell
+ */
 pub fn create_unique_entries_sheet<FRow, FCol, FCell>(
     sheet_in:  &Worksheet, 
     sheet_out: &mut Worksheet,
@@ -210,6 +219,13 @@ where FRow:  Fn(&Worksheet, u32,      &mut Worksheet) -> bool,
     true
 }
 
+/**
+ * Filter the table. Collect only unique items found in col_filter and accumulate the content from col_accum.
+ * sheet_in: source sheet, from which we read
+ * sheet_out: destination sheet, to which we write
+ * col_filter: the filtering is based on the content of this column
+ * col_accum: when, we find item in col_filter, which is aleady present in sheet_out, we accumulate the data from col_accum
+ */
 pub fn filter_sheet_by_col_and_accum(
     sheet_in:  &Worksheet, 
     sheet_out: &mut Worksheet,
@@ -265,8 +281,8 @@ pub fn filter_sheet_by_col_and_accum(
             }
             false
         }),
-None::<fn(&Worksheet, u32, &mut Worksheet) -> bool>,
-None::<fn(&Worksheet, u32, u32, &mut Worksheet) -> bool>,
+        None::<fn(&Worksheet, u32, &mut Worksheet) -> bool>,
+        None::<fn(&Worksheet, u32, u32, &mut Worksheet) -> bool>,
     )
 }
 
@@ -328,7 +344,10 @@ pub fn execute(cfg: &common::Config) -> Result<(Vec<String>, Vec<String>), Strin
                 };
 
                 // Just create new table with unique values
-                // create_unique_entries_sheet::<fn(&Worksheet, u32, u32, &mut Worksheet) -> bool>(utbl, &mut extra_sheet, None);
+                // let r = create_unique_entries_sheet(utbl, &mut extra_sheet, 
+                //     None::<fn(&Worksheet, u32, &mut Worksheet) -> bool>,
+                //     None::<fn(&Worksheet, u32, &mut Worksheet) -> bool>,
+                //     None::<fn(&Worksheet, u32, u32, &mut Worksheet) -> bool>);
 
                 // Create new table with unique values from cfg.tgt_src_col.When repetition is found, accumulate the values in cfg.tgt_dest_col.
                 let r = filter_sheet_by_col_and_accum(utbl, &mut extra_sheet, &cfg.tgt_src_col, &cfg.tgt_dest_col);
