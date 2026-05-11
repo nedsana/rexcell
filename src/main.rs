@@ -102,7 +102,8 @@ Update the file: read 'Шифър' column from reference file ../Test_Excell_new
     cargo run --bin rexcell -- -c cmd-update-sheets -t ../Test_Excell_new.xlsx -s C -d B -u "Лист1,Лист2,Лист3" -r ../Test_Excell_new.xlsx -e "Unknown Items" -k B -v C -i
 
 Read target file ../Test_Excell.xlsx, extract unique entries from column C and store them in another sheet
-    cargo run --bin rexcell -- -c cmd-filter-sheets -t ../Test_Excell.xlsx -u "Лист1,Лист2,Лист3" -s C
+    cargo run --bin rexcell -- -c cmd-filter-sheets -t ../Test_Excell.xlsx -u "Лист1,Лист2,Лист3" -s C -d E -n "Test"
+    cargo run --bin rexcell -- -c cmd-filter-sheets -t ./Ref_Files/Test_Excell.xlsx -u "Лист1,Лист2,Лист3" -s C -d E -n "Test"
 
 Lits the existing sheets in target file ../Test_Excell.xlsx
     cargo run --bin rexcell -- -c cmd-list-sheets -t ../Test_Excell.xlsx

@@ -263,12 +263,18 @@ pub fn filter_sheet_by_col_and_accum(
                             let o_q_cell_src = sheet_in.get_cell((quantity_col, row));
                             if let Some(q_cell_src) = o_q_cell_src
                             {
-                                q_cell_value_src = q_cell_src.get_value().parse::<f32>().unwrap_or(0.0);
+                                if q_cell_src.get_data_type() == "n"
+                                {
+                                    q_cell_value_src = q_cell_src.get_value().parse::<f32>().unwrap_or(0.0);
+                                }
                             }
 
                             let q_cell_dst = sheet_out.get_cell_mut((quantity_col, row_out));
-                            let q_cell_value_dst = q_cell_dst.get_value().parse::<f32>().unwrap_or(0.0) + q_cell_value_src;
-                            q_cell_dst.set_value(q_cell_value_dst.to_string());
+                            if q_cell_dst.get_data_type() == "n"
+                            {
+                                let q_cell_value_dst = q_cell_dst.get_value().parse::<f32>().unwrap_or(0.0) + q_cell_value_src;
+                                q_cell_dst.set_value(q_cell_value_dst.to_string());
+                            }
 
                             return false; // already exists, don't copy
                         }
