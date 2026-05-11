@@ -8,6 +8,7 @@ struct TargetData {
     update_sheet: String,
     src_col: String,
     dest_col: String,
+    new_file_name: String,
 }
 
 impl Default for TargetData {
@@ -17,6 +18,7 @@ impl Default for TargetData {
             update_sheet: String::from(common::TGT_DEFAULT_TABLE),
             src_col: String::from(common::TGT_DEFAULT_SRC_COL),
             dest_col: String::from(common::TGT_DEFAULT_DST_COL),
+            new_file_name: String::from(common::TGT_DEFAULT_NEW_SHEET_NAME),
         }
     }
 }
@@ -132,6 +134,65 @@ impl GuiApp
             ui.add_space(4.0);
             ui.label(common::TGT_DEST_COL_HELP);
             ui.text_edit_singleline(&mut self.target_section.dest_col);
+
+            ui.add_space(4.0);
+            ui.label(common::NEW_SHEET_NAME_HELP);
+            ui.text_edit_singleline(&mut self.target_section.new_file_name);
+
+            ui.add_space(4.0);
+            if ui.button(common::BUTTON_FILTER_DATA).clicked()
+            {
+                self.error.clear();
+                self.output_text.clear();
+
+                let ref_sheets: Vec<String> = self.reference_section.reference_sheet.split(',').map(str::trim).map(String::from).collect();
+                
+                if 1 == ref_sheets.len() 
+                {
+                    // cargo run --bin rexcell -- -c cmd-filter-sheets -t ../Test_Excell.xlsx -u "Лист1,Лист2,Лист3" -s C -d E -n "Test"
+                    let cfg: common::Config = common::Config {
+                        command: common::Command::CmdFilterSheets,
+                        tgt_file: self.target_section.path.clone(), 
+                        tgt_upd_table: self.target_section.update_sheet.clone(),
+                        tgt_src_col: self.target_section.src_col.clone(),
+                        tgt_dest_col: self.target_section.dest_col.clone(),
+                        ref_file: "".to_string(),
+                        ref_table: "".to_string(),
+                        ref_col_key: "".to_string(),
+                        ref_col_value: "".to_string(),
+                        new_sheet_name: self.target_section.new_file_name.clone(),
+                        inplace: false,
+                    };
+
+                    let res = rexcell::execute(&cfg);
+
+                    match res {
+                        Ok(lines) => {
+                            for line in &lines.0 {
+                                self.output_text.push_str(line);
+                                self.output_text.push_str("\n");
+                            }
+                            for line in &lines.1 {
+                                self.output_text.push_str(line);
+                                self.output_text.push_str("\n");
+                            }
+                            if cfg.inplace {
+                                self.output_text.push_str(format!("Updated {} lines. {}\n", lines.0.len(), common::formatted_done_saved(&cfg.tgt_file)).as_str());
+                            } else {
+                                let new_file = format!("{}{}", cfg.tgt_file.trim_end_matches(common::XLSX_EXTENSION), common::NEW_FILE_SUFFIX);
+                                self.output_text.push_str(format!("Updated {} lines. {}\n", lines.0.len(), common::formatted_done_saved(&new_file)).as_str());
+                            }
+                        }
+                        Err(err) => {
+                            self.error = format!("Failed to update {}: {}", cfg.tgt_file, err);
+                        }
+                    }
+                }
+                else
+                {
+                    self.error = String::from(common::ERROR_MULTIPLE_REF_SHEETS);
+                }
+            }
         });
     }
 
@@ -166,6 +227,61 @@ impl GuiApp
             ui.add_space(4.0);
             ui.label(common::REF_VALUE_COL_HELP);
             ui.text_edit_singleline(&mut self.reference_section.col_value);
+
+            ui.add_space(47.0);
+            if ui.button(common::BUTTON_RUN_UPDATES).clicked()
+            {
+                self.error.clear();
+                self.output_text.clear();
+
+                let ref_sheets: Vec<String> = self.reference_section.reference_sheet.split(',').map(str::trim).map(String::from).collect();
+                
+                if 1 == ref_sheets.len() 
+                {
+                    // cargo run --bin rexcell -- -c cmd-update-sheets -t ../Test_Excell_new.xlsx -s C -d B -u "Лист1,Лист2,Лист3" -r ../Test_Excell_new.xlsx -e "Test" -k B -v C -i
+                    let cfg: common::Config = common::Config {
+                        command: common::Command::CmdUpdateSheets,
+                        tgt_file: self.target_section.path.clone(), 
+                        tgt_upd_table: self.target_section.update_sheet.clone(),
+                        tgt_src_col: self.target_section.src_col.clone(),
+                        tgt_dest_col: self.target_section.dest_col.clone(),
+                        ref_file: self.reference_section.path.clone(),
+                        ref_table: self.reference_section.reference_sheet.clone(),
+                        ref_col_key: self.reference_section.col_key.clone(),
+                        ref_col_value: self.reference_section.col_value.clone(),
+                        new_sheet_name: self.target_section.new_file_name.clone(),
+                        inplace: false,
+                    };
+
+                    let res = rexcell::execute(&cfg);
+
+                    match res {
+                        Ok(lines) => {
+                            for line in &lines.0 {
+                                self.output_text.push_str(line);
+                                self.output_text.push_str("\n");
+                            }
+                            for line in &lines.1 {
+                                self.output_text.push_str(line);
+                                self.output_text.push_str("\n");
+                            }
+                            if cfg.inplace {
+                                self.output_text.push_str(format!("Updated {} lines. {}\n", lines.0.len(), common::formatted_done_saved(&cfg.tgt_file)).as_str());
+                            } else {
+                                let new_file = format!("{}{}", cfg.tgt_file.trim_end_matches(common::XLSX_EXTENSION), common::NEW_FILE_SUFFIX);
+                                self.output_text.push_str(format!("Updated {} lines. {}\n", lines.0.len(), common::formatted_done_saved(&new_file)).as_str());
+                            }
+                        }
+                        Err(err) => {
+                            self.error = format!("Failed to update {}: {}", cfg.tgt_file, err);
+                        }
+                    }
+                }
+                else
+                {
+                    self.error = String::from(common::ERROR_MULTIPLE_REF_SHEETS);
+                }
+            }
         });
     }
 }
@@ -277,60 +393,6 @@ impl eframe::App for GuiApp {
                         self.draw_reference_section(&mut columns[1]);
                     });
                 });
-
-                ui.add_space(12.0);
-
-                if ui.button(common::BUTTON_RUN_UPDATES).clicked() // to do ... extend to support multiple commands!
-                {
-                    self.error.clear();
-                    self.output_text.clear();
-
-                    let ref_sheets: Vec<String> = self.reference_section.reference_sheet.split(',').map(str::trim).map(String::from).collect();
-                    
-                    if 1 == ref_sheets.len() {
-                        let cfg: common::Config = common::Config {
-                            command: common::Command::CmdUndefined,
-                            tgt_file: self.target_section.path.clone(), 
-                            tgt_upd_table: self.target_section.update_sheet.clone(),
-                            tgt_src_col: self.target_section.src_col.clone(),
-                            tgt_dest_col: self.target_section.dest_col.clone(),
-                            ref_file: self.reference_section.path.clone(),
-                            ref_table: self.reference_section.reference_sheet.clone(),
-                            ref_col_key: self.reference_section.col_key.clone(),
-                            ref_col_value: self.reference_section.col_value.clone(),
-                            new_sheet_name: "to do".to_string(),
-                            inplace: false,
-                        };
-
-                        let res = rexcell::execute(&cfg);
-
-                        match res {
-                            Ok(lines) => {
-                                for line in &lines.0 {
-                                    self.output_text.push_str(line);
-                                    self.output_text.push_str("\n");
-                                }
-                                for line in &lines.1 {
-                                    self.output_text.push_str(line);
-                                    self.output_text.push_str("\n");
-                                }
-                                if cfg.inplace {
-                                    self.output_text.push_str(format!("Updated {} lines. {}\n", lines.0.len(), common::formatted_done_saved(&cfg.tgt_file)).as_str());
-                                } else {
-                                    let new_file = format!("{}{}", cfg.tgt_file.trim_end_matches(common::XLSX_EXTENSION), common::NEW_FILE_SUFFIX);
-                                    self.output_text.push_str(format!("Updated {} lines. {}\n", lines.0.len(), common::formatted_done_saved(&new_file)).as_str());
-                                }
-                            }
-                            Err(err) => {
-                                self.error = format!("Failed to update {}: {}", cfg.tgt_file, err);
-                            }
-                        }
-                    }
-                    else
-                    {
-                        self.error = String::from(common::ERROR_MULTIPLE_REF_SHEETS);
-                    }
-                }
 
                 ui.add_space(12.0);
 

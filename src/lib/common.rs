@@ -70,6 +70,7 @@ pub const LABEL_EXECUTION_RESULT: &str = "Execution result";
 pub const LABEL_NEW_SHEET: &str = "Unknown Items";
 pub const BUTTON_BROWSE: &str = "Browse";
 pub const BUTTON_RUN_UPDATES: &str = "Run the updates";
+pub const BUTTON_FILTER_DATA: &str = "Filter Data";
 pub const WINDOW_TITLE: &str = "rexcell GUI";
 pub const PANEL_DESCRIPTION: &str = "The top section has two identical panels.";
 
