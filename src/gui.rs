@@ -295,12 +295,29 @@ impl eframe::App for GuiApp
                     ui.selectable_value(&mut self.active_tab, Tab::Update, common::TAB_LABEL_UPDATE);
                 });
 
-                match self.active_tab {
-                    Tab::Filter => {
-                        self.draw_target_section(ui);
+                match self.active_tab 
+                {
+                    Tab::Filter => 
+                    {
+                        egui::Frame::group(ui.style()).show(ui, |ui| 
+                            {
+                                ui.columns(2, |columns| 
+                                {
+                                    self.draw_target_section(&mut columns[0]);
+                                });
+                            });
                     }
-                    Tab::Update => {
-                        self.draw_reference_section(ui);
+                    
+                    Tab::Update => 
+                    {
+                        egui::Frame::group(ui.style()).show(ui, |ui| 
+                        {
+                            ui.columns(2, |columns| 
+                            {
+                                self.draw_target_section(&mut columns[0]);
+                                self.draw_reference_section(&mut columns[1]);
+                            });
+                        });
                     }
                 }
 
