@@ -98,9 +98,12 @@ fn main() {
 
 /*
 EXAMPLES:
-Update the file: read 'Шифър' column from reference file ../Test_Excell_new.xlsx and update 'Шифър' column in target file ../Test_Excell_new.xlsx
+Update the file: read 'C' column from reference file ../Test_Excell_new.xlsx and update 'C' column in target file ../Test_Excell_new.xlsx
     cargo run --bin rexcell -- -c cmd-update-sheets -t ../Test_Excell_new.xlsx -s C -d B -u "Лист1,Лист2,Лист3" -r ../Test_Excell_new.xlsx -e "Unknown Items" -k B -v C -i
     cargo run --bin rexcell -- -c cmd-update-sheets -t ../Test_Excell_new.xlsx -s C -d B -u "Лист1,Лист2,Лист3" -r ../Test_Excell_new.xlsx -e "Test" -k B -v C -i
+
+Update the file: get the cells in 'C' col from ref.table. Find this cell content in col 'C' from tgt.table and copy the content of ref.col 'F' to tgt.col 'F'
+    cargo run --bin rexcell -- -c cmd-update-sheets -t ./Ref_Files/Test_Excell_new.xlsx -s C -d F -u "Лист1,Лист2,Лист3" -r ./Ref_Files/Test_Excell_new.xlsx -e "Test" -k F -v C -i 
 
 Read target file ../Test_Excell.xlsx, extract unique entries from column C and store them in another sheet
     cargo run --bin rexcell -- -c cmd-filter-sheets -t ../Test_Excell.xlsx -u "Лист1,Лист2,Лист3" -s C -d E -n "Test"
