@@ -274,22 +274,25 @@ pub fn filter_sheet_by_col_and_accum(
                             // println!("  <FOUND> DST({}) [row:{} col:{}] '{}' <-> SRC({}) [row:{} col:{}] '{}'", 
                             //     sheet_out.get_name(), row_out, tgt_col, dst_cell_value, sheet_in.get_name(), row, tgt_col, src_cell_value);
 
-                            //the entry is found, but we have to update the cell with quantity
-                            let mut q_cell_value_src = 0.0;
-                            let o_q_cell_src = sheet_in.get_cell((quantity_col, row));
-                            if let Some(q_cell_src) = o_q_cell_src
+                            if 0 < quantity_col
                             {
-                                if q_cell_src.get_data_type() == "n"
+                                //the entry is found, but we have to update the cell with quantity
+                                let mut q_cell_value_src = 0.0;
+                                let o_q_cell_src = sheet_in.get_cell((quantity_col, row));
+                                if let Some(q_cell_src) = o_q_cell_src
                                 {
-                                    q_cell_value_src = q_cell_src.get_value().parse::<f32>().unwrap_or(0.0);
+                                    if q_cell_src.get_data_type() == "n"
+                                    {
+                                        q_cell_value_src = q_cell_src.get_value().parse::<f32>().unwrap_or(0.0);
+                                    }
                                 }
-                            }
 
-                            let q_cell_dst = sheet_out.get_cell_mut((quantity_col, row_out));
-                            if q_cell_dst.get_data_type() == "n"
-                            {
-                                let q_cell_value_dst = q_cell_dst.get_value().parse::<f32>().unwrap_or(0.0) + q_cell_value_src;
-                                q_cell_dst.set_value(q_cell_value_dst.to_string());
+                                let q_cell_dst = sheet_out.get_cell_mut((quantity_col, row_out));
+                                if q_cell_dst.get_data_type() == "n"
+                                {
+                                    let q_cell_value_dst = q_cell_dst.get_value().parse::<f32>().unwrap_or(0.0) + q_cell_value_src;
+                                    q_cell_dst.set_value(q_cell_value_dst.to_string());
+                                }
                             }
 
                             return false; // already exists, don't copy
