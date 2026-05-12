@@ -24,6 +24,7 @@ pub const NEW_SHEET_NAME_HELP: &str = "Name of the new sheet";
 pub const TGT_DEFAULT_EXCEL_FILE: &str = "";
 pub const TGT_DEFAULT_SRC_COL: &str = "C";
 pub const TGT_DEFAULT_DST_COL: &str = "B";
+pub const TGT_DEFAULT_ACC_COL: &str = "E";
 pub const TGT_DEFAULT_TABLE: &str = "";
 pub const TGT_DEFAULT_NEW_SHEET_NAME: &str = "New-Sheet";
 

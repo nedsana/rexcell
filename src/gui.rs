@@ -5,7 +5,7 @@ use rexcell::common;
 
 struct TargetData {
     path: String,
-    update_sheet: String,
+    update_sheets: String,
     src_col: String,
     dest_col: String,
     new_sheet_name: String,
@@ -15,10 +15,22 @@ impl Default for TargetData {
     fn default() -> Self {
         Self {
             path: String::from(common::TGT_DEFAULT_EXCEL_FILE),
-            update_sheet: String::from(common::TGT_DEFAULT_TABLE),
+            update_sheets: String::from(common::TGT_DEFAULT_TABLE),
             src_col: String::from(common::TGT_DEFAULT_SRC_COL),
             dest_col: String::from(common::TGT_DEFAULT_DST_COL),
             new_sheet_name: String::from(common::TGT_DEFAULT_NEW_SHEET_NAME),
+        }
+    }
+}
+
+impl TargetData {
+    pub fn new(p_path: String, p_update_sheets: String, p_src_col: String, p_dest_col: String, p_new_sheet_name: String) -> Self {
+        Self { 
+            path: String::from(p_path),
+            update_sheets: String::from(p_update_sheets),
+            src_col: String::from(p_src_col),
+            dest_col: String::from(p_dest_col),
+            new_sheet_name: String::from(p_new_sheet_name),
         }
     }
 }
@@ -41,6 +53,17 @@ impl Default for ReferencesData {
     }
 }
 
+impl ReferencesData {
+    pub fn new(p_path: String, p_reference_sheet: String, p_col_key: String, p_col_value: String) -> Self {
+        Self { 
+            path: String::from(p_path),
+            reference_sheet: String::from(p_reference_sheet),
+            col_key: String::from(p_col_key),
+            col_value: String::from(p_col_value),
+        }
+    }
+}
+
 #[derive(PartialEq)]
 enum Tab 
 {
@@ -48,29 +71,55 @@ enum Tab
     Update,
 }
 
-struct GuiApp {
-    target_section: TargetData,
-    reference_section: ReferencesData,
+struct GuiApp 
+{
+    cfg_filter: TargetData,
+
+    cfg_update_tgt: TargetData,
+    cfg_update_ref: ReferencesData,
+
     output_text: String,
     error: String,
+
     active_tab: Tab,
 }
 
-impl Default for GuiApp {
-    fn default() -> Self {
-        Self {
-            target_section: TargetData::default(),
-            reference_section: ReferencesData::default(),
+impl Default for GuiApp 
+{
+    fn default() -> Self 
+    {
+        Self 
+        {
+            cfg_filter: TargetData::new( common::TGT_DEFAULT_EXCEL_FILE.to_string(), 
+                                common::TGT_DEFAULT_TABLE.to_string(), 
+                                      common::TGT_DEFAULT_SRC_COL.to_string(), 
+                                      common::TGT_DEFAULT_ACC_COL.to_string(), 
+                                      common::TGT_DEFAULT_NEW_SHEET_NAME.to_string()),
+
+            cfg_update_tgt: TargetData::new( common::TGT_DEFAULT_EXCEL_FILE.to_string(), 
+                                common::TGT_DEFAULT_TABLE.to_string(), 
+                                    common::TGT_DEFAULT_SRC_COL.to_string(), 
+                                    common::TGT_DEFAULT_DST_COL.to_string(), 
+                                    common::TGT_DEFAULT_NEW_SHEET_NAME.to_string()),
+
+            cfg_update_ref: ReferencesData::new( common::REF_DEFAULT_EXCEL_FILE.to_string(), 
+                                    common::REF_DEFAULT_TABLE.to_string(), 
+                                    common::REF_DEFAULT_KEY_COL.to_string(), 
+                                    common::REF_DEFAULT_VALUE_COL.to_string()),
+
             output_text: String::new(),
             error: String::new(),
+
             active_tab: Tab::Filter,
         }
     }
 }
 
+
 impl GuiApp 
 {
-    fn get_sheets_list(&mut self, file_path: &str) -> Result<String, String> 
+    // fn get_sheets_list(&mut self, file_path: &str) -> Result<String, String> 
+    fn get_sheets_list(file_path: &str) -> Result<String, String> 
     {
         let result = rexcell::get_worksheet_names(std::path::Path::new(&file_path));
         match result 
@@ -89,7 +138,32 @@ impl GuiApp
         }
     }
 
-    fn draw_target_section(&mut self, ui: &mut egui::Ui) 
+    fn handle_result(res: &Result<(Vec<String>, Vec<String>), String>) -> (String, String)
+    {
+        let mut out_res = String::new();
+        let mut out_err = String::new();
+
+        match res {
+            Ok(lines) => {
+                for line in &lines.0 {
+                    out_res.push_str(line);
+                    out_res.push_str("\n");
+                }
+                for line in &lines.1 {
+                    out_res.push_str(line);
+                    out_res.push_str("\n");
+                }
+            }
+            Err(err) => {
+                out_err.push_str(err);
+            }
+        }
+
+        (out_res, out_err)
+    }
+
+    // fn draw_filter_section(&mut self, ui: &mut egui::Ui, cfg: &mut TargetData) 
+    fn draw_filter_section(ui: &mut egui::Ui, cfg: &mut TargetData, out_res: &mut String, out_err: &mut String, do_filter: bool) 
     {
         egui::Frame::group(ui.style()).show(ui, |ui| 
         {
@@ -97,14 +171,14 @@ impl GuiApp
             ui.add_space(4.0);
             ui.horizontal(|ui| {
                 ui.label(common::LABEL_FILE);
-                ui.text_edit_singleline(&mut self.target_section.path);
+                ui.text_edit_singleline(&mut cfg.path);
                 if ui.button(common::BUTTON_BROWSE).clicked() {
                     if let Some(path_buf) = FileDialog::new().pick_file() {
                         if let Some(path_str) = path_buf.to_str() {
-                            self.target_section.path = path_str.to_string();
-                            self.get_sheets_list(path_str)
-                                .map(|sheets| self.target_section.update_sheet = sheets)
-                                .map_err(|err| self.error = err)
+                            cfg.path = path_str.to_string();
+                            Self::get_sheets_list(path_str)
+                                .map(|sheets| cfg.update_sheets = sheets)
+                                .map_err(|err| *out_err = err)
                                 .ok();
                         }
                     }
@@ -113,78 +187,64 @@ impl GuiApp
 
             ui.add_space(8.0);
             ui.label(common::LIST_SHEETS_TO_UPDATE);
-            ui.text_edit_singleline(&mut self.target_section.update_sheet);
+            ui.text_edit_singleline(&mut cfg.update_sheets);
 
             ui.add_space(4.0);
             ui.label(common::TGT_SRC_COL_HELP);
-            ui.text_edit_singleline(&mut self.target_section.src_col);
+            ui.text_edit_singleline(&mut cfg.src_col);
 
             ui.add_space(4.0);
             ui.label(common::TGT_DEST_COL_HELP);
-            ui.text_edit_singleline(&mut self.target_section.dest_col);
-
+            ui.text_edit_singleline(&mut cfg.dest_col);
+            
             ui.add_space(4.0);
-            ui.label(common::NEW_SHEET_NAME_HELP);
-            ui.text_edit_singleline(&mut self.target_section.new_sheet_name);
-
-            ui.add_space(4.0);
-            if ui.button(common::BUTTON_FILTER_DATA).clicked()
+            if do_filter
             {
-                self.error.clear();
-                self.output_text.clear();
+                ui.add_space(4.0);
+                ui.label(common::NEW_SHEET_NAME_HELP);
+                ui.text_edit_singleline(&mut cfg.new_sheet_name);
 
-                let ref_sheets: Vec<String> = self.reference_section.reference_sheet.split(',').map(str::trim).map(String::from).collect();
-                
-                if 1 == ref_sheets.len() 
+                if ui.button(common::BUTTON_FILTER_DATA).clicked()
                 {
                     // cargo run --bin rexcell -- -c cmd-filter-sheets -t ../Test_Excell.xlsx -u "Лист1,Лист2,Лист3" -s C -d E -n "Test"
                     let cfg: common::Config = common::Config {
                         command: common::Command::CmdFilterSheets,
-                        tgt_file: self.target_section.path.clone(), 
-                        tgt_upd_table: self.target_section.update_sheet.clone(),
-                        tgt_src_col: self.target_section.src_col.clone(),
-                        tgt_dest_col: self.target_section.dest_col.clone(),
+                        tgt_file: cfg.path.clone(), 
+                        tgt_upd_table: cfg.update_sheets.clone(),
+                        tgt_src_col: cfg.src_col.clone(),
+                        tgt_dest_col: cfg.dest_col.clone(),
                         ref_file: "".to_string(),
                         ref_table: "".to_string(),
                         ref_col_key: "".to_string(),
                         ref_col_value: "".to_string(),
-                        new_sheet_name: self.target_section.new_sheet_name.clone(),
-                        inplace: false,
+                        new_sheet_name: cfg.new_sheet_name.clone(),
+                        inplace: true,
                     };
 
                     let res = rexcell::execute(&cfg);
 
-                    match res {
-                        Ok(lines) => {
-                            for line in &lines.0 {
-                                self.output_text.push_str(line);
-                                self.output_text.push_str("\n");
-                            }
-                            for line in &lines.1 {
-                                self.output_text.push_str(line);
-                                self.output_text.push_str("\n");
-                            }
-                            if cfg.inplace {
-                                self.output_text.push_str(format!("Updated {} lines. {}\n", lines.0.len(), common::formatted_done_saved(&cfg.tgt_file)).as_str());
-                            } else {
-                                let new_file = format!("{}{}", cfg.tgt_file.trim_end_matches(common::XLSX_EXTENSION), common::NEW_FILE_SUFFIX);
-                                self.output_text.push_str(format!("Updated {} lines. {}\n", lines.0.len(), common::formatted_done_saved(&new_file)).as_str());
-                            }
-                        }
-                        Err(err) => {
-                            self.error = format!("Failed to update {}: {}", cfg.tgt_file, err);
-                        }
+                    let out = Self::handle_result(&res);
+
+                    if 0 < out.1.len() //error found
+                    {
+                        out_res.clear();
+                        *out_err = format!("Failed to filter file {}!\n{}\n", cfg.tgt_file, out.1);
                     }
-                }
-                else
-                {
-                    self.error = String::from(common::ERROR_MULTIPLE_REF_SHEETS);
+                    else //ok
+                    {
+                        out_err.clear();
+                        *out_res = if cfg.inplace { format!("Filtered file {}!\n{}\n", cfg.tgt_file, out.0) } 
+                                   else { 
+                                        let new_file = format!("{}{}", cfg.tgt_file.trim_end_matches(common::XLSX_EXTENSION), common::NEW_FILE_SUFFIX);
+                                        format!("Filtered to file {}! {}\n", new_file, out.0) };
+                    }
                 }
             }
         });
     }
 
-    fn draw_reference_section(&mut self, ui: &mut egui::Ui) 
+    // fn draw_cfg_update_ref(&mut self, ui: &mut egui::Ui) 
+    fn draw_cfg_update_ref(ui: &mut egui::Ui, tgt_cfg: &mut TargetData, ref_cfg: &mut ReferencesData, out_res: &mut String, out_err: &mut String) 
     {
         egui::Frame::group(ui.style()).show(ui, |ui| 
         {
@@ -192,14 +252,14 @@ impl GuiApp
             ui.add_space(4.0);
             ui.horizontal(|ui| {
                 ui.label(common::LABEL_FILE);
-                ui.text_edit_singleline(&mut self.reference_section.path);
+                ui.text_edit_singleline(&mut ref_cfg.path);
                 if ui.button(common::BUTTON_BROWSE).clicked() {
                     if let Some(path_buf) = FileDialog::new().pick_file() {
                         if let Some(path_str) = path_buf.to_str() {
-                            self.reference_section.path = path_str.to_string();
-                            self.get_sheets_list(path_str)
-                                .map(|sheets| self.reference_section.reference_sheet = sheets)
-                                .map_err(|err| self.error = err)
+                            ref_cfg.path = path_str.to_string();
+                            Self::get_sheets_list(path_str)
+                                .map(|sheets| ref_cfg.reference_sheet = sheets)
+                                .map_err(|err| *out_err = err)
                                 .ok();
                         }
                     }
@@ -208,68 +268,59 @@ impl GuiApp
 
             ui.add_space(8.0);
             ui.label(common::REF_SHEET_HELP);
-            ui.text_edit_singleline(&mut self.reference_section.reference_sheet);
+            ui.text_edit_singleline(&mut ref_cfg.reference_sheet);
 
             ui.add_space(4.0);
             ui.label(common::REF_KEY_COL_HELP);
-            ui.text_edit_singleline(&mut self.reference_section.col_key);
+            ui.text_edit_singleline(&mut ref_cfg.col_key);
 
             ui.add_space(4.0);
             ui.label(common::REF_VALUE_COL_HELP);
-            ui.text_edit_singleline(&mut self.reference_section.col_value);
+            ui.text_edit_singleline(&mut ref_cfg.col_value);
 
-            ui.add_space(47.0);
+            ui.add_space(4.0);
             if ui.button(common::BUTTON_RUN_UPDATES).clicked()
             {
-                self.error.clear();
-                self.output_text.clear();
-
-                let ref_sheets: Vec<String> = self.reference_section.reference_sheet.split(',').map(str::trim).map(String::from).collect();
+                let ref_sheets: Vec<String> = ref_cfg.reference_sheet.split(',').map(str::trim).map(String::from).collect();
                 
                 if 1 == ref_sheets.len() 
                 {
                     // cargo run --bin rexcell -- -c cmd-update-sheets -t ../Test_Excell_new.xlsx -s C -d B -u "Лист1,Лист2,Лист3" -r ../Test_Excell_new.xlsx -e "Test" -k B -v C -i
                     let cfg: common::Config = common::Config {
                         command: common::Command::CmdUpdateSheets,
-                        tgt_file: self.target_section.path.clone(), 
-                        tgt_upd_table: self.target_section.update_sheet.clone(),
-                        tgt_src_col: self.target_section.src_col.clone(),
-                        tgt_dest_col: self.target_section.dest_col.clone(),
-                        ref_file: self.reference_section.path.clone(),
-                        ref_table: self.reference_section.reference_sheet.clone(),
-                        ref_col_key: self.reference_section.col_key.clone(),
-                        ref_col_value: self.reference_section.col_value.clone(),
-                        new_sheet_name: self.target_section.new_sheet_name.clone(),
-                        inplace: false,
+                        tgt_file: tgt_cfg.path.clone(), 
+                        tgt_upd_table: tgt_cfg.update_sheets.clone(),
+                        tgt_src_col: tgt_cfg.src_col.clone(),
+                        tgt_dest_col: tgt_cfg.dest_col.clone(),
+                        ref_file: ref_cfg.path.clone(),
+                        ref_table: ref_cfg.reference_sheet.clone(),
+                        ref_col_key: ref_cfg.col_key.clone(),
+                        ref_col_value: ref_cfg.col_value.clone(),
+                        new_sheet_name: tgt_cfg.new_sheet_name.clone(),
+                        inplace: true,
                     };
 
                     let res = rexcell::execute(&cfg);
 
-                    match res {
-                        Ok(lines) => {
-                            for line in &lines.0 {
-                                self.output_text.push_str(line);
-                                self.output_text.push_str("\n");
-                            }
-                            for line in &lines.1 {
-                                self.output_text.push_str(line);
-                                self.output_text.push_str("\n");
-                            }
-                            if cfg.inplace {
-                                self.output_text.push_str(format!("Updated {} lines. {}\n", lines.0.len(), common::formatted_done_saved(&cfg.tgt_file)).as_str());
-                            } else {
-                                let new_file = format!("{}{}", cfg.tgt_file.trim_end_matches(common::XLSX_EXTENSION), common::NEW_FILE_SUFFIX);
-                                self.output_text.push_str(format!("Updated {} lines. {}\n", lines.0.len(), common::formatted_done_saved(&new_file)).as_str());
-                            }
-                        }
-                        Err(err) => {
-                            self.error = format!("Failed to update {}: {}", cfg.tgt_file, err);
-                        }
+                    let out = Self::handle_result(&res);
+
+                    if 0 < out.1.len() //error found
+                    {
+                        out_res.clear();
+                        *out_err = format!("Failed to update file {}! {}\n", cfg.tgt_file, out.1);
+                    }
+                    else //ok
+                    {
+                        out_err.clear();
+                        *out_res = if cfg.inplace { format!("Updated file {}! {}\n", cfg.tgt_file, out.0) } 
+                                   else { 
+                                        let new_file = format!("{}{}", cfg.tgt_file.trim_end_matches(common::XLSX_EXTENSION), common::NEW_FILE_SUFFIX);
+                                        format!("Updated to file {}! {}\n", new_file, out.0) };
                     }
                 }
                 else
                 {
-                    self.error = String::from(common::ERROR_MULTIPLE_REF_SHEETS);
+                    *out_err = String::from(common::ERROR_MULTIPLE_REF_SHEETS);
                 }
             }
         });
@@ -303,7 +354,7 @@ impl eframe::App for GuiApp
                             {
                                 ui.columns(2, |columns| 
                                 {
-                                    self.draw_target_section(&mut columns[0]);
+                                    Self::draw_filter_section(&mut columns[0], &mut self.cfg_filter, &mut self.output_text, &mut self.error, true);
                                 });
                             });
                     }
@@ -314,8 +365,8 @@ impl eframe::App for GuiApp
                         {
                             ui.columns(2, |columns| 
                             {
-                                self.draw_target_section(&mut columns[0]);
-                                self.draw_reference_section(&mut columns[1]);
+                                Self::draw_filter_section(&mut columns[0], &mut self.cfg_update_tgt, &mut self.output_text, &mut self.error, false);
+                                Self::draw_cfg_update_ref(&mut columns[1], &mut self.cfg_update_tgt, &mut self.cfg_update_ref, &mut self.output_text, &mut self.error);
                             });
                         });
                     }
