@@ -8,7 +8,7 @@ struct TargetData {
     update_sheet: String,
     src_col: String,
     dest_col: String,
-    new_file_name: String,
+    new_sheet_name: String,
 }
 
 impl Default for TargetData {
@@ -18,7 +18,7 @@ impl Default for TargetData {
             update_sheet: String::from(common::TGT_DEFAULT_TABLE),
             src_col: String::from(common::TGT_DEFAULT_SRC_COL),
             dest_col: String::from(common::TGT_DEFAULT_DST_COL),
-            new_file_name: String::from(common::TGT_DEFAULT_NEW_SHEET_NAME),
+            new_sheet_name: String::from(common::TGT_DEFAULT_NEW_SHEET_NAME),
         }
     }
 }
@@ -125,7 +125,7 @@ impl GuiApp
 
             ui.add_space(4.0);
             ui.label(common::NEW_SHEET_NAME_HELP);
-            ui.text_edit_singleline(&mut self.target_section.new_file_name);
+            ui.text_edit_singleline(&mut self.target_section.new_sheet_name);
 
             ui.add_space(4.0);
             if ui.button(common::BUTTON_FILTER_DATA).clicked()
@@ -148,7 +148,7 @@ impl GuiApp
                         ref_table: "".to_string(),
                         ref_col_key: "".to_string(),
                         ref_col_value: "".to_string(),
-                        new_sheet_name: self.target_section.new_file_name.clone(),
+                        new_sheet_name: self.target_section.new_sheet_name.clone(),
                         inplace: false,
                     };
 
@@ -239,7 +239,7 @@ impl GuiApp
                         ref_table: self.reference_section.reference_sheet.clone(),
                         ref_col_key: self.reference_section.col_key.clone(),
                         ref_col_value: self.reference_section.col_value.clone(),
-                        new_sheet_name: self.target_section.new_file_name.clone(),
+                        new_sheet_name: self.target_section.new_sheet_name.clone(),
                         inplace: false,
                     };
 
