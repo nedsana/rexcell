@@ -15,8 +15,8 @@ pub const COMMAND_DEFAULT: Command = Command::CmdFilterSheets;
 pub const COMMAND_FILE_HELP: &str = "Command to execute.";
 
 pub const TGT_FILE_HELP: &str = "Excel file to update";
-pub const TGT_SRC_COL_HELP: &str = "Column to search for duplicate text";
-pub const TGT_DEST_COL_HELP: &str = "Column to write unique IDs into";
+pub const TGT_SRC_COL_HELP: &str = "Column to filter on";
+pub const TGT_DEST_COL_HELP: &str = "Columns to accumulate, on filter match";
 pub const TGT_UPDATE_SHEET_HELP: &str = "Update tables(sheets). Comma-separated list.";
 pub const NEW_SHEET_NAME_HELP: &str = "Name of the new sheet";
 

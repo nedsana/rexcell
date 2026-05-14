@@ -245,11 +245,10 @@ pub fn filter_sheet_by_col_and_accum(
     sheet_in:  &Worksheet, 
     sheet_out: &mut Worksheet,
     col_filter: &String,
-    col_accum: &String
+    cols_accum: &String
 ) -> bool
 {
     let tgt_col = column_to_index(col_filter);
-    let quantity_col = column_to_index(col_accum);
 
     create_unique_entries_sheet(sheet_in, sheet_out, Some(|sheet_in: &Worksheet, row: u32, sheet_out: &mut Worksheet| 
         {
@@ -273,25 +272,31 @@ pub fn filter_sheet_by_col_and_accum(
                         {
                             // println!("  <FOUND> DST({}) [row:{} col:{}] '{}' <-> SRC({}) [row:{} col:{}] '{}'", 
                             //     sheet_out.get_name(), row_out, tgt_col, dst_cell_value, sheet_in.get_name(), row, tgt_col, src_cell_value);
-
-                            if 0 < quantity_col
+                            if cols_accum.len() > 0
                             {
-                                //the entry is found, but we have to update the cell with quantity
-                                let mut q_cell_value_src = 0.0;
-                                let o_q_cell_src = sheet_in.get_cell((quantity_col, row));
-                                if let Some(q_cell_src) = o_q_cell_src
+                                for col_accum in cols_accum.split(',') 
                                 {
-                                    if q_cell_src.get_data_type() == "n"
+                                    let quantity_col = column_to_index(col_accum);
+                                    if 0 < quantity_col
                                     {
-                                        q_cell_value_src = q_cell_src.get_value().parse::<f32>().unwrap_or(0.0);
-                                    }
-                                }
+                                        //the entry is found, but we have to update the cell with quantity
+                                        let mut q_cell_value_src = 0.0;
+                                        let o_q_cell_src = sheet_in.get_cell((quantity_col, row));
+                                        if let Some(q_cell_src) = o_q_cell_src
+                                        {
+                                            if q_cell_src.get_data_type() == "n"
+                                            {
+                                                q_cell_value_src = q_cell_src.get_value().parse::<f32>().unwrap_or(0.0);
+                                            }
+                                        }
 
-                                let q_cell_dst = sheet_out.get_cell_mut((quantity_col, row_out));
-                                if q_cell_dst.get_data_type() == "n"
-                                {
-                                    let q_cell_value_dst = q_cell_dst.get_value().parse::<f32>().unwrap_or(0.0) + q_cell_value_src;
-                                    q_cell_dst.set_value(q_cell_value_dst.to_string());
+                                        let q_cell_dst = sheet_out.get_cell_mut((quantity_col, row_out));
+                                        if q_cell_dst.get_data_type() == "n"
+                                        {
+                                            let q_cell_value_dst = q_cell_dst.get_value().parse::<f32>().unwrap_or(0.0) + q_cell_value_src;
+                                            q_cell_dst.set_value(q_cell_value_dst.to_string());
+                                        }
+                                    }
                                 }
                             }
 
@@ -423,8 +428,12 @@ pub fn execute(cfg: &common::Config) -> Result<(Vec<String>, Vec<String>), Strin
             };
 
             // Get the key-value entries from the reference table
-            use std::collections::HashMap;
-            let ref_map: HashMap<String, String> = get_ref_map_by_strings(&rtbl, &cfg.ref_col_key, &cfg.ref_col_value);
+            let mut ref_maps: Vec::<HashMap<String, String>> = Vec::new();
+            for s_ref_col in cfg.ref_col_key.split(',') 
+            {
+                let ref_col = s_ref_col.to_string();
+                ref_maps.push(get_ref_map_by_strings(&rtbl, &ref_col, &cfg.ref_col_value));
+            }
 
             for utbln in cfg.tgt_upd_table.split(',') 
             {
@@ -437,20 +446,23 @@ pub fn execute(cfg: &common::Config) -> Result<(Vec<String>, Vec<String>), Strin
                         return Err(format!("{}:{}", common::ERROR_UPDATE_SHEET_NOT_FOUND, utbln));
                     }
                 };
+                
+                for ref_map in &ref_maps
+                {
+                    let result = apply_key_value_data_by_strings(utbl, 
+                                                                &ref_map, 
+                                                                &cfg.tgt_src_col, 
+                                                                &cfg.tgt_dest_col);
+                    let r = match result {
+                        Ok(r) => r,
+                        Err(e) => {
+                            return Err(format!("{}:{}", common::MESSAGE_NO_KEY_VALUE_MAPPING, e));
+                        }
+                    };
 
-                let result = apply_key_value_data_by_strings(utbl, 
-                                                            &ref_map, 
-                                                            &cfg.tgt_src_col, 
-                                                            &cfg.tgt_dest_col);
-                let r = match result {
-                    Ok(r) => r,                
-                    Err(e) => {
-                        return Err(format!("{}:{}", common::MESSAGE_NO_KEY_VALUE_MAPPING, e));
-                    }
-                };
-
-                res_success.0.extend(r.0);
-                res_success.1.extend(r.1); 
+                    res_success.0.extend(r.0);
+                    res_success.1.extend(r.1); 
+                }
             }
         },
 
