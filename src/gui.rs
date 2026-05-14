@@ -2,6 +2,7 @@ use eframe::{egui, NativeOptions};
 use rfd::FileDialog;
 // use std::process::Command;
 use rexcell::common;
+use rexcell::excell;
 
 struct TargetData {
     path: String,
@@ -121,7 +122,7 @@ impl GuiApp
     // fn get_sheets_list(&mut self, file_path: &str) -> Result<String, String> 
     fn get_sheets_list(file_path: &str) -> Result<String, String> 
     {
-        let result = rexcell::get_worksheet_names(std::path::Path::new(&file_path));
+        let result = excell::get_worksheet_names(std::path::Path::new(&file_path));
         match result 
         {
             Ok(names) => {
@@ -221,7 +222,7 @@ impl GuiApp
                         inplace: true,
                     };
 
-                    let res = rexcell::execute(&cfg);
+                    let res = excell::execute(&cfg);
 
                     let out = Self::handle_result(&res);
 
@@ -300,7 +301,7 @@ impl GuiApp
                         inplace: true,
                     };
 
-                    let res = rexcell::execute(&cfg);
+                    let res = excell::execute(&cfg);
 
                     let out = Self::handle_result(&res);
 
