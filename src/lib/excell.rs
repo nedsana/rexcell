@@ -78,6 +78,7 @@ pub fn apply_formulas(
                         {
                             let formula: String = ucell.get_formula().to_string();
                             // println!("Found formula({}) in '{} {}{}'", formula, utbl_name, index_to_column(utbl_col), utbl_row);
+                            ucell.set_value("");
                             ucell.set_formula(formula);
                         }
                     }
