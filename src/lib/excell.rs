@@ -49,36 +49,50 @@ pub fn get_ref_map_by_strings(sheet: &Worksheet, col_key: &String, col_value: &S
 }
 
 pub fn apply_key_value_data_by_indexes(
-    sheet: &mut Worksheet,
-    ref_map: &HashMap<String, String>,
-    src_col: u32,
-    dest_col: u32,
+    rtbl: &Worksheet,
+    utbl: &mut Worksheet,
+    col_key: u32,
+    col_upd: u32,
 ) -> Result<(Vec<String>, Vec<String>), String> 
 {
+    // println!("apply_key_value_data_by_indexes(rtbl:{} utbl:{} col_key:{} col_upd:{})", rtbl.get_name(), utbl.get_name(), col_key, col_upd);
+
     let mut res = (Vec::new(), Vec::new());
-    let max_row = sheet.get_highest_row();
-    for row in 1..=max_row 
+    
+    let utbl_max_row = utbl.get_highest_row();
+    let rtbl_max_row = rtbl.get_highest_row();
+
+    for utbl_row in 1..=utbl_max_row //loop over the update table rows
     {
-        let cell_value = sheet.get_value((src_col, row));
-        if !cell_value.is_empty() 
+        let utbl_key_value = utbl.get_value((col_key, utbl_row));
+
+        if !utbl_key_value.is_empty() 
         {
             let mut found = false;
-            for (key, value) in ref_map 
+            
+            for rtbl_row in 1..=rtbl_max_row //loop over the reference table rows
             {
-                if cmp_strs(&key, &cell_value)
-                {
-                    sheet.get_cell_mut((dest_col, row)).set_value(value.clone());
+                let rtbl_key_value = rtbl.get_value((col_key, rtbl_row));
 
-                    res.0.push(format!("[Col:{} Raw:{}]: Updated '{}' in '{}'!", index_to_column(src_col), row, cell_value, sheet.get_name()));
+                if cmp_strs(&utbl_key_value, &rtbl_key_value) 
+                {
+                    let rtbl_upd_value = rtbl.get_value((col_upd, rtbl_row));
+
+                    utbl.get_cell_mut((col_upd, utbl_row)).set_value(rtbl_upd_value.clone());
+
+                    res.0.push(format!("Updated '{} {}{}' with '{}' from '{} {}{}'!", 
+                                        utbl.get_name(), index_to_column(col_upd), utbl_row, rtbl_upd_value,
+                                        rtbl.get_name(), index_to_column(col_upd), rtbl_row));
 
                     found = true;
+                    
                     break;
                 }
             }
 
             if !found
             {
-                res.1.push(format!("[Col:{} Raw:{}]: Can't find '{}' in '{}'!", index_to_column(src_col), row, cell_value, sheet.get_name()));
+                res.1.push(format!("Can't find '{} {}{}' '{}' in '{}'!", utbl.get_name(), index_to_column(col_upd), utbl_row, utbl_key_value, rtbl.get_name()));
             }
         }
     }
@@ -94,12 +108,35 @@ pub fn apply_key_value_data_by_indexes(
 }
 
 pub fn apply_key_value_data_by_strings(
-    sheet: &mut Worksheet,
-    ref_map: &HashMap<String, String>,
-    src_col: &String,
-    dest_col: &String,
-) -> Result<(Vec<String>, Vec<String>), String> {
-    apply_key_value_data_by_indexes(sheet, ref_map, column_to_index(src_col), column_to_index(dest_col))
+    rtbl: &Worksheet,
+    utbl: &mut Worksheet,
+    col_key: &String,
+    cols_upd: &String,
+) -> Result<(Vec<String>, Vec<String>), String> 
+{
+    if cols_upd.len() == 0 
+    {
+        return Err(common::ERROR_DEST_COL_NOT_DEFINED.to_string());
+    }
+
+    let mut res = (Vec::new(), Vec::new());
+    for col_upd in cols_upd.split(',') 
+    {
+        let result = apply_key_value_data_by_indexes(rtbl, utbl, column_to_index(col_key), column_to_index(col_upd));
+
+        match result {
+            Ok((mut updated, mut not_found)) => 
+            {
+                res.0.append(&mut updated);
+                res.1.append(&mut not_found);   
+            }
+            Err(err) => 
+            {
+                return Err(format!("{}", err));
+            }
+        }  
+    }
+    Ok(res)
 }
 
 pub fn get_worksheet_names_list(book: &Spreadsheet) -> Vec<String> {
@@ -427,14 +464,7 @@ pub fn execute(cfg: &common::Config) -> Result<(Vec<String>, Vec<String>), Strin
                 }
             };
 
-            // Get the key-value entries from the reference table
-            let mut ref_maps: Vec::<HashMap<String, String>> = Vec::new();
-            for s_ref_col in cfg.ref_col_key.split(',') 
-            {
-                let ref_col = s_ref_col.to_string();
-                ref_maps.push(get_ref_map_by_strings(&rtbl, &ref_col, &cfg.ref_col_value));
-            }
-
+            // Perform the update for each update sheet
             for utbln in cfg.tgt_upd_table.split(',') 
             {
                 // Get the update sheet
@@ -447,22 +477,17 @@ pub fn execute(cfg: &common::Config) -> Result<(Vec<String>, Vec<String>), Strin
                     }
                 };
                 
-                for ref_map in &ref_maps
-                {
-                    let result = apply_key_value_data_by_strings(utbl, 
-                                                                &ref_map, 
-                                                                &cfg.tgt_src_col, 
-                                                                &cfg.tgt_dest_col);
-                    let r = match result {
-                        Ok(r) => r,
-                        Err(e) => {
-                            return Err(format!("{}:{}", common::MESSAGE_NO_KEY_VALUE_MAPPING, e));
-                        }
-                    };
+                let result = apply_key_value_data_by_strings(rtbl, utbl, &cfg.tgt_src_col, &cfg.tgt_dest_col);
 
-                    res_success.0.extend(r.0);
-                    res_success.1.extend(r.1); 
-                }
+                let r = match result {
+                    Ok(r) => r,
+                    Err(e) => {
+                        return Err(format!("{}:{}", common::MESSAGE_NO_KEY_VALUE_MAPPING, e));
+                    }
+                };
+
+                res_success.0.extend(r.0);
+                res_success.1.extend(r.1); 
             }
         },
 

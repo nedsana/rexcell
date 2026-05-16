@@ -112,6 +112,7 @@ pub const MESSAGE_NO_KEY_VALUE_MAPPING: &str = "No key-value mapping was applied
 pub const MESSAGE_APPLIED_MAPPINGS: &str = "Updated {} lines in table/sheet {}!";
 pub const MESSAGE_DONE_SAVED: &str = "Done! The result is saved in '{}'";
 pub const NO_SHEETS_FOUND: &str = "No sheets found in the file";
+pub const ERROR_DEST_COL_NOT_DEFINED: &str = "Columns to update are not defined";
 
 
 pub struct Config {
