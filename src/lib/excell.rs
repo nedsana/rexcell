@@ -77,8 +77,24 @@ pub fn apply_key_value_data_by_indexes(
                 if cmp_strs(&utbl_key_value, &rtbl_key_value) 
                 {
                     let rtbl_upd_value = rtbl.get_value((col_upd, rtbl_row));
+                    let rtbl_upd_cell = rtbl.get_cell((col_upd, rtbl_row));
 
-                    utbl.get_cell_mut((col_upd, utbl_row)).set_value(rtbl_upd_value.clone());
+                    if let Some(upd_cell) = rtbl_upd_cell 
+                    {
+                        let dst_cell = utbl.get_cell_mut((col_upd, utbl_row));
+                        if upd_cell.get_data_type() == "n" 
+                        {
+                            if let Some(num) = upd_cell.get_value_number() {
+                                dst_cell.set_value_number(num);
+                            } else {
+                                dst_cell.set_value(rtbl_upd_value.clone());
+                            }
+                        } else {
+                            dst_cell.set_value(rtbl_upd_value.clone());
+                        }
+                    } else {
+                        utbl.get_cell_mut((col_upd, utbl_row)).set_value(rtbl_upd_value.clone());
+                    }
 
                     res.0.push(format!("Updated '{} {}{}' with '{}' from '{} {}{}'!", 
                                         utbl.get_name(), index_to_column(col_upd), utbl_row, rtbl_upd_value,
@@ -331,7 +347,7 @@ pub fn filter_sheet_by_col_and_accum(
                                         if q_cell_dst.get_data_type() == "n"
                                         {
                                             let q_cell_value_dst = q_cell_dst.get_value().parse::<f32>().unwrap_or(0.0) + q_cell_value_src;
-                                            q_cell_dst.set_value(q_cell_value_dst.to_string());
+                                            q_cell_dst.set_value_number(q_cell_value_dst);
                                         }
                                     }
                                 }
