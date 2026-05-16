@@ -48,6 +48,45 @@ pub fn get_ref_map_by_strings(sheet: &Worksheet, col_key: &String, col_value: &S
     get_ref_map_by_indexes(sheet, column_to_index(col_key),column_to_index(col_value))
 }
 
+pub fn apply_formulas(
+    rtbl: &Worksheet,
+    utbl: &mut Worksheet,
+    col_key: u32,
+)
+{
+    let utbl_max_row = utbl.get_highest_row();
+    let rtbl_max_row = rtbl.get_highest_row();
+
+    for rtbl_row in 1..=rtbl_max_row //loop over the reference table rows
+    {
+        let rtbl_key_value = rtbl.get_value((col_key, rtbl_row));
+        
+        if !rtbl_key_value.is_empty()
+        {
+            for utbl_row in 1..=utbl_max_row //loop over the update table rows
+            {
+                let utbl_key_value = utbl.get_value((col_key, utbl_row));
+
+                if !utbl_key_value.is_empty() && cmp_strs(&utbl_key_value, &rtbl_key_value) 
+                {
+                    // let utbl_name = utbl.get_name().to_string();
+                    let utbl_max_col = utbl.get_highest_column();
+                    for utbl_col in 1..=utbl_max_col
+                    {
+                        let ucell = utbl.get_cell_mut((utbl_col, utbl_row));
+                        if ucell.is_formula()
+                        {
+                            let formula: String = ucell.get_formula().to_string();
+                            // println!("Found formula({}) in '{} {}{}'", formula, utbl_name, index_to_column(utbl_col), utbl_row);
+                            ucell.set_formula(formula);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 pub fn apply_key_value_data_by_indexes(
     rtbl: &Worksheet,
     utbl: &mut Worksheet,
@@ -82,17 +121,22 @@ pub fn apply_key_value_data_by_indexes(
                     if let Some(upd_cell) = rtbl_upd_cell 
                     {
                         let dst_cell = utbl.get_cell_mut((col_upd, utbl_row));
-                        if upd_cell.get_data_type() == "n" 
+
+                        // println!("dst_cell({}{}).get_data_type()={}", index_to_column(col_upd), utbl_row, upd_cell.get_data_type());
+
+                        if upd_cell.get_data_type() == "n" && let Some(num) = upd_cell.get_value_number()
                         {
-                            if let Some(num) = upd_cell.get_value_number() {
-                                dst_cell.set_value_number(num);
-                            } else {
-                                dst_cell.set_value(rtbl_upd_value.clone());
-                            }
-                        } else {
+                            // println!("dst_cell({}{}).set_value_number({})", index_to_column(col_upd), utbl_row, num);
+                            dst_cell.set_value_number(num);
+                        } 
+                        else 
+                        {
+                            // println!("dst_cell({}{}).set_value({})", index_to_column(col_upd), utbl_row, rtbl_upd_value);
                             dst_cell.set_value(rtbl_upd_value.clone());
                         }
-                    } else {
+                    } 
+                    else 
+                    {
                         utbl.get_cell_mut((col_upd, utbl_row)).set_value(rtbl_upd_value.clone());
                     }
 
@@ -152,6 +196,7 @@ pub fn apply_key_value_data_by_strings(
             }
         }  
     }
+    apply_formulas(rtbl, utbl, column_to_index(col_key));
     Ok(res)
 }
 
@@ -243,9 +288,23 @@ where FRow:  Fn(&Worksheet, u32,      &mut Worksheet) -> bool,
                             {
                                 let cell_value = src_cell.get_value().clone();
                                 let cell_style = src_cell.get_style().clone();
+                                let cell_data_type = src_cell.get_data_type().to_string();
 
                                 let dst_cell = sheet_out.get_cell_mut((col, current_new_row));
-                                dst_cell.set_value(cell_value);
+                                
+                                // Preserve data types when copying cells
+                                if cell_data_type == "n" && let Some(num) = src_cell.get_value_number() 
+                                {
+                                    // println!("dst_cell({}{}).set_value_number({})", index_to_column(col), current_new_row, num);
+                                    dst_cell.set_value_number(num);
+                                } 
+                                else 
+                                {
+                                    // println!("dst_cell({}{}).set_value({})", index_to_column(col), current_new_row, cell_value.as_str());
+                                    // For other data types (text, boolean, date, etc.), use set_value
+                                    dst_cell.set_value(cell_value);
+                                }
+                                
                                 dst_cell.set_style(cell_style);
                                 added_col = true;
 
