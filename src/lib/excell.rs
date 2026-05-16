@@ -88,6 +88,28 @@ pub fn apply_formulas(
     }
 }
 
+pub fn reset_formulas(
+    utbl: &mut Worksheet,
+)
+{
+    let utbl_max_row = utbl.get_highest_row();
+    let utbl_max_col = utbl.get_highest_column();
+    for utbl_col in 1..=utbl_max_col //loop over the update table rows
+    {
+        for utbl_row in 1..=utbl_max_row //loop over the update table rows
+        {
+            let ucell = utbl.get_cell_mut((utbl_col, utbl_row));
+            if ucell.is_formula()
+            {
+                let formula: String = ucell.get_formula().to_string();
+                // println!("Found formula({}) in '{} {}{}'", formula, utbl_name, index_to_column(utbl_col), utbl_row);
+                ucell.set_value("");
+                ucell.set_formula(formula);
+            }
+        }
+    }
+}
+
 pub fn apply_key_value_data_by_indexes(
     rtbl: &Worksheet,
     utbl: &mut Worksheet,
@@ -164,6 +186,7 @@ pub fn apply_key_value_data_by_indexes(
     } 
     else 
     {
+        reset_formulas(utbl);
         Ok(res)
     }
 }
@@ -197,7 +220,6 @@ pub fn apply_key_value_data_by_strings(
             }
         }  
     }
-    apply_formulas(rtbl, utbl, column_to_index(col_key));
     Ok(res)
 }
 
