@@ -286,81 +286,65 @@ impl GuiApp
     {
         egui::Frame::group(ui.style()).show(ui, |ui| 
         {
-            ui.label(common::REF_FILE_HELP);
-            ui.add_space(4.0);
-            ui.horizontal(|ui| {
-                ui.label(common::LABEL_FILE);
-                ui.text_edit_singleline(&mut ref_cfg.path);
-                if ui.button(common::BUTTON_BROWSE).clicked() {
-                    if let Some(path_buf) = FileDialog::new().pick_file() {
-                        if let Some(path_str) = path_buf.to_str() {
-                            ref_cfg.path = path_str.to_string();
-                            Self::get_sheets_list(path_str)
-                                .map(|sheets| ref_cfg.reference_sheet = sheets)
-                                .map_err(|err| *out_err = err)
-                                .ok();
+            Self::draw_button_browse(ui, common::REF_FILE_HELP, 4.0, common::BUTTON_BROWSE, &mut ref_cfg.path,
+                |path_str| {
+                    Self::get_sheets_list(path_str)
+                        .map(|sheets| ref_cfg.reference_sheet = sheets)
+                        .map_err(|err| *out_err = err)
+                        .ok();
+                },
+            );
+
+            Self::draw_text_edit_line(ui, common::REF_SHEET_HELP, 8.0, &mut ref_cfg.reference_sheet);
+            Self::draw_text_edit_line(ui, common::REF_KEY_COL_HELP, 4.0, &mut ref_cfg.col_key);
+            Self::draw_text_edit_line(ui, common::REF_VALUE_COL_HELP, 4.0, &mut ref_cfg.col_value);
+
+            Self::draw_button(ui, 4.0, common::BUTTON_RUN_UPDATES, 
+                || 
+                {
+                    let ref_sheets: Vec<String> = ref_cfg.reference_sheet.split(',').map(str::trim).map(String::from).collect();
+                    
+                    if 1 == ref_sheets.len() 
+                    {
+                        // cargo run --bin rexcell -- -c cmd-update-sheets -t ../Test_Excell_new.xlsx -s C -d B -u "Лист1,Лист2,Лист3" -r ../Test_Excell_new.xlsx -e "Test" -k B -v C -i
+                        let cfg: common::Config = common::Config {
+                            command: common::Command::CmdUpdateSheets,
+                            tgt_file: tgt_cfg.path.clone(), 
+                            tgt_upd_table: tgt_cfg.update_sheets.clone(),
+                            tgt_src_col: tgt_cfg.src_col.clone(),
+                            tgt_dest_col: tgt_cfg.dest_col.clone(),
+                            ref_file: ref_cfg.path.clone(),
+                            ref_table: ref_cfg.reference_sheet.clone(),
+                            ref_col_key: ref_cfg.col_key.clone(),
+                            ref_col_value: ref_cfg.col_value.clone(),
+                            new_sheet_name: tgt_cfg.new_sheet_name.clone(),
+                            inplace: true,
+                        };
+
+                        let res = excell::execute(&cfg);
+
+                        let out = Self::handle_result(&res);
+
+                        if 0 < out.1.len() //error found
+                        {
+                            out_res.clear();
+                            *out_err = format!("Failed to update file {}! {}\n", cfg.tgt_file, out.1);
+                        }
+                        else //ok
+                        {
+                            out_err.clear();
+                            *out_res = if cfg.inplace { format!("Updated file {}! {}\n", cfg.tgt_file, out.0) } 
+                                    else { 
+                                            let new_file = format!("{}{}", cfg.tgt_file.trim_end_matches(common::XLSX_EXTENSION), common::NEW_FILE_SUFFIX);
+                                            format!("Updated to file {}! {}\n", new_file, out.0) };
                         }
                     }
-                }
-            });
-
-            ui.add_space(8.0);
-            ui.label(common::REF_SHEET_HELP);
-            ui.text_edit_singleline(&mut ref_cfg.reference_sheet);
-
-            ui.add_space(4.0);
-            ui.label(common::REF_KEY_COL_HELP);
-            ui.text_edit_singleline(&mut ref_cfg.col_key);
-
-            ui.add_space(4.0);
-            ui.label(common::REF_VALUE_COL_HELP);
-            ui.text_edit_singleline(&mut ref_cfg.col_value);
-
-            ui.add_space(4.0);
-            if ui.button(common::BUTTON_RUN_UPDATES).clicked()
-            {
-                let ref_sheets: Vec<String> = ref_cfg.reference_sheet.split(',').map(str::trim).map(String::from).collect();
-                
-                if 1 == ref_sheets.len() 
-                {
-                    // cargo run --bin rexcell -- -c cmd-update-sheets -t ../Test_Excell_new.xlsx -s C -d B -u "Лист1,Лист2,Лист3" -r ../Test_Excell_new.xlsx -e "Test" -k B -v C -i
-                    let cfg: common::Config = common::Config {
-                        command: common::Command::CmdUpdateSheets,
-                        tgt_file: tgt_cfg.path.clone(), 
-                        tgt_upd_table: tgt_cfg.update_sheets.clone(),
-                        tgt_src_col: tgt_cfg.src_col.clone(),
-                        tgt_dest_col: tgt_cfg.dest_col.clone(),
-                        ref_file: ref_cfg.path.clone(),
-                        ref_table: ref_cfg.reference_sheet.clone(),
-                        ref_col_key: ref_cfg.col_key.clone(),
-                        ref_col_value: ref_cfg.col_value.clone(),
-                        new_sheet_name: tgt_cfg.new_sheet_name.clone(),
-                        inplace: true,
-                    };
-
-                    let res = excell::execute(&cfg);
-
-                    let out = Self::handle_result(&res);
-
-                    if 0 < out.1.len() //error found
+                    else
                     {
-                        out_res.clear();
-                        *out_err = format!("Failed to update file {}! {}\n", cfg.tgt_file, out.1);
+                        *out_err = String::from(common::ERROR_MULTIPLE_REF_SHEETS);
                     }
-                    else //ok
-                    {
-                        out_err.clear();
-                        *out_res = if cfg.inplace { format!("Updated file {}! {}\n", cfg.tgt_file, out.0) } 
-                                   else { 
-                                        let new_file = format!("{}{}", cfg.tgt_file.trim_end_matches(common::XLSX_EXTENSION), common::NEW_FILE_SUFFIX);
-                                        format!("Updated to file {}! {}\n", new_file, out.0) };
-                    }
-                }
-                else
-                {
-                    *out_err = String::from(common::ERROR_MULTIPLE_REF_SHEETS);
-                }
-            }
+                },
+            );
         });
     }
 }
