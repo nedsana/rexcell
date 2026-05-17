@@ -229,7 +229,7 @@ impl GuiApp
         (lbl_new_sheet,      new_sheet ):                                     (& str, &mut String),
         (lbl_execute,                                   on_click_execute):(& str, FOnClickExecute),
     )
-    where FOnClickBrowse: FnOnce(&str),
+    where FOnClickBrowse:  FnOnce(&str),
           FOnClickExecute: FnOnce()
     {
         egui::Frame::group(ui.style()).show(ui, |ui| 
@@ -376,6 +376,7 @@ impl GuiApp
             );
         });
     }
+
 }
 
 impl eframe::App for GuiApp 
@@ -405,13 +406,17 @@ impl eframe::App for GuiApp
                             {
                                 ui.columns(2, |columns| 
                                 {
-                                    // Self::draw_filter_section(&mut columns[0], &mut self.cfg_filter, &mut self.output_text, &mut self.error, true);
-
-                                    let arg0 = (common::TGT_FILE_HELP, &mut self.cfg_filter.path, |path_str| {
+                                    Self::draw_filter_section(&mut columns[0], &mut self.cfg_filter, &mut self.output_text, &mut self.error, true);
+/*
+                                    let arg0 = (common::TGT_FILE_HELP, &mut self.cfg_filter.path, 
+                                        |path_str: &_| 
+                                        {
                                             Self::get_sheets_list(path_str)
                                                 .map(|sheets| self.cfg_filter.update_sheets = sheets)
                                                 .map_err(|err| self.error = err)
-                                                .ok(); });
+                                                .ok();
+                                        }
+                                    );
 
                                     let arg1 = (common::LIST_SHEETS_TO_UPDATE, &mut self.cfg_filter.update_sheets);
 
@@ -449,26 +454,15 @@ impl eframe::App for GuiApp
                                         else //ok
                                         {
                                             self.error.clear();
-                                            self.output_text = if cfg.inplace 
-                                                { 
-                                                    format!("Filtered file {}!\n{}\n", cfg.tgt_file, out.0) 
-                                                }
-                                                else 
-                                                {
-                                                    let new_file = format!("{}{}", cfg.tgt_file.trim_end_matches(common::XLSX_EXTENSION), common::NEW_FILE_SUFFIX);
-                                                    format!("Filtered to file {}! {}\n", new_file, out.0) 
-                                                };
+                                            self.output_text = if cfg.inplace { format!("Filtered file {}!\n{}\n", cfg.tgt_file, out.0) } 
+                                                    else { 
+                                                            let new_file = format!("{}{}", cfg.tgt_file.trim_end_matches(common::XLSX_EXTENSION), common::NEW_FILE_SUFFIX);
+                                                            format!("Filtered to file {}! {}\n", new_file, out.0) };
                                         }
-                                    },);
+                                    });
 
-                                    Self::draw_section(&mut columns[0],
-                                        arg0,
-                                        arg1,
-                                        arg2,
-                                        arg3,
-                                        arg4,
-                                        arg5
-                                    );
+                                    Self::draw_section(&mut columns[0], arg0, arg1, arg2, arg3, arg4, arg5);
+*/
                                 });
                             });
                     }

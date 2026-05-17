@@ -133,6 +133,27 @@ pub struct Config {
     pub inplace: bool,
 }
 
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            command: Command::CmdUndefined,
+
+            tgt_file: String::from("".to_string()),
+            tgt_upd_table: String::from("".to_string()),
+            tgt_src_col: String::from("".to_string()),
+            tgt_dest_col: String::from("".to_string()),
+
+            ref_file: String::from("".to_string()),
+            ref_table: String::from("".to_string()),
+            ref_col_key: String::from("".to_string()),
+            ref_col_value: String::from("".to_string()),
+
+            new_sheet_name: String::from("".to_string()),
+            inplace: bool::from(false),
+        }
+    }
+}
+
 pub fn formatted_applied_mappings(applied: usize) -> String {
     format!("Applied {} key-value mapping(s).", applied)
 }
