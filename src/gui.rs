@@ -219,7 +219,38 @@ impl GuiApp
         ui.text_edit_singleline(line);
     }
 
-    // fn draw_filter_section(&mut self, ui: &mut egui::Ui, cfg: &mut TargetData)
+    fn draw_section<FOnClickBrowse, FOnClickExecute>
+    (
+        ui: &mut egui::Ui, 
+        (lbl_path_browse,    path_browse,  on_click_browse):  (& str, &mut String, FOnClickBrowse),
+        (lbl_sheets_list,    sheets_list ):                                   (& str, &mut String),
+        (lbl_col_src,        col_src ):                                       (& str, &mut String),
+        (lbl_col_dst,        col_dst ):                                       (& str, &mut String),
+        (lbl_new_sheet,      new_sheet ):                                     (& str, &mut String),
+        (lbl_execute,                                   on_click_execute):(& str, FOnClickExecute),
+    )
+    where FOnClickBrowse: FnOnce(&str),
+          FOnClickExecute: FnOnce()
+    {
+        egui::Frame::group(ui.style()).show(ui, |ui| 
+        {
+            Self::draw_button_browse(ui, lbl_path_browse, 4.0, common::BUTTON_BROWSE, path_browse, on_click_browse);
+
+            Self::draw_text_edit_line(ui, lbl_sheets_list, 8.0, sheets_list);
+
+            Self::draw_text_edit_line(ui, lbl_col_src, 4.0, col_src);
+
+            Self::draw_text_edit_line(ui, lbl_col_dst, 4.0, col_dst);
+
+            if lbl_new_sheet.len() > 0 
+            {
+                Self::draw_text_edit_line(ui, lbl_new_sheet, 4.0, new_sheet);
+            }
+
+            Self::draw_button(ui, 4.0, lbl_execute, on_click_execute);
+        });
+    }
+
     fn draw_filter_section(ui: &mut egui::Ui, cfg: &mut TargetData, out_res: &mut String, out_err: &mut String, do_filter: bool) 
     {
         egui::Frame::group(ui.style()).show(ui, |ui| 
@@ -237,7 +268,6 @@ impl GuiApp
             Self::draw_text_edit_line(ui, common::TGT_SRC_COL_HELP, 4.0, &mut cfg.src_col);
             Self::draw_text_edit_line(ui, common::TGT_DEST_COL_HELP, 4.0, &mut cfg.dest_col);
             
-            ui.add_space(4.0);
             if do_filter
             {
                 Self::draw_text_edit_line(ui, common::NEW_SHEET_NAME_HELP, 4.0, &mut cfg.new_sheet_name);
@@ -281,7 +311,6 @@ impl GuiApp
         });
     }
 
-    // fn draw_cfg_update_ref(&mut self, ui: &mut egui::Ui) 
     fn draw_cfg_update_ref(ui: &mut egui::Ui, tgt_cfg: &mut TargetData, ref_cfg: &mut ReferencesData, out_res: &mut String, out_err: &mut String) 
     {
         egui::Frame::group(ui.style()).show(ui, |ui| 
@@ -376,7 +405,70 @@ impl eframe::App for GuiApp
                             {
                                 ui.columns(2, |columns| 
                                 {
-                                    Self::draw_filter_section(&mut columns[0], &mut self.cfg_filter, &mut self.output_text, &mut self.error, true);
+                                    // Self::draw_filter_section(&mut columns[0], &mut self.cfg_filter, &mut self.output_text, &mut self.error, true);
+
+                                    let arg0 = (common::TGT_FILE_HELP, &mut self.cfg_filter.path, |path_str| {
+                                            Self::get_sheets_list(path_str)
+                                                .map(|sheets| self.cfg_filter.update_sheets = sheets)
+                                                .map_err(|err| self.error = err)
+                                                .ok(); });
+
+                                    let arg1 = (common::LIST_SHEETS_TO_UPDATE, &mut self.cfg_filter.update_sheets);
+
+                                    let arg2 = (common::TGT_SRC_COL_HELP, &mut self.cfg_filter.src_col);
+
+                                    let arg3 = (common::TGT_DEST_COL_HELP, &mut self.cfg_filter.dest_col);
+
+                                    let arg4 = (common::NEW_SHEET_NAME_HELP, &mut self.cfg_filter.new_sheet_name);
+
+                                    let arg5 = (common::BUTTON_FILTER_DATA, || 
+                                    {
+                                        let cfg: common::Config = common::Config {
+                                            command: common::Command::CmdFilterSheets,
+                                            tgt_file: self.cfg_filter.path.clone(),
+                                            tgt_upd_table: self.cfg_filter.update_sheets.clone(),
+                                            tgt_src_col: self.cfg_filter.src_col.clone(),
+                                            tgt_dest_col: self.cfg_filter.dest_col.clone(),
+                                            ref_file: "".to_string(),
+                                            ref_table: "".to_string(),
+                                            ref_col_key: "".to_string(),
+                                            ref_col_value: "".to_string(),
+                                            new_sheet_name: self.cfg_filter.new_sheet_name.clone(),
+                                            inplace: true,
+                                        };
+
+                                        let res = excell::execute(&cfg);
+
+                                        let out = Self::handle_result(&res);
+
+                                        if 0 < out.1.len() //error found
+                                        {
+                                            self.output_text.clear();
+                                            self.error = format!("Failed to filter file {}!\n{}\n", cfg.tgt_file, out.1);
+                                        }
+                                        else //ok
+                                        {
+                                            self.error.clear();
+                                            self.output_text = if cfg.inplace 
+                                                { 
+                                                    format!("Filtered file {}!\n{}\n", cfg.tgt_file, out.0) 
+                                                }
+                                                else 
+                                                {
+                                                    let new_file = format!("{}{}", cfg.tgt_file.trim_end_matches(common::XLSX_EXTENSION), common::NEW_FILE_SUFFIX);
+                                                    format!("Filtered to file {}! {}\n", new_file, out.0) 
+                                                };
+                                        }
+                                    },);
+
+                                    Self::draw_section(&mut columns[0],
+                                        arg0,
+                                        arg1,
+                                        arg2,
+                                        arg3,
+                                        arg4,
+                                        arg5
+                                    );
                                 });
                             });
                     }
