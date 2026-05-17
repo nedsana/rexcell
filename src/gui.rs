@@ -166,14 +166,15 @@ impl GuiApp
     fn draw_button_browse<FOnClick>(
         ui: &mut egui::Ui, 
         txt_label: &str, 
+        space: f32,
         txt_button: &str, 
         path:&mut String, 
-        onClick: FOnClick
+        on_click: FOnClick
     )
     where FOnClick: FnOnce(&str)
     {
         ui.label(txt_label);
-        ui.add_space(4.0);
+        ui.add_space(space);
         ui.horizontal(|ui|
         {
             ui.text_edit_singleline(path);
@@ -184,11 +185,23 @@ impl GuiApp
                 {
                     if let Some(path_str) = path_buf.to_str() {
                         *path = path_str.to_string();
-                        onClick(path_str);
+                        on_click(path_str);
                     }
                 }
             }
         });
+    }
+
+    fn draw_text_edit_line(
+        ui: &mut egui::Ui, 
+        txt_label: &str, 
+        space: f32,
+        line:&mut String,
+    )
+    {
+        ui.add_space(space);
+        ui.label(txt_label);
+        ui.text_edit_singleline(line);
     }
 
     // fn draw_filter_section(&mut self, ui: &mut egui::Ui, cfg: &mut TargetData)
@@ -196,7 +209,7 @@ impl GuiApp
     {
         egui::Frame::group(ui.style()).show(ui, |ui| 
         {
-            Self::draw_button_browse(ui, common::TGT_FILE_HELP, common::BUTTON_BROWSE, &mut cfg.path,
+            Self::draw_button_browse(ui, common::TGT_FILE_HELP, 4.0, common::BUTTON_BROWSE, &mut cfg.path,
                 |path_str| {
                     Self::get_sheets_list(path_str)
                         .map(|sheets| cfg.update_sheets = sheets)
@@ -205,17 +218,9 @@ impl GuiApp
                 },
             );
 
-            ui.add_space(8.0);
-            ui.label(common::LIST_SHEETS_TO_UPDATE);
-            ui.text_edit_singleline(&mut cfg.update_sheets);
-
-            ui.add_space(4.0);
-            ui.label(common::TGT_SRC_COL_HELP);
-            ui.text_edit_singleline(&mut cfg.src_col);
-
-            ui.add_space(4.0);
-            ui.label(common::TGT_DEST_COL_HELP);
-            ui.text_edit_singleline(&mut cfg.dest_col);
+            Self::draw_text_edit_line(ui, common::LIST_SHEETS_TO_UPDATE, 8.0, &mut cfg.update_sheets);
+            Self::draw_text_edit_line(ui, common::TGT_SRC_COL_HELP, 4.0, &mut cfg.src_col);
+            Self::draw_text_edit_line(ui, common::TGT_DEST_COL_HELP, 4.0, &mut cfg.dest_col);
             
             ui.add_space(4.0);
             if do_filter
