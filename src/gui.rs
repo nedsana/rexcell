@@ -163,6 +163,21 @@ impl GuiApp
         (out_res, out_err)
     }
 
+    fn draw_button<FOnClick>(
+        ui: &mut egui::Ui, 
+        space: f32,
+        txt_button: &str, 
+        on_click: FOnClick
+    )
+    where FOnClick: FnOnce()
+    {
+        ui.add_space(space);
+        if ui.button(txt_button).clicked()
+        {
+            on_click();
+        }
+    }
+
     fn draw_button_browse<FOnClick>(
         ui: &mut egui::Ui, 
         txt_label: &str, 
@@ -225,45 +240,43 @@ impl GuiApp
             ui.add_space(4.0);
             if do_filter
             {
-                ui.add_space(4.0);
-                ui.label(common::NEW_SHEET_NAME_HELP);
-                ui.text_edit_singleline(&mut cfg.new_sheet_name);
+                Self::draw_text_edit_line(ui, common::NEW_SHEET_NAME_HELP, 4.0, &mut cfg.new_sheet_name);
+                
+                Self::draw_button(ui, 4.0, common::BUTTON_FILTER_DATA, 
+                    || {
+                        let cfg: common::Config = common::Config {
+                            command: common::Command::CmdFilterSheets,
+                            tgt_file: cfg.path.clone(), 
+                            tgt_upd_table: cfg.update_sheets.clone(),
+                            tgt_src_col: cfg.src_col.clone(),
+                            tgt_dest_col: cfg.dest_col.clone(),
+                            ref_file: "".to_string(),
+                            ref_table: "".to_string(),
+                            ref_col_key: "".to_string(),
+                            ref_col_value: "".to_string(),
+                            new_sheet_name: cfg.new_sheet_name.clone(),
+                            inplace: true,
+                        };
 
-                if ui.button(common::BUTTON_FILTER_DATA).clicked()
-                {
-                    // cargo run --bin rexcell -- -c cmd-filter-sheets -t ../Test_Excell.xlsx -u "Лист1,Лист2,Лист3" -s C -d E -n "Test"
-                    let cfg: common::Config = common::Config {
-                        command: common::Command::CmdFilterSheets,
-                        tgt_file: cfg.path.clone(), 
-                        tgt_upd_table: cfg.update_sheets.clone(),
-                        tgt_src_col: cfg.src_col.clone(),
-                        tgt_dest_col: cfg.dest_col.clone(),
-                        ref_file: "".to_string(),
-                        ref_table: "".to_string(),
-                        ref_col_key: "".to_string(),
-                        ref_col_value: "".to_string(),
-                        new_sheet_name: cfg.new_sheet_name.clone(),
-                        inplace: true,
-                    };
+                        let res = excell::execute(&cfg);
 
-                    let res = excell::execute(&cfg);
+                        let out = Self::handle_result(&res);
 
-                    let out = Self::handle_result(&res);
-
-                    if 0 < out.1.len() //error found
-                    {
-                        out_res.clear();
-                        *out_err = format!("Failed to filter file {}!\n{}\n", cfg.tgt_file, out.1);
-                    }
-                    else //ok
-                    {
-                        out_err.clear();
-                        *out_res = if cfg.inplace { format!("Filtered file {}!\n{}\n", cfg.tgt_file, out.0) } 
-                                   else { 
-                                        let new_file = format!("{}{}", cfg.tgt_file.trim_end_matches(common::XLSX_EXTENSION), common::NEW_FILE_SUFFIX);
-                                        format!("Filtered to file {}! {}\n", new_file, out.0) };
-                    }
-                }
+                        if 0 < out.1.len() //error found
+                        {
+                            out_res.clear();
+                            *out_err = format!("Failed to filter file {}!\n{}\n", cfg.tgt_file, out.1);
+                        }
+                        else //ok
+                        {
+                            out_err.clear();
+                            *out_res = if cfg.inplace { format!("Filtered file {}!\n{}\n", cfg.tgt_file, out.0) } 
+                                    else { 
+                                            let new_file = format!("{}{}", cfg.tgt_file.trim_end_matches(common::XLSX_EXTENSION), common::NEW_FILE_SUFFIX);
+                                            format!("Filtered to file {}! {}\n", new_file, out.0) };
+                        }
+                    },
+                );
             }
         });
     }
