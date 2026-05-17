@@ -163,28 +163,47 @@ impl GuiApp
         (out_res, out_err)
     }
 
-    // fn draw_filter_section(&mut self, ui: &mut egui::Ui, cfg: &mut TargetData) 
+    fn draw_button_browse<FOnClick>(
+        ui: &mut egui::Ui, 
+        txt_label: &str, 
+        txt_button: &str, 
+        path:&mut String, 
+        onClick: FOnClick
+    )
+    where FOnClick: FnOnce(&str)
+    {
+        ui.label(txt_label);
+        ui.add_space(4.0);
+        ui.horizontal(|ui|
+        {
+            ui.text_edit_singleline(path);
+
+            if ui.button(txt_button).clicked() 
+            {
+                if let Some(path_buf) = FileDialog::new().pick_file() 
+                {
+                    if let Some(path_str) = path_buf.to_str() {
+                        *path = path_str.to_string();
+                        onClick(path_str);
+                    }
+                }
+            }
+        });
+    }
+
+    // fn draw_filter_section(&mut self, ui: &mut egui::Ui, cfg: &mut TargetData)
     fn draw_filter_section(ui: &mut egui::Ui, cfg: &mut TargetData, out_res: &mut String, out_err: &mut String, do_filter: bool) 
     {
         egui::Frame::group(ui.style()).show(ui, |ui| 
         {
-            ui.label(common::TGT_FILE_HELP);
-            ui.add_space(4.0);
-            ui.horizontal(|ui| {
-                ui.label(common::LABEL_FILE);
-                ui.text_edit_singleline(&mut cfg.path);
-                if ui.button(common::BUTTON_BROWSE).clicked() {
-                    if let Some(path_buf) = FileDialog::new().pick_file() {
-                        if let Some(path_str) = path_buf.to_str() {
-                            cfg.path = path_str.to_string();
-                            Self::get_sheets_list(path_str)
-                                .map(|sheets| cfg.update_sheets = sheets)
-                                .map_err(|err| *out_err = err)
-                                .ok();
-                        }
-                    }
-                }
-            });
+            Self::draw_button_browse(ui, common::TGT_FILE_HELP, common::BUTTON_BROWSE, &mut cfg.path,
+                |path_str| {
+                    Self::get_sheets_list(path_str)
+                        .map(|sheets| cfg.update_sheets = sheets)
+                        .map_err(|err| *out_err = err)
+                        .ok();
+                },
+            );
 
             ui.add_space(8.0);
             ui.label(common::LIST_SHEETS_TO_UPDATE);

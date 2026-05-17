@@ -73,7 +73,8 @@ pub const BUTTON_BROWSE: &str = "Browse";
 pub const BUTTON_RUN_UPDATES: &str = "Run the updates";
 pub const BUTTON_FILTER_DATA: &str = "Filter Data";
 pub const WINDOW_TITLE: &str = "rexcell GUI";
-pub const PANEL_DESCRIPTION: &str = "The top section has two identical panels.";
+pub const PANEL_DESC_FILTER: &str = "Filter table by column and rows in \"ref-sheet\"";
+pub const PANEL_DESCR_UPDATE: &str = "Update table with the data from \"ref-sheet\"";
 
 pub const CMD_PATH: &str = "target/debug/rexcell";
 pub const CMD_ARG_TARGET: &str = "-t";
