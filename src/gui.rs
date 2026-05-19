@@ -48,8 +48,8 @@ impl Default for ReferencesData {
         Self {
             path: String::from(common::REF_DEFAULT_EXCEL_FILE),
             reference_sheet: String::from(common::REF_DEFAULT_TABLE),
-            col_key: String::from(common::REF_DEFAULT_KEY_COL),
-            col_value: String::from(common::REF_DEFAULT_VALUE_COL),
+            col_key: String::from(common::REF_DEFAULT_SRC_COL),
+            col_value: String::from(common::REF_DEFAULT_DST_COL),
         }
     }
 }
@@ -105,8 +105,8 @@ impl Default for GuiApp
 
             cfg_update_ref: ReferencesData::new( common::REF_DEFAULT_EXCEL_FILE.to_string(), 
                                     common::REF_DEFAULT_TABLE.to_string(), 
-                                    common::REF_DEFAULT_KEY_COL.to_string(), 
-                                    common::REF_DEFAULT_VALUE_COL.to_string()),
+                                    common::REF_DEFAULT_SRC_COL.to_string(),
+                                    common::REF_DEFAULT_DST_COL.to_string()),
 
             output_text: String::new(),
             error: String::new(),
@@ -272,11 +272,11 @@ impl GuiApp
             ui.text_edit_singleline(&mut ref_cfg.reference_sheet);
 
             ui.add_space(4.0);
-            ui.label(common::REF_KEY_COL_HELP);
+            ui.label(common::REF_SRC_COL_HELP);
             ui.text_edit_singleline(&mut ref_cfg.col_key);
 
             ui.add_space(4.0);
-            ui.label(common::REF_VALUE_COL_HELP);
+            ui.label(common::REF_DEST_COL_HELP);
             ui.text_edit_singleline(&mut ref_cfg.col_value);
 
             ui.add_space(4.0);

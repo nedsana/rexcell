@@ -31,11 +31,11 @@ pub const TGT_DEFAULT_NEW_SHEET_NAME: &str = "Prices";
 
 pub const REF_FILE_HELP: &str = "Excel file, with reference data";
 pub const REF_SHEET_HELP: &str = "Reference table(sheet) name";
-pub const REF_KEY_COL_HELP: &str = "Reference table key column";
-pub const REF_VALUE_COL_HELP: &str = "Column to filter on";
+pub const REF_SRC_COL_HELP: &str = "Column to look for";
+pub const REF_DEST_COL_HELP: &str = "Reference table key column";
 pub const REF_DEFAULT_EXCEL_FILE: &str = "";
-pub const REF_DEFAULT_KEY_COL: &str = "B,F";
-pub const REF_DEFAULT_VALUE_COL: &str = "C";
+pub const REF_DEFAULT_SRC_COL: &str = "C";
+pub const REF_DEFAULT_DST_COL: &str = "B,F";
 pub const REF_DEFAULT_TABLE: &str = "";
 
 
