@@ -332,6 +332,10 @@ impl eframe::App for GuiApp
 {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) 
     {
+        const MAX_HEIGHT: f32 = 400.0;
+        const SCALE_FACTOR: f32 = 1.25;
+        ctx.set_pixels_per_point(SCALE_FACTOR);
+
         egui::CentralPanel::default().show(ctx, |ui| 
         {
             ui.vertical(|ui| 
@@ -381,7 +385,7 @@ impl eframe::App for GuiApp
 
                     egui::ScrollArea::vertical()
                         .id_source("execution_result_scroll") 
-                        .max_height(400.0) 
+                        .max_height(MAX_HEIGHT * SCALE_FACTOR) 
                         .auto_shrink([false; 2]) 
                         .show(ui, |ui| {
                             ui.add(

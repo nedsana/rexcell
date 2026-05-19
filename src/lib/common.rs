@@ -23,18 +23,18 @@ pub const NEW_SHEET_NAME_HELP: &str = "Name of the new sheet";
 
 pub const TGT_DEFAULT_EXCEL_FILE: &str = "";
 pub const TGT_DEFAULT_SRC_COL: &str = "C";
-pub const TGT_DEFAULT_DST_COL: &str = "B";
+pub const TGT_DEFAULT_DST_COL: &str = "B,F";
 pub const TGT_DEFAULT_ACC_COL: &str = "E";
 pub const TGT_DEFAULT_TABLE: &str = "";
-pub const TGT_DEFAULT_NEW_SHEET_NAME: &str = "New-Sheet";
+pub const TGT_DEFAULT_NEW_SHEET_NAME: &str = "Prices";
 
 
 pub const REF_FILE_HELP: &str = "Excel file, with reference data";
 pub const REF_SHEET_HELP: &str = "Reference table(sheet) name";
 pub const REF_KEY_COL_HELP: &str = "Reference table key column";
-pub const REF_VALUE_COL_HELP: &str = "Reference table value column";
+pub const REF_VALUE_COL_HELP: &str = "Column to filter on";
 pub const REF_DEFAULT_EXCEL_FILE: &str = "";
-pub const REF_DEFAULT_KEY_COL: &str = "B";
+pub const REF_DEFAULT_KEY_COL: &str = "B,F";
 pub const REF_DEFAULT_VALUE_COL: &str = "C";
 pub const REF_DEFAULT_TABLE: &str = "";
 
