@@ -16,8 +16,9 @@ pub const COMMAND_FILE_HELP: &str = "Command to execute.";
 
 pub const TGT_FILE_HELP: &str = "Excel file to update";
 pub const TGT_SRC_COL_HELP: &str = "Column to filter on";
-pub const TGT_DEST_COL_HELP: &str = "Columns to accumulate, on filter match";
-pub const TGT_UPDATE_SHEET_HELP: &str = "Update tables(sheets). Comma-separated list.";
+pub const TGT_DEST_COL_ACCUM_HELP: &str = "Columns to accumulate, on filter match";
+pub const TGT_DEST_COL_HELP: &str = "Column to update";
+pub const TGT_UPDATE_SHEET_HELP: &str = "Update tables. Comma-separated list.";
 pub const NEW_SHEET_NAME_HELP: &str = "Name of the new sheet";
 
 
@@ -30,9 +31,9 @@ pub const TGT_DEFAULT_NEW_SHEET_NAME: &str = "Prices";
 
 
 pub const REF_FILE_HELP: &str = "Excel file, with reference data";
-pub const REF_SHEET_HELP: &str = "Reference table(sheet) name";
+pub const REF_SHEET_HELP: &str = "Reference table name";
 pub const REF_SRC_COL_HELP: &str = "Column to look for";
-pub const REF_DEST_COL_HELP: &str = "Reference table key column";
+pub const REF_DEST_COL_HELP: &str = "Column to get data from";
 pub const REF_DEFAULT_EXCEL_FILE: &str = "";
 pub const REF_DEFAULT_SRC_COL: &str = "C";
 pub const REF_DEFAULT_DST_COL: &str = "B,F";
@@ -41,8 +42,8 @@ pub const REF_DEFAULT_TABLE: &str = "";
 
 pub const INPLACE_HELP: &str = "Overwrite the input file instead of creating a new one";
 
-pub const LIST_SHEETS_HELP: &str = "List of tables(sheets) in the file";
-pub const LIST_SHEETS_TO_UPDATE: &str = "List of tables(sheets) to update";
+pub const LIST_SHEETS_HELP: &str = "List of tables in the file";
+pub const LIST_SHEETS_TO_UPDATE: &str = "List of tables to update";
 pub const FILTERED_SHEET: &str = "Filtered content from sheet";
 
 pub const ARG_LONG_COMMAND: &str = "command";

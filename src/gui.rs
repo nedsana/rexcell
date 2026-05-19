@@ -164,16 +164,16 @@ impl GuiApp
     }
 
     // fn draw_filter_section(&mut self, ui: &mut egui::Ui, cfg: &mut TargetData) 
-    fn draw_filter_section(ui: &mut egui::Ui, cfg: &mut TargetData, out_res: &mut String, out_err: &mut String, do_filter: bool) 
+    fn draw_filter_section(ui: &mut egui::Ui, cfg: &mut TargetData, out_res: &mut String, out_err: &mut String, headers: &[&str]) 
     {
         egui::Frame::group(ui.style()).show(ui, |ui| 
         {
-            ui.label(common::TGT_FILE_HELP);
+            ui.label(headers[0]);
             ui.add_space(4.0);
             ui.horizontal(|ui| {
-                ui.label(common::LABEL_FILE);
+                ui.label(headers[1]);
                 ui.text_edit_singleline(&mut cfg.path);
-                if ui.button(common::BUTTON_BROWSE).clicked() {
+                if ui.button(headers[2]).clicked() {
                     if let Some(path_buf) = FileDialog::new().pick_file() {
                         if let Some(path_str) = path_buf.to_str() {
                             cfg.path = path_str.to_string();
@@ -187,25 +187,25 @@ impl GuiApp
             });
 
             ui.add_space(8.0);
-            ui.label(common::LIST_SHEETS_TO_UPDATE);
+            ui.label(headers[3]);
             ui.text_edit_singleline(&mut cfg.update_sheets);
 
             ui.add_space(4.0);
-            ui.label(common::TGT_SRC_COL_HELP);
+            ui.label(headers[4]);
             ui.text_edit_singleline(&mut cfg.src_col);
 
             ui.add_space(4.0);
-            ui.label(common::TGT_DEST_COL_HELP);
+            ui.label(headers[5]);
             ui.text_edit_singleline(&mut cfg.dest_col);
             
             ui.add_space(4.0);
-            if do_filter
+            if headers.len() > 6
             {
                 ui.add_space(4.0);
-                ui.label(common::NEW_SHEET_NAME_HELP);
+                ui.label(headers[6]);
                 ui.text_edit_singleline(&mut cfg.new_sheet_name);
 
-                if ui.button(common::BUTTON_FILTER_DATA).clicked()
+                if ui.button(headers[7]).clicked()
                 {
                     // cargo run --bin rexcell -- -c cmd-filter-sheets -t ../Test_Excell.xlsx -u "Лист1,Лист2,Лист3" -s C -d E -n "Test"
                     let cfg: common::Config = common::Config {
@@ -245,16 +245,16 @@ impl GuiApp
     }
 
     // fn draw_cfg_update_ref(&mut self, ui: &mut egui::Ui) 
-    fn draw_cfg_update_ref(ui: &mut egui::Ui, tgt_cfg: &mut TargetData, ref_cfg: &mut ReferencesData, out_res: &mut String, out_err: &mut String) 
+    fn draw_cfg_update_ref(ui: &mut egui::Ui, tgt_cfg: &mut TargetData, ref_cfg: &mut ReferencesData, out_res: &mut String, out_err: &mut String, headers: &[&str]) 
     {
         egui::Frame::group(ui.style()).show(ui, |ui| 
         {
-            ui.label(common::REF_FILE_HELP);
+            ui.label(headers[0]);
             ui.add_space(4.0);
             ui.horizontal(|ui| {
-                ui.label(common::LABEL_FILE);
+                ui.label(headers[1]);
                 ui.text_edit_singleline(&mut ref_cfg.path);
-                if ui.button(common::BUTTON_BROWSE).clicked() {
+                if ui.button(headers[2]).clicked() {
                     if let Some(path_buf) = FileDialog::new().pick_file() {
                         if let Some(path_str) = path_buf.to_str() {
                             ref_cfg.path = path_str.to_string();
@@ -268,19 +268,19 @@ impl GuiApp
             });
 
             ui.add_space(8.0);
-            ui.label(common::REF_SHEET_HELP);
+            ui.label(headers[3]);
             ui.text_edit_singleline(&mut ref_cfg.reference_sheet);
 
             ui.add_space(4.0);
-            ui.label(common::REF_SRC_COL_HELP);
+            ui.label(headers[4]);
             ui.text_edit_singleline(&mut ref_cfg.col_key);
 
             ui.add_space(4.0);
-            ui.label(common::REF_DEST_COL_HELP);
+            ui.label(headers[5]);
             ui.text_edit_singleline(&mut ref_cfg.col_value);
 
             ui.add_space(4.0);
-            if ui.button(common::BUTTON_RUN_UPDATES).clicked()
+            if ui.button(headers[6]).clicked()
             {
                 let ref_sheets: Vec<String> = ref_cfg.reference_sheet.split(',').map(str::trim).map(String::from).collect();
                 
@@ -328,6 +328,17 @@ impl GuiApp
     }
 }
 
+const FILTER_SECTION_HEADERS: [&str; 8] = [common::TGT_FILE_HELP, common::LABEL_FILE, common::BUTTON_BROWSE, 
+                                        common::LIST_SHEETS_TO_UPDATE, common::TGT_SRC_COL_HELP, common::TGT_DEST_COL_ACCUM_HELP, 
+                                        common::NEW_SHEET_NAME_HELP, common::BUTTON_FILTER_DATA];
+
+const UPDATE_SECTION_TGT_HEADERS: [&str; 6] = [common::TGT_FILE_HELP, common::LABEL_FILE, common::BUTTON_BROWSE, 
+                                               common::LIST_SHEETS_TO_UPDATE, common::REF_SRC_COL_HELP, common::TGT_DEST_COL_HELP];
+
+const UPDATE_SECTION_REF_HEADERS: [&str; 7] = [common::REF_FILE_HELP, common::LABEL_FILE, common::BUTTON_BROWSE, 
+                                               common::REF_SHEET_HELP, common::REF_SRC_COL_HELP, common::REF_DEST_COL_HELP, 
+                                               common::BUTTON_RUN_UPDATES];
+
 impl eframe::App for GuiApp 
 {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) 
@@ -359,7 +370,8 @@ impl eframe::App for GuiApp
                             {
                                 ui.columns(2, |columns| 
                                 {
-                                    Self::draw_filter_section(&mut columns[0], &mut self.cfg_filter, &mut self.output_text, &mut self.error, true);
+                                    Self::draw_filter_section(&mut columns[0], &mut self.cfg_filter, 
+                                        &mut self.output_text, &mut self.error, &FILTER_SECTION_HEADERS);
                                 });
                             });
                     }
@@ -370,8 +382,11 @@ impl eframe::App for GuiApp
                         {
                             ui.columns(2, |columns| 
                             {
-                                Self::draw_filter_section(&mut columns[0], &mut self.cfg_update_tgt, &mut self.output_text, &mut self.error, false);
-                                Self::draw_cfg_update_ref(&mut columns[1], &mut self.cfg_update_tgt, &mut self.cfg_update_ref, &mut self.output_text, &mut self.error);
+                                Self::draw_filter_section(&mut columns[0], &mut self.cfg_update_tgt, &mut self.output_text, 
+                                    &mut self.error, &UPDATE_SECTION_TGT_HEADERS);
+
+                                Self::draw_cfg_update_ref(&mut columns[1], &mut self.cfg_update_tgt, &mut self.cfg_update_ref, 
+                                    &mut self.output_text, &mut self.error, &UPDATE_SECTION_REF_HEADERS  );
                             });
                         });
                     }
