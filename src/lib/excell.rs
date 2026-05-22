@@ -269,11 +269,42 @@ where FRow:  Fn(&Worksheet, u32,      &mut Worksheet) -> bool,
     for row in 1..=max_row 
     {
         // Are there any merged cells that include this row?
-        let is_merged = sheet_in_merged_cells.iter().any(|range| {
-            let start_row = range.get_coordinate_start_row().unwrap();
-            let end_row = range.get_coordinate_end_row().unwrap();
-            row >= *start_row.get_num() && row <= *end_row.get_num()
-        });
+        let mut is_merged = false;
+
+        let o_merged_cells: Option<&Range> = sheet_in_merged_cells.iter().find(|range| 
+            {
+                let start_row = range.get_coordinate_start_row().unwrap();
+                let end_row = range.get_coordinate_end_row().unwrap();
+                row >= *start_row.get_num() && row <= *end_row.get_num()
+            });
+
+        if let Some(merged_cells) = o_merged_cells 
+        {
+            let merged_cells_value_inst = sheet_in.get_cell_value((
+                merged_cells.get_coordinate_start_col().unwrap().get_num(), 
+                merged_cells.get_coordinate_start_row().unwrap().get_num()));
+
+            let merged_cells_value = merged_cells_value_inst.get_value().clone();
+            let merged_cells_value_type = merged_cells_value_inst.get_data_type();
+
+            let is_single_col = *merged_cells.get_coordinate_start_col().unwrap().get_num() == *merged_cells.get_coordinate_end_col().unwrap().get_num();
+            let is_two_rows = *merged_cells.get_coordinate_end_row().unwrap().get_num() - *merged_cells.get_coordinate_start_row().unwrap().get_num() == 1;
+
+            if merged_cells_value_type == "n" && is_single_col && is_two_rows
+            {
+                // is_merged = true;
+                println!("[{}] Merged cell range: {}{}:{}{} found for row {}. Value:{} Type:{}!", 
+                    sheet_in.get_name(), 
+                    index_to_column(*merged_cells.get_coordinate_start_col().unwrap().get_num()), 
+                    merged_cells.get_coordinate_start_row().unwrap().get_num(), 
+                    index_to_column(*merged_cells.get_coordinate_end_col().unwrap().get_num()), 
+                    merged_cells.get_coordinate_end_row().unwrap().get_num(), row, merged_cells_value, merged_cells_value_type);
+            }
+            else
+            {
+                is_merged = true;
+            }
+        } 
 
         if !is_merged 
         {
