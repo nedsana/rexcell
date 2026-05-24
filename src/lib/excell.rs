@@ -1,8 +1,11 @@
 // use clap::error;
 use umya_spreadsheet::*;
-use core::range;
 use std::collections::HashMap;
 use super::common;
+
+//to do: make these constants configurable
+const MAX_COL: u32 = 10;
+const MAX_ROW: u32 = 1000;
 
 pub fn column_to_index(col: &str) -> u32 {
     let mut index = 0;
@@ -33,7 +36,7 @@ fn cmp_strs(s1: &str, s2: &str) -> bool {
 pub fn get_ref_map_by_indexes(sheet: &Worksheet, col_key: u32, col_value: u32) -> HashMap<String, String> {
     let mut ref_map: HashMap<String, String> = HashMap::new();
 
-    for row in 1..=sheet.get_highest_row() {
+    for row in 1..=MAX_ROW /*sheet.get_highest_row()*/ {
         let cell_key = sheet.get_value((col_key, row));
         let cell_value = sheet.get_value((col_value, row));
 
@@ -55,8 +58,8 @@ pub fn apply_formulas(
     col_key: u32,
 )
 {
-    let utbl_max_row = utbl.get_highest_row();
-    let rtbl_max_row = rtbl.get_highest_row();
+    let utbl_max_row = MAX_ROW; //utbl.get_highest_row();
+    let rtbl_max_row = MAX_ROW; //rtbl.get_highest_row();
 
     for rtbl_row in 1..=rtbl_max_row //loop over the reference table rows
     {
@@ -71,7 +74,7 @@ pub fn apply_formulas(
                 if !utbl_key_value.is_empty() && cmp_strs(&utbl_key_value, &rtbl_key_value) 
                 {
                     // let utbl_name = utbl.get_name().to_string();
-                    let utbl_max_col = utbl.get_highest_column();
+                    let utbl_max_col = MAX_COL; //utbl.get_highest_column();
                     for utbl_col in 1..=utbl_max_col
                     {
                         let ucell = utbl.get_cell_mut((utbl_col, utbl_row));
@@ -93,8 +96,8 @@ pub fn reset_formulas(
     utbl: &mut Worksheet,
 )
 {
-    let utbl_max_row = utbl.get_highest_row();
-    let utbl_max_col = utbl.get_highest_column();
+    let utbl_max_row = MAX_ROW; //utbl.get_highest_row();
+    let utbl_max_col = MAX_COL; //utbl.get_highest_column();
     for utbl_col in 1..=utbl_max_col //loop over the update table rows
     {
         for utbl_row in 1..=utbl_max_row //loop over the update table rows
@@ -122,8 +125,8 @@ pub fn apply_key_value_data_by_indexes(
 
     let mut res = (Vec::new(), Vec::new());
     
-    let utbl_max_row = utbl.get_highest_row();
-    let rtbl_max_row = rtbl.get_highest_row();
+    let utbl_max_row = MAX_ROW; //utbl.get_highest_row();
+    let rtbl_max_row = MAX_ROW; //rtbl.get_highest_row();
 
     for utbl_row in 1..=utbl_max_row //loop over the update table rows
     {
@@ -310,6 +313,58 @@ fn do_ranges_overlap(range_a: &Range, range_b: &Range) -> bool
     row_overlap && col_overlap
 }
 
+fn print_range_cells_0(sheet: &Worksheet, range: &Range) 
+{
+    let rbeg = *range.get_coordinate_start_row().unwrap().get_num();
+    let rend = *range.get_coordinate_end_row().unwrap().get_num();
+    let cbeg = *range.get_coordinate_start_col().unwrap().get_num();
+    let cend = *range.get_coordinate_end_col().unwrap().get_num();
+
+    println!("Sheet {} range ({}:{}) ---", sheet.get_name(), 
+        umya_spreadsheet::helper::coordinate::coordinate_from_index(&cbeg, &rbeg), // Returns "A1"
+        umya_spreadsheet::helper::coordinate::coordinate_from_index(&cend, &rend)  // Returns "C10"
+    );
+
+    for r in rbeg..=rend 
+    {
+        for c in cbeg..=cend 
+        {
+            let coord_str = umya_spreadsheet::helper::coordinate::coordinate_from_index(&c, &r);
+            let cell_value = sheet.get_cell_value((c, r)).get_value();
+            println!("Клетка {}: {}", coord_str, cell_value);
+        }
+    }
+}
+
+fn print_range_cells_1(sheet: &Worksheet, range: &Range) 
+{
+    let rbeg = *range.get_coordinate_start_row().unwrap().get_num();
+    let rend = *range.get_coordinate_end_row().unwrap().get_num();
+    let cbeg = *range.get_coordinate_start_col().unwrap().get_num();
+    let cend = *range.get_coordinate_end_col().unwrap().get_num();
+
+    let mut coord_names = Vec::new();
+    let mut cell_values = Vec::new();
+
+    for r in rbeg..=rend 
+    {
+        for c in cbeg..=cend 
+        {
+            let coord_str = umya_spreadsheet::helper::coordinate::coordinate_from_index(&c, &r);
+            coord_names.push(coord_str);
+
+            let cell_value = sheet.get_cell_value((c, r)).get_value().to_string();
+            cell_values.push(cell_value);
+        }
+
+        println!("{}", coord_names.join("\t\t\t"));
+        println!("{}", cell_values.join("\t\t\t"));
+        coord_names.clear();
+        cell_values.clear();
+    }
+}
+
+
 /**
  * Copy all rows, which don't contain merged cells, from sheet_in to sheet_out. 
  * Further filtering can be provided via the filter_* arguments.
@@ -332,9 +387,9 @@ where FRow:  Fn(&Worksheet, &Range, &mut Worksheet) -> bool,
 {
     let sheet_in_merged_cells = sheet_in.get_merge_cells(); 
 
-    let max_row = sheet_in.get_highest_row();
-    let max_col = sheet_in.get_highest_column();
-    let mut current_new_row = sheet_out.get_highest_row()+1;
+    let max_row = MAX_ROW; //sheet_in.get_highest_row();
+    let max_col = MAX_COL; //sheet_in.get_highest_column();
+    let mut current_new_row = MAX_ROW; //sheet_out.get_highest_row()+1;
 
     let mut cells_range = Range::default();
 
@@ -347,12 +402,14 @@ where FRow:  Fn(&Worksheet, &Range, &mut Worksheet) -> bool,
 
         //make range for the whole row, e.g. A1:Z1
         cells_range = make_range_from_indexes(1, row, 1 + max_col, row);
+        // print_range_cells_1(sheet_in, &cells_range);
 
         // Are there any merged cells that include this row?
-        let mut is_merged = false;
+        let mut process_row = false;
 
         if let Some(merged_cells) = sheet_in_merged_cells.iter().find(|range| { is_row_in_range(row, range) }) 
         {
+            //handle rows with merged cells
             let merged_cells_value_inst = sheet_in.get_cell_value((
                 merged_cells.get_coordinate_start_col().unwrap().get_num(), 
                 merged_cells.get_coordinate_start_row().unwrap().get_num()));
@@ -365,24 +422,55 @@ where FRow:  Fn(&Worksheet, &Range, &mut Worksheet) -> bool,
 
             if merged_cells_value_type == "n" && is_single_col && is_two_rows
             {
-                is_merged = false;
+                process_row = true;
 
-                cells_range = merged_cells.clone();
+                // cells_range = merged_cells.clone();
+                cells_range = make_range_from_indexes(1, row, 1 + max_col, 
+                            *merged_cells.get_coordinate_end_row().unwrap().get_num());
 
-                println!("[{}] Merged cell range: {}{}:{}{} found for row {}. Value:{} Type:{}!", 
-                    sheet_in.get_name(), 
-                    index_to_column(*merged_cells.get_coordinate_start_col().unwrap().get_num()), 
-                    merged_cells.get_coordinate_start_row().unwrap().get_num(), 
-                    index_to_column(*merged_cells.get_coordinate_end_col().unwrap().get_num()), 
-                    merged_cells.get_coordinate_end_row().unwrap().get_num(), row, _merged_cells_value, merged_cells_value_type);
-            }
-            else
-            {
-                is_merged = true;
+                // println!("[{}] Merged cell range: {}{}:{}{} found for row {}. Value:{} Type:{}!", 
+                //     sheet_in.get_name(), 
+                //     index_to_column(*merged_cells.get_coordinate_start_col().unwrap().get_num()), 
+                //     merged_cells.get_coordinate_start_row().unwrap().get_num(), 
+                //     index_to_column(*merged_cells.get_coordinate_end_col().unwrap().get_num()), 
+                //     merged_cells.get_coordinate_end_row().unwrap().get_num(), row, _merged_cells_value, merged_cells_value_type);
             }
         } 
+        else
+        {
+            //handle rows without merged cells. Ignore rows with values in Col:A different from numeric or symbol '-'
+            if let Some(src_cell) = sheet_in.get_cell((1, row)) 
+            {
+                let _cell_value = src_cell.get_value().clone();
+                let cell_data_type = src_cell.get_data_type().to_string();
 
-        if !is_merged 
+                if cell_data_type == "n"
+                {
+                    //check if the next row starts with numeric. I yes, process the current row. If not make range of all rows starting with '-'
+                    let next_row = row + 1;
+                    for nrow in next_row..=max_row 
+                    {
+                        if let Some(next_cell) = sheet_in.get_cell((1, nrow)) 
+                        {
+                            let _next_cell_value = next_cell.get_value().clone();
+                            let next_cell_data_type = next_cell.get_data_type().to_string();
+
+                            if next_cell_data_type == "n"
+                            {
+                                process_row = true;
+                                break;
+                            }
+                            else if next_cell_data_type == "s" && _next_cell_value == "-"
+                            {
+                                cells_range = make_range_from_indexes(1, row, 1 + max_col, nrow);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if process_row 
         {
             let mut added_col = false;
             // Execute per row filter logic, if provided. 
@@ -417,8 +505,7 @@ where FRow:  Fn(&Worksheet, &Range, &mut Worksheet) -> bool,
 
                         if passes_filter
                         {
-                            let o_src_cell = sheet_in.get_cell((col, row));
-                            if let Some(src_cell) = o_src_cell 
+                            if let Some(src_cell) = sheet_in.get_cell((col, row)) 
                             {
                                 let cell_value = src_cell.get_value().clone();
                                 let cell_style = src_cell.get_style().clone();
@@ -470,11 +557,13 @@ where FRow:  Fn(&Worksheet, &Range, &mut Worksheet) -> bool,
                 }
 
                 current_new_row += 1;
+
+                // std::process::exit(-1);
             }
         }
         else
         {
-            // println!("[{}] Row {} is part of a merged cell, skipping!", sheet_in.get_name(), row);
+            // println!("[{}] Skipping row:{}!", sheet_in.get_name(), row);
         }
     }
     true
@@ -506,30 +595,34 @@ pub fn filter_sheet_by_col_and_accum(
             let bcoord = umya_spreadsheet::helper::coordinate::coordinate_from_index(&rcbeg, &rrbeg); // Returns "A1"
             let ecoord = umya_spreadsheet::helper::coordinate::coordinate_from_index(&rcend, &rrend); // Returns "C10"
 
-            println!("{}: Range [{}:{}]!", sheet_in.get_name(), bcoord, ecoord);
+            // println!("{}: Range [{}:{}]!", sheet_in.get_name(), bcoord, ecoord);
+            print_range_cells_1(sheet_in, range);
+            std::process::exit(-1);
+            return true; //DELETE_ME
+
+            let mut appended = false;
 
             for row in rrbeg..=rrend 
             {
-                let o_src_cell = sheet_in.get_cell((tgt_col, row));
-                if let Some(src_cell) = o_src_cell 
+                if let Some(src_cell) = sheet_in.get_cell((tgt_col, row)) 
                 {
                     let src_cell_value = src_cell.get_value();
-                    println!("================== {} ====================", src_cell_value);
+
+                    // println!("================== {} ====================", src_cell_value);
+
                     // Check if the value already exists in the output sheet
                     let max_row_out = sheet_out.get_highest_row();
                     for row_out in 1..=max_row_out 
                     {
-                        let o_dst_cell = sheet_out.get_cell((tgt_col, row_out));
-
-                        if let Some(dst_cell) = o_dst_cell 
+                        if let Some(dst_cell) = sheet_out.get_cell((tgt_col, row_out)) 
                         {
                             let dst_cell_value = dst_cell.get_value();
 
                             if cmp_strs(&dst_cell_value, &src_cell_value)
-                            // if dst_cell_value == src_cell_value
                             {
                                 println!("  <FOUND> DST({}) [row:{} col:{}] '{}' <-> SRC({}) [row:{} col:{}] '{}'", 
                                     sheet_out.get_name(), row_out, tgt_col, dst_cell_value, sheet_in.get_name(), row, tgt_col, src_cell_value);
+
                                 if cols_accum.len() > 0
                                 {
                                     for col_accum in cols_accum.split(',') 
@@ -539,8 +632,7 @@ pub fn filter_sheet_by_col_and_accum(
                                         {
                                             //the entry is found, but we have to update the cell with quantity
                                             let mut q_cell_value_src = 0.0;
-                                            let o_q_cell_src = sheet_in.get_cell((quantity_col, row));
-                                            if let Some(q_cell_src) = o_q_cell_src
+                                            if let Some(q_cell_src) = sheet_in.get_cell((quantity_col, row))
                                             {
                                                 if q_cell_src.get_data_type() == "n"
                                                 {
@@ -557,8 +649,8 @@ pub fn filter_sheet_by_col_and_accum(
                                         }
                                     }
                                 }
-
-                                return false; // already exists, don't copy
+                                appended = false;
+                                break;
                             }
                             else
                             {
@@ -567,12 +659,15 @@ pub fn filter_sheet_by_col_and_accum(
                             }
                         }
                     }
+                    
                     println!("< APPEND> DST({}) [row:{} col:{}] '{}' <-> SRC({}) [row:{} col:{}] '{}'", 
                         sheet_out.get_name(), max_row_out, tgt_col, src_cell_value, sheet_in.get_name(), row, tgt_col, src_cell_value);
-                    return true;
+                    
+                    appended = true;
                 }
             }
-            false
+
+            appended
         }),
         None::<fn(&Worksheet, &Range, &mut Worksheet) -> bool>,
         None::<fn(&Worksheet, &Range, &mut Worksheet) -> bool>,
