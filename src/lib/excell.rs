@@ -2,29 +2,11 @@
 use umya_spreadsheet::*;
 use std::collections::HashMap;
 use super::common;
+use super::range_ops;
 
 //to do: make these constants configurable
 const MAX_COL: u32 = 10;
 const MAX_ROW: u32 = 1000;
-
-pub fn column_to_index(col: &str) -> u32 {
-    let mut index = 0;
-    for c in col.chars() {
-        index = index * 26 + (c.to_ascii_uppercase() as u32 - 'A' as u32 + 1);
-    }
-    index
-}
-
-pub fn index_to_column(mut index: u32) -> String {
-    let mut col = String::new();
-    while index > 0 {
-        index -= 1;
-        let remainder = (index % 26) as u8;
-        col.push((b'A' + remainder) as char);
-        index /= 26;
-    }
-    col.chars().rev().collect()
-}
 
 //compare strings, ignoring white spaces (' ',\t, \n, \r)
 fn cmp_strs(s1: &str, s2: &str) -> bool {
@@ -49,7 +31,7 @@ pub fn get_ref_map_by_indexes(sheet: &Worksheet, col_key: u32, col_value: u32) -
 }
 
 pub fn get_ref_map_by_strings(sheet: &Worksheet, col_key: &String, col_value: &String) -> HashMap<String, String> {
-    get_ref_map_by_indexes(sheet, column_to_index(col_key),column_to_index(col_value))
+    get_ref_map_by_indexes(sheet, range_ops::column_to_index(col_key),range_ops::column_to_index(col_value))
 }
 
 pub fn apply_formulas(
@@ -168,8 +150,8 @@ pub fn apply_key_value_data_by_indexes(
                     }
 
                     res.0.push(format!("Updated '{} {}{}' with '{}' from '{} {}{}'!", 
-                                        utbl.get_name(), index_to_column(col_upd), utbl_row, rtbl_upd_value,
-                                        rtbl.get_name(), index_to_column(col_upd), rtbl_row));
+                                        utbl.get_name(), range_ops::index_to_column(col_upd), utbl_row, rtbl_upd_value,
+                                        rtbl.get_name(), range_ops::index_to_column(col_upd), rtbl_row));
 
                     found = true;
                     
@@ -179,7 +161,8 @@ pub fn apply_key_value_data_by_indexes(
 
             if !found
             {
-                res.1.push(format!("Can't find '{} {}{}' '{}' in '{}'!", utbl.get_name(), index_to_column(col_upd), utbl_row, utbl_key_value, rtbl.get_name()));
+                res.1.push(format!("Can't find '{} {}{}' '{}' in '{}'!", utbl.get_name(), range_ops::index_to_column(col_upd), 
+                                    utbl_row, utbl_key_value, rtbl.get_name()));
             }
         }
     }
@@ -210,7 +193,9 @@ pub fn apply_key_value_data_by_strings(
     let mut res = (Vec::new(), Vec::new());
     for col_upd in cols_upd.split(',') 
     {
-        let result = apply_key_value_data_by_indexes(rtbl, utbl, column_to_index(col_key), column_to_index(col_upd));
+        let result = apply_key_value_data_by_indexes(rtbl, utbl, 
+                                                                range_ops::column_to_index(col_key), 
+        range_ops::column_to_index(col_upd));
 
         match result {
             Ok((mut updated, mut not_found)) => 
@@ -244,127 +229,6 @@ pub fn get_worksheet_names(path: &std::path::Path) -> Result<String, String> {
     }   
 }
 
-pub fn make_range_from_strings(begin: &str, end: &str) -> Range
-{
-    let range_str = format!("{}:{}", begin, end);
-    let mut range = Range::default();
-    range.set_range(range_str);
-    range
-}
-
-pub fn make_range_from_indexes(bcol: u32, brow: u32, ecol: u32, erow: u32) -> Range
-{
-    let bcoord = umya_spreadsheet::helper::coordinate::coordinate_from_index(&bcol, &brow); // Returns "A1"
-    let ecoord = umya_spreadsheet::helper::coordinate::coordinate_from_index(&ecol, &erow); // Returns "C10"
-    make_range_from_strings(&bcoord, &ecoord)
-}
-
-fn is_row_in_range(row: u32, range: &Range) -> bool 
-{
-    if let (Some(start), Some(end)) = (range.get_coordinate_start_row(), range.get_coordinate_end_row()) {
-        let start_row = *start.get_num();
-        let end_row = *end.get_num();
-        return row >= start_row && row <= end_row;
-    }
-    false
-}
-
-fn is_col_in_range(col: u32, range: &Range) -> bool 
-{
-    if let (Some(start), Some(end)) = (range.get_coordinate_start_col(), range.get_coordinate_end_col()) {
-        let start_col = *start.get_num();
-        let end_col = *end.get_num();
-        return col >= start_col && col <= end_col;
-    }
-    false
-}
-
-fn is_range_in_range(sub_range: &Range, main_range: &Range) -> bool 
-{
-    let m_start_row = *main_range.get_coordinate_start_row().unwrap().get_num();
-    let m_end_row = *main_range.get_coordinate_end_row().unwrap().get_num();
-    let m_start_col = *main_range.get_coordinate_start_col().unwrap().get_num();
-    let m_end_col = *main_range.get_coordinate_end_col().unwrap().get_num();
-
-    let s_start_row = *sub_range.get_coordinate_start_row().unwrap().get_num();
-    let s_end_row = *sub_range.get_coordinate_end_row().unwrap().get_num();
-    let s_start_col = *sub_range.get_coordinate_start_col().unwrap().get_num();
-    let s_end_col = *sub_range.get_coordinate_end_col().unwrap().get_num();
-
-    s_start_row >= m_start_row && s_end_row <= m_end_row &&
-    s_start_col >= m_start_col && s_end_col <= m_end_col
-}
-
-fn do_ranges_overlap(range_a: &Range, range_b: &Range) -> bool 
-{
-    let a_start_row = *range_a.get_coordinate_start_row().unwrap().get_num();
-    let a_end_row = *range_a.get_coordinate_end_row().unwrap().get_num();
-    let a_start_col = *range_a.get_coordinate_start_col().unwrap().get_num();
-    let a_end_col = *range_a.get_coordinate_end_col().unwrap().get_num();
-
-    let b_start_row = *range_b.get_coordinate_start_row().unwrap().get_num();
-    let b_end_row = *range_b.get_coordinate_end_row().unwrap().get_num();
-    let b_start_col = *range_b.get_coordinate_start_col().unwrap().get_num();
-    let b_end_col = *range_b.get_coordinate_end_col().unwrap().get_num();
-
-    let row_overlap = a_start_row <= b_end_row && a_end_row >= b_start_row;
-    let col_overlap = a_start_col <= b_end_col && a_end_col >= b_start_col;
-
-    row_overlap && col_overlap
-}
-
-fn print_range_cells_0(sheet: &Worksheet, range: &Range) 
-{
-    let rbeg = *range.get_coordinate_start_row().unwrap().get_num();
-    let rend = *range.get_coordinate_end_row().unwrap().get_num();
-    let cbeg = *range.get_coordinate_start_col().unwrap().get_num();
-    let cend = *range.get_coordinate_end_col().unwrap().get_num();
-
-    println!("Sheet {} range ({}:{}) ---", sheet.get_name(), 
-        umya_spreadsheet::helper::coordinate::coordinate_from_index(&cbeg, &rbeg), // Returns "A1"
-        umya_spreadsheet::helper::coordinate::coordinate_from_index(&cend, &rend)  // Returns "C10"
-    );
-
-    for r in rbeg..=rend 
-    {
-        for c in cbeg..=cend 
-        {
-            let coord_str = umya_spreadsheet::helper::coordinate::coordinate_from_index(&c, &r);
-            let cell_value = sheet.get_cell_value((c, r)).get_value();
-            println!("Клетка {}: {}", coord_str, cell_value);
-        }
-    }
-}
-
-fn print_range_cells_1(sheet: &Worksheet, range: &Range) 
-{
-    let rbeg = *range.get_coordinate_start_row().unwrap().get_num();
-    let rend = *range.get_coordinate_end_row().unwrap().get_num();
-    let cbeg = *range.get_coordinate_start_col().unwrap().get_num();
-    let cend = *range.get_coordinate_end_col().unwrap().get_num();
-
-    let mut coord_names = Vec::new();
-    let mut cell_values = Vec::new();
-
-    for r in rbeg..=rend 
-    {
-        for c in cbeg..=cend 
-        {
-            let coord_str = umya_spreadsheet::helper::coordinate::coordinate_from_index(&c, &r);
-            coord_names.push(coord_str);
-
-            let cell_value = sheet.get_cell_value((c, r)).get_value().to_string();
-            cell_values.push(cell_value);
-        }
-
-        println!("{}", coord_names.join("\t\t\t"));
-        println!("{}", cell_values.join("\t\t\t"));
-        coord_names.clear();
-        cell_values.clear();
-    }
-}
-
-
 /**
  * Copy all rows, which don't contain merged cells, from sheet_in to sheet_out. 
  * Further filtering can be provided via the filter_* arguments.
@@ -385,6 +249,16 @@ where FRow:  Fn(&Worksheet, &Range, &mut Worksheet) -> bool,
       FCol:  Fn(&Worksheet, &Range, &mut Worksheet) -> bool, //is this needed
       FCell: Fn(&Worksheet, &Range, &mut Worksheet) -> bool
 {
+    println!("===============================");
+    let mut iter_sheet = range_ops::IterRow::new(sheet_in, MAX_ROW, MAX_COL);
+    for range_from_s1 in iter_sheet 
+    {
+        range_ops::print_range_cells_1(sheet_in, &range_from_s1, Some(12)); //DELETE_ME
+    }
+    println!("===============================");
+    std::process::exit(-1); //DELETE_MEn
+
+
     let sheet_in_merged_cells = sheet_in.get_merge_cells(); 
 
     let max_row = MAX_ROW; //sheet_in.get_highest_row();
@@ -395,19 +269,19 @@ where FRow:  Fn(&Worksheet, &Range, &mut Worksheet) -> bool,
 
     for row in 1..=max_row 
     {
-        if is_row_in_range(row, &cells_range)
+        if range_ops::is_row_in_range(row, &cells_range)
         {
             continue; // Skip rows that are part of the provided range
         }
 
         //make range for the whole row, e.g. A1:Z1
-        cells_range = make_range_from_indexes(1, row, 1 + max_col, row);
+        cells_range = range_ops::make_range_from_indexes(1, row, 1 + max_col, row);
         // print_range_cells_1(sheet_in, &cells_range);
 
         // Are there any merged cells that include this row?
         let mut process_row = false;
 
-        if let Some(merged_cells) = sheet_in_merged_cells.iter().find(|range| { is_row_in_range(row, range) }) 
+        if let Some(merged_cells) = sheet_in_merged_cells.iter().find(|range| { range_ops::is_row_in_range(row, range) }) 
         {
             //handle rows with merged cells
             let merged_cells_value_inst = sheet_in.get_cell_value((
@@ -425,7 +299,7 @@ where FRow:  Fn(&Worksheet, &Range, &mut Worksheet) -> bool,
                 process_row = true;
 
                 // cells_range = merged_cells.clone();
-                cells_range = make_range_from_indexes(1, row, 1 + max_col, 
+                cells_range = range_ops::make_range_from_indexes(1, row, 1 + max_col, 
                             *merged_cells.get_coordinate_end_row().unwrap().get_num());
 
                 // println!("[{}] Merged cell range: {}{}:{}{} found for row {}. Value:{} Type:{}!", 
@@ -462,7 +336,7 @@ where FRow:  Fn(&Worksheet, &Range, &mut Worksheet) -> bool,
                             }
                             else if next_cell_data_type == "s" && _next_cell_value == "-"
                             {
-                                cells_range = make_range_from_indexes(1, row, 1 + max_col, nrow);
+                                cells_range = range_ops::make_range_from_indexes(1, row, 1 + max_col, nrow);
                             }
                         }
                     }
@@ -496,7 +370,7 @@ where FRow:  Fn(&Worksheet, &Range, &mut Worksheet) -> bool,
                     if passes_filter 
                     {
                         //shrink the cell range to this particular cell, e.g. A1:A1
-                        cells_range = make_range_from_indexes(col, row, col, row);
+                        cells_range = range_ops::make_range_from_indexes(col, row, col, row);
                         // Execute per row and col filter logic, if provided.
                         passes_filter = match &filter_cell {
                             Some(f) => f(sheet_in, &cells_range, sheet_out),
@@ -583,7 +457,7 @@ pub fn filter_sheet_by_col_and_accum(
     cols_accum: &String
 ) -> bool
 {
-    let tgt_col = column_to_index(col_filter);
+    let tgt_col = range_ops::column_to_index(col_filter);
 
     create_unique_entries_sheet(sheet_in, sheet_out, Some(|sheet_in: &Worksheet, range: &Range, sheet_out: &mut Worksheet| 
         {
@@ -596,7 +470,7 @@ pub fn filter_sheet_by_col_and_accum(
             let ecoord = umya_spreadsheet::helper::coordinate::coordinate_from_index(&rcend, &rrend); // Returns "C10"
 
             // println!("{}: Range [{}:{}]!", sheet_in.get_name(), bcoord, ecoord);
-            print_range_cells_1(sheet_in, range);
+            range_ops::print_range_cells_1(sheet_in, range, None);
             std::process::exit(-1);
             return true; //DELETE_ME
 
@@ -627,7 +501,7 @@ pub fn filter_sheet_by_col_and_accum(
                                 {
                                     for col_accum in cols_accum.split(',') 
                                     {
-                                        let quantity_col = column_to_index(col_accum);
+                                        let quantity_col = range_ops::column_to_index(col_accum);
                                         if 0 < quantity_col
                                         {
                                             //the entry is found, but we have to update the cell with quantity
