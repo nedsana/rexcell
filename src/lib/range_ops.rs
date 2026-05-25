@@ -114,6 +114,34 @@ pub fn truncate_str_with_dots(s: &str, max_chars: usize) -> String
     }
 }
 
+pub fn limit_str(s: &str, max_chars: usize) -> String 
+{
+    let count = s.chars().count();
+    if count == max_chars 
+    {
+        s.to_string()
+    } 
+    else if count > max_chars 
+    {
+        // match s.char_indices().nth(max_chars) 
+        // {
+        //     Some((idx, _)) => s[..idx].to_string(),
+        //     None => s.to_string(),
+        // }
+        truncate_str_with_dots(s, max_chars)
+    } 
+    else 
+    {
+        let mut res = String::with_capacity(max_chars);
+        res.push_str(s);
+        for _ in 0..(max_chars - count) 
+        {
+            res.push(' ');
+        }
+        res
+    }
+}
+
 pub fn print_range_cells_0(sheet: &Worksheet, range: &Range) 
 {
     let rbeg = *range.get_coordinate_start_row().unwrap().get_num();
@@ -144,6 +172,13 @@ pub fn print_range_cells_1(sheet: &Worksheet, range: &Range, truncate_len: Optio
     let cbeg = *range.get_coordinate_start_col().unwrap().get_num();
     let cend = *range.get_coordinate_end_col().unwrap().get_num();
 
+    // choose separator: when truncate_len is provided, use that many spaces,
+    // otherwise keep the original tab-based separator
+    let sep = match truncate_len {
+        Some(tlen) => " ".repeat(tlen as usize),
+        None => "\t".to_string(),
+    };
+
     let mut coord_names = Vec::new();
     let mut cell_values = Vec::new();
 
@@ -154,20 +189,20 @@ pub fn print_range_cells_1(sheet: &Worksheet, range: &Range, truncate_len: Optio
             let coord_str = umya_spreadsheet::helper::coordinate::coordinate_from_index(&c, &r);        
             let _truncated = match truncate_len 
             {
-                Some(tlen) => coord_names.push(truncate_str_with_dots(&coord_str, tlen as usize)),
+                Some(tlen) => coord_names.push(limit_str(&coord_str, tlen as usize)),
                 None => coord_names.push(coord_str),
             };
 
             let cell_value = sheet.get_cell_value((c, r)).get_value().to_string();
             let _truncated = match truncate_len 
             {
-                Some(tlen) => cell_values.push(truncate_str_with_dots(&cell_value, tlen as usize)),
+                Some(tlen) => cell_values.push(limit_str(&cell_value, tlen as usize)),
                 None => cell_values.push(cell_value) ,
             };
         }
 
-        println!("{}", coord_names.join("\t\t\t"));
-        println!("{}", cell_values.join("\t\t\t"));
+        println!("{}", coord_names.join(&sep));
+        println!("{}", cell_values.join(&sep));
         coord_names.clear();
         cell_values.clear();
     }
@@ -208,34 +243,15 @@ impl<'a> Iterator for IterRow<'a>
         {
             if let Some(merged_cells) = self.sheet_merged_cells.iter().find(|range| { is_row_in_range(self.current_row, range) }) 
             {
-                //handle rows with merged cells
-                let merged_cells_value_inst = self.sheet.get_cell_value((
-                    merged_cells.get_coordinate_start_col().unwrap().get_num(), 
-                    merged_cells.get_coordinate_start_row().unwrap().get_num()));
-
-                let _merged_cells_value = merged_cells_value_inst.get_value().clone();
-                let merged_cells_value_type = merged_cells_value_inst.get_data_type();
-
-                let is_single_col  = *merged_cells.get_coordinate_start_col().unwrap().get_num() == *merged_cells.get_coordinate_end_col().unwrap().get_num();
-                let merged_rows_cnt = *merged_cells.get_coordinate_end_row().unwrap().get_num() - *merged_cells.get_coordinate_start_row().unwrap().get_num();
-                let is_two_rows    = merged_rows_cnt == 1;
-
-                self.current_row += merged_rows_cnt + 1; // Move to the next row for the next iteration, skipping the merged rows
-
-                if merged_cells_value_type == "n" && is_single_col && is_two_rows
-                {
-                    let cells_range = make_range_from_indexes(1, self.current_row, 1 + self.max_col, 
+                //handle rows with merged cells - return all rows which are part of the merged cell
+                let cells_range = make_range_from_indexes(1, self.current_row, 1 + self.max_col, 
                                 *merged_cells.get_coordinate_end_row().unwrap().get_num());
 
-                    // println!("[{}] Merged cell range: {}{}:{}{} found for row {}. Value:{} Type:{}!", 
-                    //     self.sheet.get_name(), 
-                    //     index_to_column(*merged_cells.get_coordinate_start_col().unwrap().get_num()), 
-                    //     merged_cells.get_coordinate_start_row().unwrap().get_num(), 
-                    //     index_to_column(*merged_cells.get_coordinate_end_col().unwrap().get_num()), 
-                    //     merged_cells.get_coordinate_end_row().unwrap().get_num(), self.current_row, _merged_cells_value, merged_cells_value_type);
+                let range_rows = cells_range.get_coordinate_end_row().unwrap().get_num() - cells_range.get_coordinate_start_row().unwrap().get_num();
+                
+                self.current_row += range_rows + 1;
 
-                    ret = Some(cells_range);
-                }
+                ret = Some(cells_range);
             } 
             else if let Some(src_cell) = self.sheet.get_cell((1, self.current_row)) 
             {
@@ -244,8 +260,6 @@ impl<'a> Iterator for IterRow<'a>
                 let first_cell_data_type = src_cell.get_data_type().to_string();
 
                 let mut cells_range = make_range_from_indexes(1, self.current_row, 1 + self.max_col, self.current_row);
-
-                self.current_row += 1; // Move to the next row for the next iteration
 
                 if first_cell_data_type == "n"
                 {
@@ -268,9 +282,14 @@ impl<'a> Iterator for IterRow<'a>
                             }
                         }
                     }
-                    
-                    ret = Some(cells_range);
                 }
+
+                let range_rows = cells_range.get_coordinate_end_row().unwrap().get_num() - cells_range.get_coordinate_start_row().unwrap().get_num();
+                
+                self.current_row += range_rows + 1;
+
+                ret = Some(cells_range);
+
             }
             else
             {
