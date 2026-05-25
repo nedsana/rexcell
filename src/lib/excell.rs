@@ -249,15 +249,85 @@ where FRow:  Fn(&Worksheet, &Range, &mut Worksheet) -> bool,
       FCol:  Fn(&Worksheet, &Range, &mut Worksheet) -> bool, //is this needed
       FCell: Fn(&Worksheet, &Range, &mut Worksheet) -> bool
 {
-    println!("===============================");
-    let mut iter_sheet = range_ops::IterRow::new(sheet_in, MAX_ROW, MAX_COL);
-    for range_from_s1 in iter_sheet 
-    {
-        range_ops::print_range_cells_1(sheet_in, &range_from_s1, Some(12)); //DELETE_ME
-    }
-    println!("===============================");
-    std::process::exit(-1); //DELETE_MEn
+    let max_row = MAX_ROW; //sheet_in.get_highest_row();
+    let max_col = MAX_COL; //sheet_in.get_highest_column();
 
+    let mut current_new_row = sheet_out.get_highest_row()+1;
+
+    let iter_sheet = range_ops::IterRow::new(sheet_in, max_row, max_col);
+    for it_range in iter_sheet 
+    {
+        let mut passes_filter = match &filter_row 
+        {
+            Some(f) => f(sheet_in, &it_range, sheet_out),
+            None => true,
+        };
+        if passes_filter
+        {
+            let rbeg = *it_range.get_coordinate_start_row().unwrap().get_num();
+            let rend = *it_range.get_coordinate_end_row().unwrap().get_num();
+            let cbeg = *it_range.get_coordinate_start_col().unwrap().get_num();
+            let cend = *it_range.get_coordinate_end_col().unwrap().get_num();
+
+            let rows_cnt = rend - rbeg + 1;
+
+            for row in rbeg..=rend 
+            {
+                for col in cbeg..=cend 
+                {
+                    let mut added_col = false;
+
+                    //copy to the output sheet all rows, which are defined by the range.
+                    if let Some(src_cell) = sheet_in.get_cell((col, row)) 
+                    {
+                        let cell_value = src_cell.get_value().clone();
+                        let cell_style = src_cell.get_style().clone();
+                        let cell_data_type = src_cell.get_data_type().to_string();
+
+                        let dst_cell = sheet_out.get_cell_mut((col, current_new_row));
+                        
+                        // Preserve data types when copying cells
+                        if cell_data_type == "n" && let Some(num) = src_cell.get_value_number() 
+                        {
+                            // println!("dst_cell({}{}).set_value_number({})", range_ops::index_to_column(col), current_new_row, num);
+                            dst_cell.set_value_number(num);
+                        } 
+                        else 
+                        {
+                            // println!("dst_cell({}{}).set_value({})", range_ops::index_to_column(col), current_new_row, cell_value.as_str());
+                            // For other data types (text, boolean, date, etc.), use set_value
+                            dst_cell.set_value(cell_value);
+                        }
+                        
+                        dst_cell.set_style(cell_style);
+                        added_col = true;
+
+                        // Copy column width if defined
+                        let o_col_dim = sheet_in.get_column_dimension_by_number(&col);
+                        if let Some(col_dim) = o_col_dim 
+                        {
+                            let col_width = col_dim.get_width().clone();
+                            sheet_out.get_column_dimension_by_number_mut(&col).set_width(col_width);
+                        }
+                    }
+
+                    if added_col
+                    {
+                        // Copy row height if defined
+                        let o_row_dim = sheet_in.get_row_dimension(&row);
+                        if let Some(row_dim) = o_row_dim 
+                        {
+                            let row_height = row_dim.get_height().clone();
+                            sheet_out.get_row_dimension_mut(&current_new_row).set_height(row_height);
+                        }
+                    }
+                }
+            }
+
+            current_new_row += rows_cnt;
+        }
+    }
+    return true; //DELETE_ME
 
     let sheet_in_merged_cells = sheet_in.get_merge_cells(); 
 
@@ -431,8 +501,6 @@ where FRow:  Fn(&Worksheet, &Range, &mut Worksheet) -> bool,
                 }
 
                 current_new_row += 1;
-
-                // std::process::exit(-1);
             }
         }
         else
@@ -461,6 +529,9 @@ pub fn filter_sheet_by_col_and_accum(
 
     create_unique_entries_sheet(sheet_in, sheet_out, Some(|sheet_in: &Worksheet, range: &Range, sheet_out: &mut Worksheet| 
         {
+            range_ops::print_range_cells_1(sheet_in, range, None);
+            return true; //DELETE_ME
+
             let rrbeg = *range.get_coordinate_start_row().unwrap().get_num();
             let rrend = *range.get_coordinate_end_row().unwrap().get_num();
             let rcbeg = *range.get_coordinate_start_col().unwrap().get_num();
@@ -470,9 +541,6 @@ pub fn filter_sheet_by_col_and_accum(
             let ecoord = umya_spreadsheet::helper::coordinate::coordinate_from_index(&rcend, &rrend); // Returns "C10"
 
             // println!("{}: Range [{}:{}]!", sheet_in.get_name(), bcoord, ecoord);
-            range_ops::print_range_cells_1(sheet_in, range, None);
-            std::process::exit(-1);
-            return true; //DELETE_ME
 
             let mut appended = false;
 
