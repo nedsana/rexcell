@@ -219,7 +219,6 @@ pub struct IterRow<'a>
 
 impl<'a> IterRow<'a> 
 {
-    // Конструктор за лесно създаване
     pub fn new(sheet: &'a Worksheet, mrow: u32, mcol: u32) -> Self {
         Self {
             sheet,
@@ -231,10 +230,9 @@ impl<'a> IterRow<'a>
     }
 }
 
-// Имплементиране на стандартния Iterator трейт на Rust
 impl<'a> Iterator for IterRow<'a> 
 {
-    type Item = Range; // Итераторът връща готов Range обект
+    type Item = Range; // return Range object
     fn next(&mut self) -> Option<Self::Item> 
     {
         let mut ret: Option<Self::Item> = None;

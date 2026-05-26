@@ -303,12 +303,12 @@ where FRow:  Fn(&Worksheet, &Range, &mut Worksheet) -> bool,
                         // Preserve data types when copying cells
                         if cell_data_type == "n" && let Some(num) = src_cell.get_value_number() 
                         {
-                            println!("dst_cell({}{}).set_value_number({})", range_ops::index_to_column(col), current_new_row, num);
+                            // println!("dst_cell({}{}).set_value_number({})", range_ops::index_to_column(col), current_new_row, num);
                             dst_cell.set_value_number(num);
                         } 
                         else 
                         {
-                            println!("dst_cell({}{}).set_value({})", range_ops::index_to_column(col), current_new_row, cell_value);
+                            // println!("dst_cell({}{}).set_value({})", range_ops::index_to_column(col), current_new_row, cell_value);
                             // For other data types (text, boolean, date, etc.), use set_value
                             dst_cell.set_value(cell_value);
                         }
