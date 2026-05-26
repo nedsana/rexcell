@@ -5,7 +5,7 @@ use super::common;
 use super::range_ops;
 
 //to do: make these constants configurable
-const MAX_COL: u32 = 10;
+const MAX_COL: u32 = 8;
 const MAX_ROW: u32 = 1000;
 
 //compare strings, ignoring white spaces (' ',\t, \n, \r)
@@ -249,6 +249,8 @@ where FRow:  Fn(&Worksheet, &Range, &mut Worksheet) -> bool,
       FCol:  Fn(&Worksheet, &Range, &mut Worksheet) -> bool, //is this needed
       FCell: Fn(&Worksheet, &Range, &mut Worksheet) -> bool
 {
+    let mut res = false;
+
     let max_row = MAX_ROW; //sheet_in.get_highest_row();
     let max_col = MAX_COL; //sheet_in.get_highest_column();
 
@@ -257,26 +259,38 @@ where FRow:  Fn(&Worksheet, &Range, &mut Worksheet) -> bool,
     let iter_sheet = range_ops::IterRow::new(sheet_in, max_row, max_col);
     for it_range in iter_sheet 
     {
-        let mut passes_filter = match &filter_row 
+        let passes_filter_row = match &filter_row 
         {
             Some(f) => f(sheet_in, &it_range, sheet_out),
             None => true,
         };
-        if passes_filter
+
+        let passes_filter_col = match &filter_col 
+        {
+            Some(f) => f(sheet_in, &it_range, sheet_out),
+            None => true,
+        };
+
+        let passes_filter_cell = match &filter_cell 
+        {
+            Some(f) => f(sheet_in, &it_range, sheet_out),
+            None => true,
+        };
+
+        if passes_filter_row || passes_filter_col || passes_filter_cell
         {
             let rbeg = *it_range.get_coordinate_start_row().unwrap().get_num();
             let rend = *it_range.get_coordinate_end_row().unwrap().get_num();
             let cbeg = *it_range.get_coordinate_start_col().unwrap().get_num();
             let cend = *it_range.get_coordinate_end_col().unwrap().get_num();
 
-            let rows_cnt = rend - rbeg + 1;
+            let mut added_col = false;
 
             for row in rbeg..=rend 
             {
+                added_col = false;
                 for col in cbeg..=cend 
                 {
-                    let mut added_col = false;
-
                     //copy to the output sheet all rows, which are defined by the range.
                     if let Some(src_cell) = sheet_in.get_cell((col, row)) 
                     {
@@ -289,17 +303,18 @@ where FRow:  Fn(&Worksheet, &Range, &mut Worksheet) -> bool,
                         // Preserve data types when copying cells
                         if cell_data_type == "n" && let Some(num) = src_cell.get_value_number() 
                         {
-                            // println!("dst_cell({}{}).set_value_number({})", range_ops::index_to_column(col), current_new_row, num);
+                            println!("dst_cell({}{}).set_value_number({})", range_ops::index_to_column(col), current_new_row, num);
                             dst_cell.set_value_number(num);
                         } 
                         else 
                         {
-                            // println!("dst_cell({}{}).set_value({})", range_ops::index_to_column(col), current_new_row, cell_value.as_str());
+                            println!("dst_cell({}{}).set_value({})", range_ops::index_to_column(col), current_new_row, cell_value);
                             // For other data types (text, boolean, date, etc.), use set_value
                             dst_cell.set_value(cell_value);
                         }
                         
                         dst_cell.set_style(cell_style);
+
                         added_col = true;
 
                         // Copy column width if defined
@@ -322,193 +337,24 @@ where FRow:  Fn(&Worksheet, &Range, &mut Worksheet) -> bool,
                         }
                     }
                 }
-            }
-
-            current_new_row += rows_cnt;
-        }
-    }
-    return true; //DELETE_ME
-
-    let sheet_in_merged_cells = sheet_in.get_merge_cells(); 
-
-    let max_row = MAX_ROW; //sheet_in.get_highest_row();
-    let max_col = MAX_COL; //sheet_in.get_highest_column();
-    let mut current_new_row = MAX_ROW; //sheet_out.get_highest_row()+1;
-
-    let mut cells_range = Range::default();
-
-    for row in 1..=max_row 
-    {
-        if range_ops::is_row_in_range(row, &cells_range)
-        {
-            continue; // Skip rows that are part of the provided range
-        }
-
-        //make range for the whole row, e.g. A1:Z1
-        cells_range = range_ops::make_range_from_indexes(1, row, 1 + max_col, row);
-        // print_range_cells_1(sheet_in, &cells_range);
-
-        // Are there any merged cells that include this row?
-        let mut process_row = false;
-
-        if let Some(merged_cells) = sheet_in_merged_cells.iter().find(|range| { range_ops::is_row_in_range(row, range) }) 
-        {
-            //handle rows with merged cells
-            let merged_cells_value_inst = sheet_in.get_cell_value((
-                merged_cells.get_coordinate_start_col().unwrap().get_num(), 
-                merged_cells.get_coordinate_start_row().unwrap().get_num()));
-
-            let _merged_cells_value = merged_cells_value_inst.get_value().clone();
-            let merged_cells_value_type = merged_cells_value_inst.get_data_type();
-
-            let is_single_col = *merged_cells.get_coordinate_start_col().unwrap().get_num() == *merged_cells.get_coordinate_end_col().unwrap().get_num();
-            let is_two_rows   = *merged_cells.get_coordinate_end_row().unwrap().get_num() - *merged_cells.get_coordinate_start_row().unwrap().get_num() == 1;
-
-            if merged_cells_value_type == "n" && is_single_col && is_two_rows
-            {
-                process_row = true;
-
-                // cells_range = merged_cells.clone();
-                cells_range = range_ops::make_range_from_indexes(1, row, 1 + max_col, 
-                            *merged_cells.get_coordinate_end_row().unwrap().get_num());
-
-                // println!("[{}] Merged cell range: {}{}:{}{} found for row {}. Value:{} Type:{}!", 
-                //     sheet_in.get_name(), 
-                //     index_to_column(*merged_cells.get_coordinate_start_col().unwrap().get_num()), 
-                //     merged_cells.get_coordinate_start_row().unwrap().get_num(), 
-                //     index_to_column(*merged_cells.get_coordinate_end_col().unwrap().get_num()), 
-                //     merged_cells.get_coordinate_end_row().unwrap().get_num(), row, _merged_cells_value, merged_cells_value_type);
-            }
-        } 
-        else
-        {
-            //handle rows without merged cells. Ignore rows with values in Col:A different from numeric or symbol '-'
-            if let Some(src_cell) = sheet_in.get_cell((1, row)) 
-            {
-                let _cell_value = src_cell.get_value().clone();
-                let cell_data_type = src_cell.get_data_type().to_string();
-
-                if cell_data_type == "n"
-                {
-                    //check if the next row starts with numeric. I yes, process the current row. If not make range of all rows starting with '-'
-                    let next_row = row + 1;
-                    for nrow in next_row..=max_row 
-                    {
-                        if let Some(next_cell) = sheet_in.get_cell((1, nrow)) 
-                        {
-                            let _next_cell_value = next_cell.get_value().clone();
-                            let next_cell_data_type = next_cell.get_data_type().to_string();
-
-                            if next_cell_data_type == "n"
-                            {
-                                process_row = true;
-                                break;
-                            }
-                            else if next_cell_data_type == "s" && _next_cell_value == "-"
-                            {
-                                cells_range = range_ops::make_range_from_indexes(1, row, 1 + max_col, nrow);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        if process_row 
-        {
-            let mut added_col = false;
-            // Execute per row filter logic, if provided. 
-            let mut passes_filter = match &filter_row 
-            {
-                Some(f) => f(sheet_in, &cells_range, sheet_out),
-                None => true,
-            };
-
-            if passes_filter
-            {
-                // Copy the data and formatting cell by cell
-                for col in 1..=max_col 
-                {
-                    //shrink the cell range to this particular column, e.g. A1:A10
-                    // cells_range = make_range_from_indexes(col, row, col, row); //is this needed
-                    // Execute per col filter logic, if provided.
-                    passes_filter = match &filter_col {
-                        Some(f) => f(sheet_in, &cells_range, sheet_out),
-                        None => true,
-                    };
-
-                    if passes_filter 
-                    {
-                        //shrink the cell range to this particular cell, e.g. A1:A1
-                        cells_range = range_ops::make_range_from_indexes(col, row, col, row);
-                        // Execute per row and col filter logic, if provided.
-                        passes_filter = match &filter_cell {
-                            Some(f) => f(sheet_in, &cells_range, sheet_out),
-                            None => true,
-                        };
-
-                        if passes_filter
-                        {
-                            if let Some(src_cell) = sheet_in.get_cell((col, row)) 
-                            {
-                                let cell_value = src_cell.get_value().clone();
-                                let cell_style = src_cell.get_style().clone();
-                                let cell_data_type = src_cell.get_data_type().to_string();
-
-                                let dst_cell = sheet_out.get_cell_mut((col, current_new_row));
-                                
-                                // Preserve data types when copying cells
-                                if cell_data_type == "n" && let Some(num) = src_cell.get_value_number() 
-                                {
-                                    // println!("dst_cell({}{}).set_value_number({})", index_to_column(col), current_new_row, num);
-                                    dst_cell.set_value_number(num);
-                                } 
-                                else 
-                                {
-                                    // println!("dst_cell({}{}).set_value({})", index_to_column(col), current_new_row, cell_value.as_str());
-                                    // For other data types (text, boolean, date, etc.), use set_value
-                                    dst_cell.set_value(cell_value);
-                                }
-                                
-                                dst_cell.set_style(cell_style);
-                                added_col = true;
-
-                                // Copy column width if defined
-                                let o_col_dim = sheet_in.get_column_dimension_by_number(&col);
-                                if let Some(col_dim) = o_col_dim 
-                                {
-                                    let col_width = col_dim.get_width().clone();
-                                    sheet_out.get_column_dimension_by_number_mut(&col).set_width(col_width);
-                                }
-                            }
-                            else
-                            {
-                                added_col = false;
-                            }
-                        }
-                    }
-                }
 
                 if added_col
                 {
-                    // Copy row height if defined
-                    let o_row_dim = sheet_in.get_row_dimension(&row);
-                    if let Some(row_dim) = o_row_dim 
-                    {
-                        let row_height = row_dim.get_height().clone();
-                        sheet_out.get_row_dimension_mut(&current_new_row).set_height(row_height);
-                    }
+                    current_new_row += 1;
                 }
+            }
 
-                current_new_row += 1;
+            if added_col
+            {
+                res = true;
             }
         }
-        else
+        else 
         {
-            // println!("[{}] Skipping row:{}!", sheet_in.get_name(), row);
+            res = false;
         }
     }
-    true
+    return res;
 }
 
 /**
@@ -529,7 +375,8 @@ pub fn filter_sheet_by_col_and_accum(
 
     create_unique_entries_sheet(sheet_in, sheet_out, Some(|sheet_in: &Worksheet, range: &Range, sheet_out: &mut Worksheet| 
         {
-            range_ops::print_range_cells_1(sheet_in, range, None);
+            println!("======== create_unique_entries_sheet() ========");
+            range_ops::print_range_cells_1(sheet_in, range, Some(12));
             return true; //DELETE_ME
 
             let rrbeg = *range.get_coordinate_start_row().unwrap().get_num();
