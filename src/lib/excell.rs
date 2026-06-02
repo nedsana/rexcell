@@ -294,9 +294,11 @@ where FRow:  Fn(&Worksheet, &Range, &mut Worksheet) -> bool,
                     //copy to the output sheet all rows, which are defined by the range.
                     if let Some(src_cell) = sheet_in.get_cell((col, row)) 
                     {
+                        let o_rich_text = src_cell.get_cell_value().get_raw_value().get_rich_text();
                         let cell_value = src_cell.get_value().clone();
                         let cell_style = src_cell.get_style().clone();
                         let cell_data_type = src_cell.get_data_type().to_string();
+                        // let cell_value = src_cell.get_formatted_value().clone();
 
                         let dst_cell = sheet_out.get_cell_mut((col, current_new_row));
                         
@@ -308,9 +310,15 @@ where FRow:  Fn(&Worksheet, &Range, &mut Worksheet) -> bool,
                         } 
                         else 
                         {
-                            // println!("dst_cell({}{}).set_value({})", range_ops::index_to_column(col), current_new_row, cell_value);
-                            // For other data types (text, boolean, date, etc.), use set_value
-                            dst_cell.set_value(cell_value);
+                            if let Some(rich_text) = o_rich_text 
+                            {
+                                dst_cell.set_rich_text(rich_text.clone());
+                            } 
+                            else 
+                            {
+                                dst_cell.set_value(cell_value);
+                            }
+s                            // println!("dst_cell({}{}).set_value({})", range_ops::index_to_column(col), current_new_row, dst_cell.get_value());
                         }
                         
                         dst_cell.set_style(cell_style);
