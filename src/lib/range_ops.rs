@@ -56,6 +56,8 @@ pub fn is_col_in_range(col: u32, range: &Range) -> bool
 
 pub fn is_range_in_range(sub_range: &Range, main_range: &Range) -> bool 
 {
+    // println!("sub-range:{} range:{}", range_to_string(sub_range), range_to_string(main_range));
+
     let m_start_row = *main_range.get_coordinate_start_row().unwrap().get_num();
     let m_end_row = *main_range.get_coordinate_end_row().unwrap().get_num();
     let m_start_col = *main_range.get_coordinate_start_col().unwrap().get_num();
@@ -142,6 +144,18 @@ pub fn limit_str(s: &str, max_chars: usize) -> String
     }
 }
 
+pub fn range_to_string(range: &Range) -> String
+{
+    let rbeg = *range.get_coordinate_start_row().unwrap().get_num();
+    let rend = *range.get_coordinate_end_row().unwrap().get_num();
+    let cbeg = *range.get_coordinate_start_col().unwrap().get_num();
+    let cend = *range.get_coordinate_end_col().unwrap().get_num();
+
+    format!("{}:{}", umya_spreadsheet::helper::coordinate::coordinate_from_index(&cbeg, &rbeg), // Returns "A1"
+                     umya_spreadsheet::helper::coordinate::coordinate_from_index(&cend, &rend)  // Returns "C10"
+    )
+}
+
 pub fn print_range_cells_0(sheet: &Worksheet, range: &Range) 
 {
     let rbeg = *range.get_coordinate_start_row().unwrap().get_num();
@@ -210,11 +224,11 @@ pub fn print_range_cells_1(sheet: &Worksheet, range: &Range, truncate_len: Optio
 
 pub struct IterRow<'a> 
 {
-    sheet: &'a Worksheet,
-    sheet_merged_cells: &'a [Range],
-    current_row: u32,
-    max_row: u32,
-    max_col: u32,
+    pub sheet: &'a Worksheet,
+    pub sheet_merged_cells: &'a [Range],
+    pub current_row: u32,
+    pub max_row: u32,
+    pub max_col: u32,
 }
 
 impl<'a> IterRow<'a> 
@@ -253,7 +267,7 @@ impl<'a> Iterator for IterRow<'a>
             } 
             else if let Some(src_cell) = self.sheet.get_cell((1, self.current_row)) 
             {
-                //handle rows without merged cells. Ignore rows with values in Col:A different from numeric or symbol '-'
+                //Handle rows without merged cells. If we have in colA numeric, followed by symbol '-', return all rows starting with '-'
                 let _first_cell_value = src_cell.get_value().clone();
                 let first_cell_data_type = src_cell.get_data_type().to_string();
 

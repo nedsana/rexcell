@@ -257,6 +257,7 @@ where FRow:  Fn(&Worksheet, &Range, &mut Worksheet) -> bool,
     let mut current_new_row = sheet_out.get_highest_row()+1;
 
     let iter_sheet = range_ops::IterRow::new(sheet_in, max_row, max_col);
+    let merged_cells = iter_sheet.sheet_merged_cells;
     for it_range in iter_sheet 
     {
         let passes_filter_row = match &filter_row 
@@ -318,7 +319,7 @@ where FRow:  Fn(&Worksheet, &Range, &mut Worksheet) -> bool,
                             {
                                 dst_cell.set_value(cell_value);
                             }
-s                            // println!("dst_cell({}{}).set_value({})", range_ops::index_to_column(col), current_new_row, dst_cell.get_value());
+                            // println!("dst_cell({}{}).set_value({})", range_ops::index_to_column(col), current_new_row, dst_cell.get_value());
                         }
                         
                         dst_cell.set_style(cell_style);
@@ -356,6 +357,14 @@ s                            // println!("dst_cell({}{}).set_value({})", range_o
             {
                 res = true;
             }
+
+            //apply merged cells formatting to the output sheets. To do: extend if we have formated content of the merger cells!
+            if let Some(merged_cells) = merged_cells.iter().find(|range| { range_ops::is_range_in_range(range, &it_range) })
+            {
+                sheet_out.add_merge_cells(merged_cells.get_range());
+            } 
+
+
         }
         else 
         {
@@ -383,17 +392,16 @@ pub fn filter_sheet_by_col_and_accum(
 
     create_unique_entries_sheet(sheet_in, sheet_out, Some(|sheet_in: &Worksheet, range: &Range, sheet_out: &mut Worksheet| 
         {
-            println!("======== create_unique_entries_sheet() ========");
             range_ops::print_range_cells_1(sheet_in, range, Some(12));
-            return true; //DELETE_ME
+            return true; //we want to process all rows, which are defined by the range, but we will filter them later by col_filter
 
             let rrbeg = *range.get_coordinate_start_row().unwrap().get_num();
             let rrend = *range.get_coordinate_end_row().unwrap().get_num();
             let rcbeg = *range.get_coordinate_start_col().unwrap().get_num();
             let rcend = *range.get_coordinate_end_col().unwrap().get_num();
 
-            let bcoord = umya_spreadsheet::helper::coordinate::coordinate_from_index(&rcbeg, &rrbeg); // Returns "A1"
-            let ecoord = umya_spreadsheet::helper::coordinate::coordinate_from_index(&rcend, &rrend); // Returns "C10"
+            // let bcoord = umya_spreadsheet::helper::coordinate::coordinate_from_index(&rcbeg, &rrbeg); // Returns "A1"
+            // let ecoord = umya_spreadsheet::helper::coordinate::coordinate_from_index(&rcend, &rrend); // Returns "C10"
 
             // println!("{}: Range [{}:{}]!", sheet_in.get_name(), bcoord, ecoord);
 
