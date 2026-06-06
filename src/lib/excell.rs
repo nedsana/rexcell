@@ -8,13 +8,6 @@ use super::range_ops;
 const MAX_COL: u32 = 8;
 const MAX_ROW: u32 = 1000;
 
-//compare strings, ignoring white spaces (' ',\t, \n, \r)
-fn cmp_strs(s1: &str, s2: &str) -> bool {
-    let words1 = s1.split_whitespace();
-    let words2 = s2.split_whitespace();
-    words1.eq(words2)
-}
-
 pub fn get_ref_map_by_indexes(sheet: &Worksheet, col_key: u32, col_value: u32) -> HashMap<String, String> {
     let mut ref_map: HashMap<String, String> = HashMap::new();
 
@@ -53,7 +46,7 @@ pub fn apply_formulas(
             {
                 let utbl_key_value = utbl.get_value((col_key, utbl_row));
 
-                if !utbl_key_value.is_empty() && cmp_strs(&utbl_key_value, &rtbl_key_value) 
+                if !utbl_key_value.is_empty() && range_ops::cmp_strs(&utbl_key_value, &rtbl_key_value) 
                 {
                     // let utbl_name = utbl.get_name().to_string();
                     let utbl_max_col = MAX_COL; //utbl.get_highest_column();
@@ -122,7 +115,7 @@ pub fn apply_key_value_data_by_indexes(
             {
                 let rtbl_key_value = rtbl.get_value((col_key, rtbl_row));
 
-                if cmp_strs(&utbl_key_value, &rtbl_key_value) 
+                if range_ops::cmp_strs(&utbl_key_value, &rtbl_key_value) 
                 {
                     let rtbl_upd_value = rtbl.get_value((col_upd, rtbl_row));
                     let rtbl_upd_cell = rtbl.get_cell((col_upd, rtbl_row));
@@ -257,7 +250,7 @@ where FRow:  Fn(&Worksheet, &Range, &mut Worksheet) -> bool,
     let mut current_new_row = sheet_out.get_highest_row()+1;
 
     let iter_sheet = range_ops::IterRow::new(sheet_in, max_row, max_col);
-    let merged_cells = iter_sheet.sheet_merged_cells;
+    let merged_cells = sheet_in.get_merge_cells();
     for it_range in iter_sheet 
     {
         let passes_filter_row = match &filter_row 
@@ -266,19 +259,22 @@ where FRow:  Fn(&Worksheet, &Range, &mut Worksheet) -> bool,
             None => true,
         };
 
-        let passes_filter_col = match &filter_col 
-        {
-            Some(f) => f(sheet_in, &it_range, sheet_out),
-            None => true,
-        };
+        // To do ... how to use these filters? Do we need them at all? Maybe we can just apply them to the whole row/col/cell and not to the range, which is defined by the iterator?
+        // let passes_filter_col = match &filter_col 
+        // {
+        //     Some(f) => f(sheet_in, &it_range, sheet_out),
+        //     None => true,
+        // };
 
-        let passes_filter_cell = match &filter_cell 
-        {
-            Some(f) => f(sheet_in, &it_range, sheet_out),
-            None => true,
-        };
+        // let passes_filter_cell = match &filter_cell 
+        // {
+        //     Some(f) => f(sheet_in, &it_range, sheet_out),
+        //     None => true,
+        // };
 
-        if passes_filter_row || passes_filter_col || passes_filter_cell
+        println!("passes_filter_row({})", passes_filter_row);
+
+        if passes_filter_row
         {
             let rbeg = *it_range.get_coordinate_start_row().unwrap().get_num();
             let rend = *it_range.get_coordinate_end_row().unwrap().get_num();
@@ -363,8 +359,6 @@ where FRow:  Fn(&Worksheet, &Range, &mut Worksheet) -> bool,
             {
                 sheet_out.add_merge_cells(merged_cells.get_range());
             } 
-
-
         }
         else 
         {
@@ -390,94 +384,43 @@ pub fn filter_sheet_by_col_and_accum(
 {
     let tgt_col = range_ops::column_to_index(col_filter);
 
-    create_unique_entries_sheet(sheet_in, sheet_out, Some(|sheet_in: &Worksheet, range: &Range, sheet_out: &mut Worksheet| 
+    create_unique_entries_sheet(sheet_in, sheet_out, Some(|sheet_in: &Worksheet, range_in: &Range, sheet_out: &mut Worksheet| 
         {
-            range_ops::print_range_cells_1(sheet_in, range, Some(12));
-            return true; //we want to process all rows, which are defined by the range, but we will filter them later by col_filter
+            // range_ops::print_range_cells_1(sheet_in, range_in, Some(12));
 
-            let rrbeg = *range.get_coordinate_start_row().unwrap().get_num();
-            let rrend = *range.get_coordinate_end_row().unwrap().get_num();
-            let rcbeg = *range.get_coordinate_start_col().unwrap().get_num();
-            let rcend = *range.get_coordinate_end_col().unwrap().get_num();
-
-            // let bcoord = umya_spreadsheet::helper::coordinate::coordinate_from_index(&rcbeg, &rrbeg); // Returns "A1"
-            // let ecoord = umya_spreadsheet::helper::coordinate::coordinate_from_index(&rcend, &rrend); // Returns "C10"
-
-            // println!("{}: Range [{}:{}]!", sheet_in.get_name(), bcoord, ecoord);
-
-            let mut appended = false;
-
-            for row in rrbeg..=rrend 
+            if !range_ops::is_col_in_range(tgt_col, &range_in)
             {
-                if let Some(src_cell) = sheet_in.get_cell((tgt_col, row)) 
-                {
-                    let src_cell_value = src_cell.get_value();
-
-                    // println!("================== {} ====================", src_cell_value);
-
-                    // Check if the value already exists in the output sheet
-                    let max_row_out = sheet_out.get_highest_row();
-                    for row_out in 1..=max_row_out 
-                    {
-                        if let Some(dst_cell) = sheet_out.get_cell((tgt_col, row_out)) 
-                        {
-                            let dst_cell_value = dst_cell.get_value();
-
-                            if cmp_strs(&dst_cell_value, &src_cell_value)
-                            {
-                                println!("  <FOUND> DST({}) [row:{} col:{}] '{}' <-> SRC({}) [row:{} col:{}] '{}'", 
-                                    sheet_out.get_name(), row_out, tgt_col, dst_cell_value, sheet_in.get_name(), row, tgt_col, src_cell_value);
-
-                                if cols_accum.len() > 0
-                                {
-                                    for col_accum in cols_accum.split(',') 
-                                    {
-                                        let quantity_col = range_ops::column_to_index(col_accum);
-                                        if 0 < quantity_col
-                                        {
-                                            //the entry is found, but we have to update the cell with quantity
-                                            let mut q_cell_value_src = 0.0;
-                                            if let Some(q_cell_src) = sheet_in.get_cell((quantity_col, row))
-                                            {
-                                                if q_cell_src.get_data_type() == "n"
-                                                {
-                                                    q_cell_value_src = q_cell_src.get_value().parse::<f32>().unwrap_or(0.0);
-                                                }
-                                            }
-
-                                            let q_cell_dst = sheet_out.get_cell_mut((quantity_col, row_out));
-                                            if q_cell_dst.get_data_type() == "n"
-                                            {
-                                                let q_cell_value_dst = q_cell_dst.get_value().parse::<f32>().unwrap_or(0.0) + q_cell_value_src;
-                                                q_cell_dst.set_value_number(q_cell_value_dst);
-                                            }
-                                        }
-                                    }
-                                }
-                                appended = false;
-                                break;
-                            }
-                            else
-                            {
-                                println!("<MISSING> DST({}) [row:{} col:{}] '{}' <-> SRC({}) [row:{} col:{}] '{}'. Trying next row ...", 
-                                    sheet_out.get_name(), row_out, tgt_col, dst_cell_value, sheet_in.get_name(), row, tgt_col, src_cell_value);
-                            }
-                        }
-                    }
-                    
-                    println!("< APPEND> DST({}) [row:{} col:{}] '{}' <-> SRC({}) [row:{} col:{}] '{}'", 
-                        sheet_out.get_name(), max_row_out, tgt_col, src_cell_value, sheet_in.get_name(), row, tgt_col, src_cell_value);
-                    
-                    appended = true;
-                }
+                println!("Input Range [{}] does not contain target column {}!", range_ops::range_to_string(range_in), col_filter);
+                return false;
             }
 
+            let mut appended = true;
+            let max_row = MAX_ROW; //sheet_in.get_highest_row();
+            let max_col = MAX_COL; //sheet_in.get_highest_column();
+
+            let mut iter_sheet_out = range_ops::IterRowMut::new(sheet_out, max_row, max_col);
+
+            while let Some(it_range_out) = iter_sheet_out.next() 
+            {
+                if range_ops::is_col_in_range(tgt_col, &it_range_out)
+                {
+                    if range_ops::accumulate_ranges(sheet_in, range_in, iter_sheet_out.sheet, &it_range_out, None, None)
+                    {
+                        appended = false;
+                    }
+                }
+                else
+                {
+                    println!("Output Range [{}] does not contain target column {}!", range_ops::range_to_string(&it_range_out), col_filter);
+                }
+            }
             appended
         }),
         None::<fn(&Worksheet, &Range, &mut Worksheet) -> bool>,
         None::<fn(&Worksheet, &Range, &mut Worksheet) -> bool>,
     )
 }
+
 
 pub fn execute(cfg: &common::Config) -> Result<(Vec<String>, Vec<String>), String> 
 {
