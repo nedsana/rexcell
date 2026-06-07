@@ -388,6 +388,8 @@ pub fn filter_sheet_by_col_and_accum(
 
     create_unique_entries_sheet(sheet_in, sheet_out, Some(|sheet_in: &Worksheet, range_in: &Range, sheet_out: &mut Worksheet| 
         {
+            println!("\nCheck if range is already: present '{}' in the output sheet!", range_ops::range_to_string(range_in));
+
             if !range_ops::is_col_in_range(tgt_col, &range_in)
             {
                 println!("Input Range [{}] does not contain target column {}!", range_ops::range_to_string(range_in), col_filter);
@@ -410,12 +412,12 @@ pub fn filter_sheet_by_col_and_accum(
 
                     if range_ops::comapre_ranges(sheet_in, range_in, iter_sheet_out.sheet, &it_range_out, None, Some(allowed_cols))
                     {
-                       
                         let allowed_cols: Vec<u32> = cols_accum.split(',').map(|s| range_ops::column_to_index(s.trim())).collect();
 
                         if range_ops::accumulate_ranges(sheet_in, range_in, iter_sheet_out.sheet, &it_range_out, None, Some(allowed_cols))
                         {
                             appended = false;
+                            println!("Accumulating range '{}'!", range_ops::range_to_string(range_in));
                         }
                     }
                 }
@@ -424,6 +426,16 @@ pub fn filter_sheet_by_col_and_accum(
                     println!("Output Range [{}] does not contain target column {}!", range_ops::range_to_string(&it_range_out), col_filter);
                 }
             }
+
+            if appended
+            {
+                println!("Appending range '{}' to the output sheet!\n", range_ops::range_to_string(range_in));
+            }
+            else
+            {
+                println!("Range '{}' is already present in the output sheet!\n", range_ops::range_to_string(range_in));
+            }
+
             appended
         }),
         None::<fn(&Worksheet, &Range, &mut Worksheet) -> bool>,

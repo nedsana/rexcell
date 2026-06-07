@@ -449,6 +449,8 @@ impl<'a> Iterator for IterRow<'a>
                 
                 self.current_row += range_rows + 1;
 
+                println!("Range [{}]: from merged cells!", range_to_string(&cells_range));
+
                 ret = Some(cells_range);
             } 
             else if let Some(src_cell) = self.sheet.get_cell((1, self.current_row)) 
@@ -485,6 +487,8 @@ impl<'a> Iterator for IterRow<'a>
                 let range_rows = cells_range.get_coordinate_end_row().unwrap().get_num() - cells_range.get_coordinate_start_row().unwrap().get_num();
                 
                 self.current_row += range_rows + 1;
+
+                println!("Range [{}]: from regular cells!", range_to_string(&cells_range));
 
                 ret = Some(cells_range);
 
@@ -500,7 +504,7 @@ impl<'a> Iterator for IterRow<'a>
     }
 }
 
-pub struct IterRowMut<'a> 
+pub struct IterRowMut<'a>
 {
     pub sheet: &'a mut Worksheet,
     pub current_row: u32,
@@ -508,7 +512,7 @@ pub struct IterRowMut<'a>
     pub max_col: u32,
 }
 
-impl<'a> IterRowMut<'a> 
+impl<'a> IterRowMut<'a>
 {
     pub fn new(sheet: &'a mut Worksheet, mrow: u32, mcol: u32) -> Self {
         Self {
@@ -520,10 +524,10 @@ impl<'a> IterRowMut<'a>
     }
 }
 
-impl<'a> Iterator for IterRowMut<'a> 
+impl<'a> Iterator for IterRowMut<'a>
 {
     type Item = Range; // return Range object
-    fn next(&mut self) -> Option<Self::Item> 
+    fn next(&mut self) -> Option<Self::Item>
     {
         let mut ret: Option<Self::Item> = None;
 
@@ -531,19 +535,21 @@ impl<'a> Iterator for IterRowMut<'a>
         {
             let sheet_merged_cells = self.sheet.get_merge_cells();
 
-            if let Some(merged_cells) = sheet_merged_cells.iter().find(|range| { is_row_in_range(self.current_row, range) }) 
+            if let Some(merged_cells) = sheet_merged_cells.iter().find(|range| { is_row_in_range(self.current_row, range) })
             {
                 //handle rows with merged cells - return all rows which are part of the merged cell
-                let cells_range = make_range_from_indexes(1, self.current_row, 1 + self.max_col, 
+                let cells_range = make_range_from_indexes(1, self.current_row, 1 + self.max_col,
                                 *merged_cells.get_coordinate_end_row().unwrap().get_num());
 
                 let range_rows = cells_range.get_coordinate_end_row().unwrap().get_num() - cells_range.get_coordinate_start_row().unwrap().get_num();
-                
+
                 self.current_row += range_rows + 1;
 
+                println!("Range [{}]: from merged cells!", range_to_string(&cells_range));
+
                 ret = Some(cells_range);
-            } 
-            else if let Some(src_cell) = self.sheet.get_cell((1, self.current_row)) 
+            }
+            else if let Some(src_cell) = self.sheet.get_cell((1, self.current_row))
             {
                 //Handle rows without merged cells. If we have in colA numeric, followed by symbol '-', return all rows starting with '-'
                 let _first_cell_value = src_cell.get_value().clone();
@@ -555,9 +561,9 @@ impl<'a> Iterator for IterRowMut<'a>
                 {
                     //check if the next row starts with numeric. I yes, process the current row. If not make range of all rows starting with '-'
                     let next_row = self.current_row + 1;
-                    for nrow in next_row..=self.max_row 
+                    for nrow in next_row..=self.max_row
                     {
-                        if let Some(next_cell) = self.sheet.get_cell((1, nrow)) 
+                        if let Some(next_cell) = self.sheet.get_cell((1, nrow))
                         {
                             let _next_cell_value = next_cell.get_value().clone();
                             let next_cell_data_type = next_cell.get_data_type().to_string();
@@ -575,8 +581,10 @@ impl<'a> Iterator for IterRowMut<'a>
                 }
 
                 let range_rows = cells_range.get_coordinate_end_row().unwrap().get_num() - cells_range.get_coordinate_start_row().unwrap().get_num();
-                
+
                 self.current_row += range_rows + 1;
+
+                println!("Range [{}]: from regular cells!", range_to_string(&cells_range));
 
                 ret = Some(cells_range);
 
