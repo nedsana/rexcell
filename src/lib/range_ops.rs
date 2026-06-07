@@ -314,6 +314,7 @@ pub fn comapre_ranges(
             // If there is any mismatch, immediately stop and return false
             if !cmp_strs(&val_a, &val_b) 
             {
+                println!("[comapre_ranges] a:[{}] != b:[{}]", val_a, val_b);
                 return false;
             }
         }
@@ -432,7 +433,7 @@ fn iter_row_next_impl(
             
             *current_row += range_rows + 1;
 
-            println!("Range [{}]: from merged cells!", range_to_string(&cells_range));
+            println!("[iter_row_next_impl] Range [{}]: from merged cells!", range_to_string(&cells_range));
 
             ret = Some(cells_range);
         } 
@@ -471,7 +472,7 @@ fn iter_row_next_impl(
             
             *current_row += range_rows + 1;
 
-            println!("Range [{}]: from regular cells!", range_to_string(&cells_range));
+            println!("[iter_row_next_impl] Range [{}]: from regular cells!", range_to_string(&cells_range));
 
             ret = Some(cells_range);
 

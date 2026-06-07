@@ -275,6 +275,8 @@ where FRow:  Fn(&Worksheet, &Range, &mut Worksheet) -> bool,
 
         if passes_filter_row
         {
+            let current_old_row = current_new_row;
+
             let rbeg = *it_range.get_coordinate_start_row().unwrap().get_num();
             let rend = *it_range.get_coordinate_end_row().unwrap().get_num();
             let cbeg = *it_range.get_coordinate_start_col().unwrap().get_num();
@@ -354,15 +356,29 @@ where FRow:  Fn(&Worksheet, &Range, &mut Worksheet) -> bool,
             }
 
             //apply merged cells formatting to the output sheets. To do: extend if we have formated content of the merger cells!
-            if let Some(merged_cells) = merged_cells.iter().find(|range| { range_ops::is_range_in_range(range, &it_range) })
+            if let Some(mrgcells) = merged_cells.iter().find(|range| { range_ops::is_range_in_range(range, &it_range) })
             {
-                sheet_out.add_merge_cells(merged_cells.get_range());
+                let mrbeg = mrgcells.get_coordinate_start_row().unwrap().get_num();
+                let mrend = mrgcells.get_coordinate_end_row().unwrap().get_num();
+                let mcbeg = mrgcells.get_coordinate_start_col().unwrap().get_num();
+                let mcend = mrgcells.get_coordinate_end_col().unwrap().get_num(); 
+                let mrlen = mrend - mrbeg + 1;
+                let mclen = mcend - mcbeg + 1;
+
+                let mrange = range_ops::make_range_from_indexes(*mcbeg, current_old_row, *mcend, current_old_row+mrlen-1);
+
+                println!("[create_unique_entries_sheet] Range [{}] contains merged cells [{}]", 
+                        range_ops::range_to_string(&it_range), mrange.get_range());
+                   
+                sheet_out.add_merge_cells(mrange.get_range());
             } 
         }
         else 
         {
             res = false;
         }
+
+        println!("[create_unique_entries_sheet]========================================================");
     }
     return res;
 }
@@ -383,16 +399,13 @@ pub fn filter_sheet_by_col_and_accum(
 {
     let tgt_col = range_ops::column_to_index(col_filter);
 
-    println!("col_filter: {}", col_filter);
-    println!("cols_accum: {}", cols_accum);
-
     create_unique_entries_sheet(sheet_in, sheet_out, Some(|sheet_in: &Worksheet, range_in: &Range, sheet_out: &mut Worksheet| 
         {
-            println!("\nCheck if range is already: present '{}' in the output sheet!", range_ops::range_to_string(range_in));
+            println!("[create_unique_entries_sheet] Check if range is already: present '{}' in the output sheet!", range_ops::range_to_string(range_in));
 
             if !range_ops::is_col_in_range(tgt_col, &range_in)
             {
-                println!("Input Range [{}] does not contain target column {}!", range_ops::range_to_string(range_in), col_filter);
+                println!("[create_unique_entries_sheet] Input Range [{}] does not contain target column {}!", range_ops::range_to_string(range_in), col_filter);
                 return false;
             }
 
@@ -417,23 +430,27 @@ pub fn filter_sheet_by_col_and_accum(
                         if range_ops::accumulate_ranges(sheet_in, range_in, iter_sheet_out.sheet, &it_range_out, None, Some(allowed_cols))
                         {
                             appended = false;
-                            println!("Accumulating range '{}'!", range_ops::range_to_string(range_in));
+                            println!("[create_unique_entries_sheet] Accumulated in-range '{}' to out-range '{}'!", range_ops::range_to_string(range_in), range_ops::range_to_string(&it_range_out));
                         }
+                    }
+                    else
+                    {
+                        println!("[create_unique_entries_sheet] in-range [{}] differs from out-range [{}]!", range_ops::range_to_string(range_in), range_ops::range_to_string(&it_range_out));
                     }
                 }
                 else
                 {
-                    println!("Output Range [{}] does not contain target column {}!", range_ops::range_to_string(&it_range_out), col_filter);
+                    println!("[create_unique_entries_sheet] out-range [{}] does not contain target column {}!", range_ops::range_to_string(&it_range_out), col_filter);
                 }
             }
 
             if appended
             {
-                println!("Appending range '{}' to the output sheet!\n", range_ops::range_to_string(range_in));
+                println!("[create_unique_entries_sheet] Appending in-range '{}' to the output sheet!", range_ops::range_to_string(range_in));
             }
             else
             {
-                println!("Range '{}' is already present in the output sheet!\n", range_ops::range_to_string(range_in));
+                println!("[create_unique_entries_sheet] in-range [{}] is already present in the output sheet!", range_ops::range_to_string(range_in));
             }
 
             appended
