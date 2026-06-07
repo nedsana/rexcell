@@ -1,3 +1,4 @@
+use eframe::egui::Key::E;
 // use clap::error;
 use umya_spreadsheet::*;
 use std::collections::HashMap;
@@ -272,8 +273,6 @@ where FRow:  Fn(&Worksheet, &Range, &mut Worksheet) -> bool,
         //     None => true,
         // };
 
-        println!("passes_filter_row({})", passes_filter_row);
-
         if passes_filter_row
         {
             let rbeg = *it_range.get_coordinate_start_row().unwrap().get_num();
@@ -384,10 +383,11 @@ pub fn filter_sheet_by_col_and_accum(
 {
     let tgt_col = range_ops::column_to_index(col_filter);
 
+    println!("col_filter: {}", col_filter);
+    println!("cols_accum: {}", cols_accum);
+
     create_unique_entries_sheet(sheet_in, sheet_out, Some(|sheet_in: &Worksheet, range_in: &Range, sheet_out: &mut Worksheet| 
         {
-            // range_ops::print_range_cells_1(sheet_in, range_in, Some(12));
-
             if !range_ops::is_col_in_range(tgt_col, &range_in)
             {
                 println!("Input Range [{}] does not contain target column {}!", range_ops::range_to_string(range_in), col_filter);
@@ -404,9 +404,19 @@ pub fn filter_sheet_by_col_and_accum(
             {
                 if range_ops::is_col_in_range(tgt_col, &it_range_out)
                 {
-                    if range_ops::accumulate_ranges(sheet_in, range_in, iter_sheet_out.sheet, &it_range_out, None, None)
+                    // range_ops::print_range_cells_1(iter_sheet_out.sheet, &it_range_out, Some(12));
+                    
+                    let allowed_cols: Vec<u32> = col_filter.split(',').map(|s| range_ops::column_to_index(s.trim())).collect();
+
+                    if range_ops::comapre_ranges(sheet_in, range_in, iter_sheet_out.sheet, &it_range_out, None, Some(allowed_cols))
                     {
-                        appended = false;
+                       
+                        let allowed_cols: Vec<u32> = cols_accum.split(',').map(|s| range_ops::column_to_index(s.trim())).collect();
+
+                        if range_ops::accumulate_ranges(sheet_in, range_in, iter_sheet_out.sheet, &it_range_out, None, Some(allowed_cols))
+                        {
+                            appended = false;
+                        }
                     }
                 }
                 else
