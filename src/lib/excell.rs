@@ -363,7 +363,6 @@ where FRow:  Fn(&Worksheet, &Range, &mut Worksheet) -> bool,
                 let mcbeg = mrgcells.get_coordinate_start_col().unwrap().get_num();
                 let mcend = mrgcells.get_coordinate_end_col().unwrap().get_num(); 
                 let mrlen = mrend - mrbeg + 1;
-                let mclen = mcend - mcbeg + 1;
 
                 let mrange = range_ops::make_range_from_indexes(*mcbeg, current_old_row, *mcend, current_old_row+mrlen-1);
 
