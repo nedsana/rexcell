@@ -46,6 +46,11 @@ pub fn make_range_from_indexes(bcol: u32, brow: u32, ecol: u32, erow: u32) -> Ra
     make_range_from_strings(&bcoord, &ecoord)
 }
 
+pub fn coords_to_str(c: u32, r: u32) -> String 
+{
+    umya_spreadsheet::helper::coordinate::coordinate_from_index(&c, &r) // Returns "A1"
+}
+
 pub fn is_row_in_range(row: u32, range: &Range) -> bool 
 {
     if let (Some(start), Some(end)) = (range.get_coordinate_start_row(), range.get_coordinate_end_row()) {
@@ -101,7 +106,6 @@ pub fn do_ranges_overlap(range_a: &Range, range_b: &Range) -> bool
 
     row_overlap && col_overlap
 }
-
 
 pub fn truncate_str(s: &str, max_chars: usize) -> &str 
 {
@@ -238,6 +242,7 @@ pub fn print_range_cells_1(sheet: &Worksheet, range: &Range, truncate_len: Optio
 pub fn comapre_ranges(
     sheet_a: &Worksheet, range_a: &Range,
     sheet_b: &Worksheet, range_b: &Range,
+    strict: bool,
     o_allowed_rows: Option<vec::Vec<u32>>, 
     o_allowed_cols: Option<vec::Vec<u32>>,
 ) -> bool 
@@ -263,61 +268,94 @@ pub fn comapre_ranges(
     //If the legths are different, the ranges cannot be the same
     if rows_a != rows_b || cols_a != cols_b 
     {
+        println!("[comapre_ranges] Size missmatch! Range A:[{}, len:{}] != Range B:[{}, len:{}]", 
+                range_to_string(range_a), rows_a, range_to_string(range_b), rows_b);
         return false;
     }
 
-    let rows_offsets: Vec<u32> = (0..=rows_a).collect();
-    let cols_offsets: Vec<u32> = (0..=cols_a).collect();
+    let cols_a_offsets: Vec<u32> = (0..=cols_a).collect();
+    let cols_b_offsets: Vec<u32> = (0..=cols_b).collect();    
     let allowed_rows: Vec<u32> = o_allowed_rows.unwrap_or_default();
     let allowed_cols: Vec<u32> = o_allowed_cols.unwrap_or_default();
 
-    //Loop using relative offsets to compare the cells in the two ranges
-    for row_offset in &rows_offsets 
-    {
-        let row_num_a = brow_a + row_offset;
-        let row_num_b = brow_b + row_offset;
+    let str_allowed_rows = allowed_rows.iter().map(|r| r.to_string()).collect::<Vec<String>>().join(",");
+    let str_allowed_cols = allowed_cols.iter().map(|c| c.to_string()).collect::<Vec<String>>().join(",");
 
-        if allowed_rows.len() > 0 && !allowed_rows.contains(&row_num_a) && !allowed_rows.contains(&row_num_b)
+    let mut row_match = 0;
+    let mut col_match = 0;
+
+    //Loop using relative offsets to compare the cells in the two ranges
+    // for (row_a_offset, row_b_offset) in rows_a_offsets.iter().zip(rows_b_offsets.iter()) 
+    for row_num_a in brow_a..=erow_a 
+    {
+        if allowed_rows.len() > 0 && !allowed_rows.contains(&row_num_a)
         {
+            // println!("[comapre_ranges], Row A:{} is not in the allowed list {}!", row_num_a, str_allowed_rows);
             continue; // skip this row if it's not in the allowed_rows list
         }
 
-        for col_offset in &cols_offsets  
+        for row_num_b in brow_b..=erow_b 
         {
-            let col_num_a = bcol_a + col_offset;
-            let col_num_b = bcol_b + col_offset;
-
-            if allowed_cols.len() > 0 && !allowed_cols.contains(&col_num_a) && !allowed_cols.contains(&col_num_b) 
+            if allowed_rows.len() > 0 && !allowed_rows.contains(&row_num_b)
             {
-                continue; // skip this column if it's not in the allowed_cols list
+                // println!("[comapre_ranges], Row B:{} is not in the allowed list {}!", row_num_b, str_allowed_rows);
+                continue; // skip this row if it's not in the allowed_rows list
             }
 
-            //Calculate the actual coordinates for sheet A and sheet B
-            let cell_a_coord = (col_num_a, row_num_a);
-            let cell_b_coord = (col_num_b, row_num_b);
-
-            let cell_a_obj = sheet_a.get_cell(cell_a_coord);
-            let cell_b_obj = sheet_b.get_cell(cell_b_coord);
-
-            let rich_a = cell_a_obj.and_then(|c| c.get_cell_value().get_raw_value().get_rich_text());
-            let rich_b = cell_b_obj.and_then(|c| c.get_cell_value().get_raw_value().get_rich_text());
-
-            if rich_a != rich_b 
+            col_match = 0;
+            for (col_a_offset, col_b_offset) in cols_a_offsets.iter().zip(cols_b_offsets.iter()) 
             {
-                return false;
-            }
+                let col_num_a = bcol_a + col_a_offset;
+                let col_num_b = bcol_b + col_b_offset;
 
-            // Get the text values of the two cells
-            let val_a = sheet_a.get_cell_value(cell_a_coord).get_value();
-            let val_b = sheet_b.get_cell_value(cell_b_coord).get_value();
+                if allowed_cols.len() > 0 && !allowed_cols.contains(&col_num_a) && !allowed_cols.contains(&col_num_b) 
+                {
+                    // println!("[comapre_ranges], Column A:{} or Column B:{} is not in the allowed list {}!", col_num_a, col_num_b, str_allowed_cols);
+                    col_match += 1;
+                    continue; // skip this column if it's not in the allowed_cols list
+                }
 
-            // If there is any mismatch, immediately stop and return false
-            if !cmp_strs(&val_a, &val_b) 
-            {
-                println!("[comapre_ranges] a:[{}] != b:[{}]", val_a, val_b);
-                return false;
+                //Calculate the actual coordinates for sheet A and sheet B and get the text values of the two cells
+                let cell_a_coord = (col_num_a, row_num_a);
+                let cell_b_coord = (col_num_b, row_num_b);
+                let val_a = sheet_a.get_cell_value(cell_a_coord).get_value();
+                let val_b = sheet_b.get_cell_value(cell_b_coord).get_value();
+
+
+                //check if the cells have rich text and compare them if they do
+                let cell_a_obj = sheet_a.get_cell(cell_a_coord);
+                let cell_b_obj = sheet_b.get_cell(cell_b_coord);
+                let rich_a = cell_a_obj.and_then(|c| c.get_cell_value().get_raw_value().get_rich_text());
+                let rich_b = cell_b_obj.and_then(|c| c.get_cell_value().get_raw_value().get_rich_text());
+
+                if rich_a != rich_b && strict
+                {
+                    println!("[comapre_ranges] Rich text mismatch: {}:{} and {}:{}", coords_to_str(col_num_a, row_num_a), val_a, coords_to_str(col_num_b, row_num_b), val_b);
+                    return false;
+                }
+
+                // If there is any mismatch, immediately stop and return false
+                if cmp_strs(&val_a, &val_b) 
+                {
+                    println!("[comapre_ranges] {}:{} equals {}:{}", coords_to_str(col_num_a, row_num_a), val_a, coords_to_str(col_num_b, row_num_b), val_b);
+                    col_match += 1;
+                }
+                else 
+                {
+                    println!("[comapre_ranges] {}:{} differs {}:{}", coords_to_str(col_num_a, row_num_a), val_a, coords_to_str(col_num_b, row_num_b), val_b);
+                }
             }
         }
+
+        if col_match == cols_a
+        {
+            row_match += 1;
+        }
+    }
+
+    if !strict && row_match != rows_a 
+    {
+        return false;
     }
     true
 }

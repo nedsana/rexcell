@@ -400,7 +400,7 @@ pub fn filter_sheet_by_col_and_accum(
 
     create_unique_entries_sheet(sheet_in, sheet_out, Some(|sheet_in: &Worksheet, range_in: &Range, sheet_out: &mut Worksheet| 
         {
-            println!("[create_unique_entries_sheet] Check if range is already: present '{}' in the output sheet!", range_ops::range_to_string(range_in));
+            println!("[create_unique_entries_sheet] Check if range '{}' is present in the output sheet!", range_ops::range_to_string(range_in));
 
             if !range_ops::is_col_in_range(tgt_col, &range_in)
             {
@@ -422,7 +422,7 @@ pub fn filter_sheet_by_col_and_accum(
                     
                     let allowed_cols: Vec<u32> = col_filter.split(',').map(|s| range_ops::column_to_index(s.trim())).collect();
 
-                    if range_ops::comapre_ranges(sheet_in, range_in, iter_sheet_out.sheet, &it_range_out, None, Some(allowed_cols))
+                    if range_ops::comapre_ranges(sheet_in, range_in, iter_sheet_out.sheet, &it_range_out, false, None, Some(allowed_cols))
                     {
                         let allowed_cols: Vec<u32> = cols_accum.split(',').map(|s| range_ops::column_to_index(s.trim())).collect();
 
