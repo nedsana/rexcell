@@ -278,8 +278,8 @@ pub fn comapre_ranges(
     let allowed_rows: Vec<u32> = o_allowed_rows.unwrap_or_default();
     let allowed_cols: Vec<u32> = o_allowed_cols.unwrap_or_default();
 
-    let str_allowed_rows = allowed_rows.iter().map(|r| r.to_string()).collect::<Vec<String>>().join(",");
-    let str_allowed_cols = allowed_cols.iter().map(|c| c.to_string()).collect::<Vec<String>>().join(",");
+    let _str_allowed_rows = allowed_rows.iter().map(|r| r.to_string()).collect::<Vec<String>>().join(",");
+    let _str_allowed_cols = allowed_cols.iter().map(|c| c.to_string()).collect::<Vec<String>>().join(",");
 
     let mut row_match = 0;
     let mut col_match = 0;
@@ -290,7 +290,7 @@ pub fn comapre_ranges(
     {
         if allowed_rows.len() > 0 && !allowed_rows.contains(&row_num_a)
         {
-            // println!("[comapre_ranges], Row A:{} is not in the allowed list {}!", row_num_a, str_allowed_rows);
+            // println!("[comapre_ranges], Row A:{} is not in the allowed list {}!", row_num_a, _str_allowed_rows);
             continue; // skip this row if it's not in the allowed_rows list
         }
 
@@ -298,7 +298,7 @@ pub fn comapre_ranges(
         {
             if allowed_rows.len() > 0 && !allowed_rows.contains(&row_num_b)
             {
-                // println!("[comapre_ranges], Row B:{} is not in the allowed list {}!", row_num_b, str_allowed_rows);
+                // println!("[comapre_ranges], Row B:{} is not in the allowed list {}!", row_num_b, _str_allowed_rows);
                 continue; // skip this row if it's not in the allowed_rows list
             }
 
@@ -310,7 +310,7 @@ pub fn comapre_ranges(
 
                 if allowed_cols.len() > 0 && !allowed_cols.contains(&col_num_a) && !allowed_cols.contains(&col_num_b) 
                 {
-                    // println!("[comapre_ranges], Column A:{} or Column B:{} is not in the allowed list {}!", col_num_a, col_num_b, str_allowed_cols);
+                    // println!("[comapre_ranges], Column A:{} or Column B:{} is not in the allowed list {}!", col_num_a, col_num_b, _str_allowed_cols);
                     col_match += 1;
                     continue; // skip this column if it's not in the allowed_cols list
                 }
