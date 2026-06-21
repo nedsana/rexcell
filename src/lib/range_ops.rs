@@ -306,7 +306,7 @@ pub fn comapre_ranges(
     let cols_b = ecol_b - bcol_b;
 
     //If the legths are different, the ranges cannot be the same
-    if rows_a != rows_b || cols_a != cols_b 
+    if strict && (rows_a != rows_b || cols_a != cols_b) 
     {
         println!("[comapre_ranges] Size missmatch! Range A:[{}, len:{}] != Range B:[{}, len:{}]", 
                 range_to_string(range_a), rows_a, range_to_string(range_b), rows_b);
