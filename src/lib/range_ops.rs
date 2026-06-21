@@ -239,6 +239,46 @@ pub fn print_range_cells_1(sheet: &Worksheet, range: &Range, truncate_len: Optio
     }
 }
 
+pub fn comapre_cell(
+    sheet_a: &Worksheet, col_a: u32, row_a: u32,
+    sheet_b: &Worksheet, col_b: u32, row_b: u32,
+    strict: bool
+) -> bool 
+{
+    let mut r = false;
+    //Calculate the actual coordinates for sheet A and sheet B and get the text values of the two cells
+    let cell_a_coord = (col_a, row_a);
+    let cell_b_coord = (col_b, row_b);
+    let val_a = sheet_a.get_cell_value(cell_a_coord).get_value();
+    let val_b = sheet_b.get_cell_value(cell_b_coord).get_value();
+
+
+    //check if the cells have rich text and compare them if they do
+    let cell_a_obj = sheet_a.get_cell(cell_a_coord);
+    let cell_b_obj = sheet_b.get_cell(cell_b_coord);
+    let rich_a = cell_a_obj.and_then(|c| c.get_cell_value().get_raw_value().get_rich_text());
+    let rich_b = cell_b_obj.and_then(|c| c.get_cell_value().get_raw_value().get_rich_text());
+
+    if rich_a != rich_b && strict
+    {
+        println!("[comapre_cell] Rich text mismatch: {}:{} and {}:{}", coords_to_str(col_a, row_a), val_a, coords_to_str(col_b, row_b), val_b);
+        return r;
+    }
+
+    // If there is any mismatch, immediately stop and return false
+    if cmp_strs(&val_a, &val_b) 
+    {
+        println!("[comapre_cell] {}:{} equals {}:{}", coords_to_str(col_a, row_a), val_a, coords_to_str(col_b, row_b), val_b);
+        r = true;
+    }
+    else 
+    {
+        println!("[comapre_cell] {}:{} differs {}:{}", coords_to_str(col_a, row_a), val_a, coords_to_str(col_b, row_b), val_b); 
+        r = false;
+    }
+    r
+}
+
 pub fn comapre_ranges(
     sheet_a: &Worksheet, range_a: &Range,
     sheet_b: &Worksheet, range_b: &Range,
@@ -315,34 +355,9 @@ pub fn comapre_ranges(
                     continue; // skip this column if it's not in the allowed_cols list
                 }
 
-                //Calculate the actual coordinates for sheet A and sheet B and get the text values of the two cells
-                let cell_a_coord = (col_num_a, row_num_a);
-                let cell_b_coord = (col_num_b, row_num_b);
-                let val_a = sheet_a.get_cell_value(cell_a_coord).get_value();
-                let val_b = sheet_b.get_cell_value(cell_b_coord).get_value();
-
-
-                //check if the cells have rich text and compare them if they do
-                let cell_a_obj = sheet_a.get_cell(cell_a_coord);
-                let cell_b_obj = sheet_b.get_cell(cell_b_coord);
-                let rich_a = cell_a_obj.and_then(|c| c.get_cell_value().get_raw_value().get_rich_text());
-                let rich_b = cell_b_obj.and_then(|c| c.get_cell_value().get_raw_value().get_rich_text());
-
-                if rich_a != rich_b && strict
+                if comapre_cell(sheet_a, col_num_a, row_num_a, sheet_b, col_num_b, row_num_b, strict)
                 {
-                    println!("[comapre_ranges] Rich text mismatch: {}:{} and {}:{}", coords_to_str(col_num_a, row_num_a), val_a, coords_to_str(col_num_b, row_num_b), val_b);
-                    return false;
-                }
-
-                // If there is any mismatch, immediately stop and return false
-                if cmp_strs(&val_a, &val_b) 
-                {
-                    println!("[comapre_ranges] {}:{} equals {}:{}", coords_to_str(col_num_a, row_num_a), val_a, coords_to_str(col_num_b, row_num_b), val_b);
                     col_match += 1;
-                }
-                else 
-                {
-                    println!("[comapre_ranges] {}:{} differs {}:{}", coords_to_str(col_num_a, row_num_a), val_a, coords_to_str(col_num_b, row_num_b), val_b);
                 }
             }
         }
