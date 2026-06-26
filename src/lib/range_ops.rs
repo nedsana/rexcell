@@ -470,6 +470,15 @@ fn iter_row_next_impl(
     max_col: u32,
 ) -> Option<Range>
 {
+
+    // let merged_cells = utbl.get_merge_cells();
+    // println!("[CmdFilterSheets] Sheet '{}' has {} merged cells!", utbln, merged_cells.len());
+    // for range in merged_cells {
+    //     // range.get_range_coordinate() връща стринг във формат "A1:C3"
+    //     println!("Слята зона: {}", range_ops::range_to_string(&range));
+    // }
+    // std::process::exit(-1);
+
     let mut ret: Option<Range> = None;
 
     if max_row > *current_row
@@ -478,17 +487,29 @@ fn iter_row_next_impl(
 
         if let Some(merged_cells) = sheet_merged_cells.iter().find(|range| { is_row_in_range(*current_row, range) }) 
         {
-            //handle rows with merged cells - return all rows which are part of the merged cell
-            let cells_range = make_range_from_indexes(1, *current_row, 1 + max_col, 
-                            *merged_cells.get_coordinate_end_row().unwrap().get_num());
+            while ret.is_none()
+            {
+                //handle rows with merged cells - return all rows which are part of the merged cell
+                let cells_range = make_range_from_indexes(1, *current_row, 1 + max_col, 
+                                *merged_cells.get_coordinate_end_row().unwrap().get_num());
 
-            let range_rows = cells_range.get_coordinate_end_row().unwrap().get_num() - cells_range.get_coordinate_start_row().unwrap().get_num();
-            
-            *current_row += range_rows + 1;
+                let brow = cells_range.get_coordinate_start_row().unwrap().get_num();
+                let erow = cells_range.get_coordinate_end_row().unwrap().get_num();
+                let range_rows = erow - brow;
 
-            println!("[iter_row_next_impl] Range [{}]: from merged cells!", range_to_string(&cells_range));
+                let bcol = cells_range.get_coordinate_start_col().unwrap().get_num();
+                let ecol = cells_range.get_coordinate_end_col().unwrap().get_num();
 
-            ret = Some(cells_range);
+                println!("[iter_row_next_impl] Found merged cells range '{}'", range_to_string(&merged_cells));
+                println!("[iter_row_next_impl] Found merged cells range '{}' for row {}! bcol:{} ecol:{} brow:{} erow:{}", range_to_string(&cells_range), *current_row, *bcol, *ecol, *brow, *erow);
+
+                if *bcol == *ecol && *bcol == 1
+                {
+                    println!("[iter_row_next_impl] Range [{}]: from merged cells!", range_to_string(&cells_range));
+                    ret = Some(cells_range);
+                }
+                *current_row += range_rows + 1;
+            }
         } 
         else if let Some(src_cell) = sheet.get_cell((1, *current_row)) 
         {
