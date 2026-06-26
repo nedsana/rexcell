@@ -517,10 +517,12 @@ fn iter_row_next_impl(
             let _first_cell_value = src_cell.get_value().clone();
             let first_cell_data_type = src_cell.get_data_type().to_string();
 
-            let mut cells_range = make_range_from_indexes(1, *current_row, 1 + max_col, *current_row);
-
             if first_cell_data_type == "n"
             {
+                let mut cells_range = make_range_from_indexes(1, *current_row, 1 + max_col, *current_row);
+                let mut range_rows    = cells_range.get_coordinate_end_row().unwrap().get_num() - cells_range.get_coordinate_start_row().unwrap().get_num();
+                let mut multiline = false;
+            
                 //check if the next row starts with numeric. I yes, process the current row. If not make range of all rows starting with '-'
                 let next_row = *current_row + 1;
                 for nrow in next_row..=max_row 
@@ -537,19 +539,30 @@ fn iter_row_next_impl(
                         else if next_cell_data_type == "s" && _next_cell_value == "-"
                         {
                             cells_range = make_range_from_indexes(1, *current_row, 1 + max_col, nrow);
+                            range_rows  = cells_range.get_coordinate_end_row().unwrap().get_num() - cells_range.get_coordinate_start_row().unwrap().get_num();
+                            multiline = true;
                         }
                     }
                 }
+
+                *current_row += range_rows + 1;
+
+                let rs = range_to_string(&cells_range);
+                if multiline
+                {
+                    println!("[iter_row_next_impl] Range [{}]: from multiline cells!", rs);
+                }
+                else 
+                {
+                    println!("[iter_row_next_impl] Range [{}]: from regular cells!", rs);
+                }
+
+                ret = Some(cells_range);
             }
-
-            let range_rows = cells_range.get_coordinate_end_row().unwrap().get_num() - cells_range.get_coordinate_start_row().unwrap().get_num();
-            
-            *current_row += range_rows + 1;
-
-            println!("[iter_row_next_impl] Range [{}]: from regular cells!", range_to_string(&cells_range));
-
-            ret = Some(cells_range);
-
+            else 
+            {
+                println!("[iter_row_next_impl] Current row {} starts with unexpected type:{}!", *current_row, first_cell_data_type );
+            }
         }
         else
         {
