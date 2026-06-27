@@ -417,10 +417,10 @@ pub fn filter_sheet_by_col_and_accum(
 
             let mut iter_sheet_out = range_ops::IterRowMut::new(sheet_out, max_row, max_col);
 
-            while let Some(it) = iter_sheet_out.next() 
+            while let Some(mut it) = iter_sheet_out.next() 
             {
                 let it_range_out = it.get_range();
-                let it_sheet_out = it.get_sheet();
+                let it_sheet_out = it.get_sheet_mut();
                 if range_ops::is_col_in_range(tgt_col, &it_range_out)
                 {
                     // range_ops::print_range_cells_1(iter_sheet_out.sheet, &it_range_out, Some(12));
@@ -429,14 +429,13 @@ pub fn filter_sheet_by_col_and_accum(
 
                     if range_ops::comapre_ranges(sheet_in, range_in, it_sheet_out, &it_range_out, false, None, Some(allowed_cols))
                     {
-                        // RESTORE THESE LINES!
-                        // let allowed_cols: Vec<u32> = cols_accum.split(',').map(|s| range_ops::column_to_index(s.trim())).collect();
+                        let allowed_cols: Vec<u32> = cols_accum.split(',').map(|s| range_ops::column_to_index(s.trim())).collect();
 
-                        // if range_ops::accumulate_ranges(sheet_in, range_in, it_sheet_out, &it_range_out, None, Some(allowed_cols))
-                        // {
-                        //     appended = false;
-                        //     println!("[create_unique_entries_sheet] Accumulated in-range '{}' to out-range '{}'!", range_ops::range_to_string(range_in), range_ops::range_to_string(&it_range_out));
-                        // }
+                        if range_ops::accumulate_ranges(sheet_in, range_in, it_sheet_out, &it_range_out, None, Some(allowed_cols))
+                        {
+                            appended = false;
+                            println!("[create_unique_entries_sheet] Accumulated in-range '{}' to out-range '{}'!", range_ops::range_to_string(range_in), range_ops::range_to_string(&it_range_out));
+                        }
                     }
                     else
                     {

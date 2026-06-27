@@ -8,6 +8,7 @@ use umya_spreadsheet::{Range, Worksheet};
 pub trait IRange {
     fn get_range(&self) -> &Range;
     fn get_sheet(&self) -> &Worksheet;
+    fn get_sheet_mut(&mut self) -> &mut Worksheet;
     fn contains(&self, other: &Range) -> bool;
 }
 
@@ -17,17 +18,17 @@ pub trait IRange {
 
 pub struct RangeBasic<'a> {
     pub range: Range,
-    pub sheet: &'a Worksheet,
+    pub sheet: &'a mut Worksheet,
 }
 
 pub struct RangeMergedCells<'a> {
     pub range: Range,
-    pub sheet: &'a Worksheet,
+    pub sheet: &'a mut Worksheet,
 }
 
 pub struct RangeMultiline<'a> {
     pub range: Range,
-    pub sheet: &'a Worksheet,
+    pub sheet: &'a mut Worksheet,
 }
 
 // ==========================================
@@ -42,6 +43,10 @@ impl<'a> IRange for RangeBasic<'a> {
 
     fn get_sheet(&self) -> &Worksheet {
         &self.sheet
+    }
+
+    fn get_sheet_mut(&mut self) -> &mut Worksheet {
+        self.sheet
     }
 
     fn contains(&self, _other: &Range) -> bool {
@@ -63,7 +68,11 @@ impl<'a> IRange for RangeMergedCells<'a> {
 
     fn get_sheet(&self) -> &Worksheet {
         &self.sheet
-    }    
+    }
+
+    fn get_sheet_mut(&mut self) -> &mut Worksheet {
+        self.sheet
+    } 
 
     fn contains(&self, _other: &Range) -> bool {
         todo!()
@@ -84,7 +93,11 @@ impl<'a> IRange for RangeMultiline<'a> {
 
     fn get_sheet(&self) -> &Worksheet {
         &self.sheet
-    }    
+    }
+
+    fn get_sheet_mut(&mut self) -> &mut Worksheet {
+        self.sheet
+    }
 
     fn contains(&self, _other: &Range) -> bool {
         todo!()
@@ -122,6 +135,14 @@ impl<'a> IRange for RangeType<'a> {
             RangeType::Basic(r) => r.get_sheet(),
             RangeType::Merged(r) => r.get_sheet(),
             RangeType::Multiline(r) => r.get_sheet(),
+        }
+    }
+
+    fn get_sheet_mut(&mut self) -> &mut Worksheet {
+        match self {
+            RangeType::Basic(r) => r.get_sheet_mut(),
+            RangeType::Merged(r) => r.get_sheet_mut(),
+            RangeType::Multiline(r) => r.get_sheet_mut(),
         }
     }
 
