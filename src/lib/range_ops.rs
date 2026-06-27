@@ -1,6 +1,6 @@
 use std::vec;
-
 use umya_spreadsheet::{Worksheet, Range};
+use super::range_types;
 
 //compare strings, ignoring white spaces (' ',\t, \n, \r)
 pub fn cmp_strs(s1: &str, s2: &str) -> bool 
@@ -463,23 +463,14 @@ pub fn accumulate_ranges(
 }
 
 // Helper function that contains the common logic for IterRow and IterRowMut next() method
-fn iter_row_next_impl(
-    sheet: &Worksheet,
+fn iter_row_next_impl<'a>(
+    sheet: &'a Worksheet,
     current_row: &mut u32,
     max_row: u32,
     max_col: u32,
-) -> Option<Range>
+) -> Option<range_types::RangeType<'a>>
 {
-
-    // let merged_cells = utbl.get_merge_cells();
-    // println!("[CmdFilterSheets] Sheet '{}' has {} merged cells!", utbln, merged_cells.len());
-    // for range in merged_cells {
-    //     // range.get_range_coordinate() връща стринг във формат "A1:C3"
-    //     println!("Слята зона: {}", range_ops::range_to_string(&range));
-    // }
-    // std::process::exit(-1);
-
-    let mut ret: Option<Range> = None;
+    let mut ret: Option<range_types::RangeType<'a>> = None;
 
     if max_row > *current_row
     {
@@ -487,12 +478,13 @@ fn iter_row_next_impl(
 
         if let Some(merged_cells) = sheet_merged_cells.iter().find(|range| { is_row_in_range(*current_row, range) }) 
         {
-            while ret.is_none()
+            let cells_range = make_range_from_indexes(1, *current_row, 1 + max_col, 
+                            *merged_cells.get_coordinate_end_row().unwrap().get_num());
+
+            let mut loop_on = true;
+            while loop_on //do I really need to loop here???
             {
                 //handle rows with merged cells - return all rows which are part of the merged cell
-                let cells_range = make_range_from_indexes(1, *current_row, 1 + max_col, 
-                                *merged_cells.get_coordinate_end_row().unwrap().get_num());
-
                 let brow = cells_range.get_coordinate_start_row().unwrap().get_num();
                 let erow = cells_range.get_coordinate_end_row().unwrap().get_num();
                 let range_rows = erow - brow;
@@ -505,11 +497,14 @@ fn iter_row_next_impl(
 
                 if *bcol == *ecol && *bcol == 1
                 {
+                    loop_on = false;
                     println!("[iter_row_next_impl] Range [{}]: from merged cells!", range_to_string(&cells_range));
-                    ret = Some(cells_range);
                 }
                 *current_row += range_rows + 1;
             }
+
+            ret = Some(range_types::RangeType::Merged(range_types::RangeMergedCells {range: cells_range, sheet: sheet}));
+
         } 
         else if let Some(src_cell) = sheet.get_cell((1, *current_row)) 
         {
@@ -551,13 +546,13 @@ fn iter_row_next_impl(
                 if multiline
                 {
                     println!("[iter_row_next_impl] Range [{}]: from multiline cells!", rs);
+                    ret = Some(range_types::RangeType::Multiline(range_types::RangeMultiline {range: cells_range, sheet: sheet}));
                 }
                 else 
                 {
                     println!("[iter_row_next_impl] Range [{}]: from regular cells!", rs);
+                    ret = Some(range_types::RangeType::Basic(range_types::RangeBasic {range: cells_range, sheet: sheet}));
                 }
-
-                ret = Some(cells_range);
             }
             else 
             {
@@ -573,6 +568,10 @@ fn iter_row_next_impl(
 
     ret
 }
+
+// =========================================================
+// ITERATOR, NONE-MUTABLE, FOR LOOPING OVER WORKSHEET ROWS
+// =========================================================
 
 pub struct IterRow<'a> 
 {
@@ -596,12 +595,17 @@ impl<'a> IterRow<'a>
 
 impl<'a> Iterator for IterRow<'a> 
 {
-    type Item = Range; // return Range object
+    type Item = range_types::RangeType<'a>;
+
     fn next(&mut self) -> Option<Self::Item> 
     {
         iter_row_next_impl(self.sheet, &mut self.current_row, self.max_row, self.max_col)
     }
 }
+
+// =========================================================
+// ITERATOR, MUTABLE, FOR LOOPING OVER WORKSHEET ROWS
+// =========================================================
 
 pub struct IterRowMut<'a>
 {
@@ -623,10 +627,19 @@ impl<'a> IterRowMut<'a>
     }
 }
 
-impl<'a> Iterator for IterRowMut<'a>
+//The statandart iterators, can no be mutable. So we need this specific iterator. NOTE: can't be used in for loops, but works with while!
+pub trait LendingIterator 
 {
-    type Item = Range; // return Range object
-    fn next(&mut self) -> Option<Self::Item>
+    type Item<'this> where Self: 'this;
+
+    fn next(&mut self) -> Option<Self::Item<'_>>;
+}
+
+impl LendingIterator for IterRowMut<'_> 
+{
+    type Item<'this> = range_types::RangeType<'this> where Self: 'this;
+    
+    fn next(&mut self) -> Option<Self::Item<'_>> 
     {
         iter_row_next_impl(self.sheet, &mut self.current_row, self.max_row, self.max_col)
     }

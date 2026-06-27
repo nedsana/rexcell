@@ -2,3 +2,4 @@
 pub mod common;
 pub mod excell;
 pub mod range_ops;
+pub mod range_types;

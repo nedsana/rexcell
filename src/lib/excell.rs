@@ -1,7 +1,9 @@
-use eframe::egui::Key::E;
 // use clap::error;
 use umya_spreadsheet::*;
 use std::collections::HashMap;
+use crate::range_types::IRange;
+use crate::lib_impl::range_ops::LendingIterator;
+
 use super::common;
 use super::range_ops;
 
@@ -252,8 +254,9 @@ where FRow:  Fn(&Worksheet, &Range, &mut Worksheet) -> bool,
 
     let iter_sheet = range_ops::IterRow::new(sheet_in, max_row, max_col);
     let merged_cells = sheet_in.get_merge_cells();
-    for it_range in iter_sheet 
+    for it in iter_sheet 
     {
+        let it_range = it.get_range();
         let passes_filter_row = match &filter_row 
         {
             Some(f) => f(sheet_in, &it_range, sheet_out),
@@ -414,23 +417,26 @@ pub fn filter_sheet_by_col_and_accum(
 
             let mut iter_sheet_out = range_ops::IterRowMut::new(sheet_out, max_row, max_col);
 
-            while let Some(it_range_out) = iter_sheet_out.next() 
+            while let Some(it) = iter_sheet_out.next() 
             {
+                let it_range_out = it.get_range();
+                let it_sheet_out = it.get_sheet();
                 if range_ops::is_col_in_range(tgt_col, &it_range_out)
                 {
                     // range_ops::print_range_cells_1(iter_sheet_out.sheet, &it_range_out, Some(12));
                     
                     let allowed_cols: Vec<u32> = col_filter.split(',').map(|s| range_ops::column_to_index(s.trim())).collect();
 
-                    if range_ops::comapre_ranges(sheet_in, range_in, iter_sheet_out.sheet, &it_range_out, false, None, Some(allowed_cols))
+                    if range_ops::comapre_ranges(sheet_in, range_in, it_sheet_out, &it_range_out, false, None, Some(allowed_cols))
                     {
-                        let allowed_cols: Vec<u32> = cols_accum.split(',').map(|s| range_ops::column_to_index(s.trim())).collect();
+                        // RESTORE THESE LINES!
+                        // let allowed_cols: Vec<u32> = cols_accum.split(',').map(|s| range_ops::column_to_index(s.trim())).collect();
 
-                        if range_ops::accumulate_ranges(sheet_in, range_in, iter_sheet_out.sheet, &it_range_out, None, Some(allowed_cols))
-                        {
-                            appended = false;
-                            println!("[create_unique_entries_sheet] Accumulated in-range '{}' to out-range '{}'!", range_ops::range_to_string(range_in), range_ops::range_to_string(&it_range_out));
-                        }
+                        // if range_ops::accumulate_ranges(sheet_in, range_in, it_sheet_out, &it_range_out, None, Some(allowed_cols))
+                        // {
+                        //     appended = false;
+                        //     println!("[create_unique_entries_sheet] Accumulated in-range '{}' to out-range '{}'!", range_ops::range_to_string(range_in), range_ops::range_to_string(&it_range_out));
+                        // }
                     }
                     else
                     {
