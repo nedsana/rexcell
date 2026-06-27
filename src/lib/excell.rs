@@ -2,6 +2,7 @@
 use umya_spreadsheet::*;
 use std::collections::HashMap;
 use crate::range_types::IRange;
+use crate::range_types::IRangeMut;
 use crate::lib_impl::range_ops::LendingIterator;
 
 use super::common;
