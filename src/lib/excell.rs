@@ -420,8 +420,9 @@ pub fn filter_sheet_by_col_and_accum(
 
             while let Some(mut it) = iter_sheet_out.next() 
             {
-                let it_range_out = it.get_range();
+                let it_range_out = it.get_range().clone();
                 let it_sheet_out = it.get_sheet_mut();
+                
                 if range_ops::is_col_in_range(tgt_col, &it_range_out)
                 {
                     // range_ops::print_range_cells_1(iter_sheet_out.sheet, &it_range_out, Some(12));
