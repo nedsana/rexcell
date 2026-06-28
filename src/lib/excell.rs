@@ -449,7 +449,7 @@ pub fn filter_sheet_by_col_and_accum(
                         println!("[create_unique_entries_sheet] in-range [{}] differs from out-range [{}]!", range_ops::range_to_string(range_in), range_ops::range_to_string(&it_range_out));
                     }
 */
-                    if it.compare(range_src, false, None, Some(cmp_cols.clone()))
+                    if it.compare_range(range_src, false, None, Some(cmp_cols.clone()))
                     {
                     }
                 }
