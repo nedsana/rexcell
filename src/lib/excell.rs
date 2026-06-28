@@ -418,6 +418,9 @@ pub fn filter_sheet_by_col_and_accum(
             let max_row = MAX_ROW; //sheet_in.get_highest_row();
             let max_col = MAX_COL; //sheet_in.get_highest_column();
 
+            let cmp_cols: Vec<u32> = col_filter.split(',').map(|s| range_ops::column_to_index(s.trim())).collect();
+            let acc_cols: Vec<u32> = cols_accum.split(',').map(|s| range_ops::column_to_index(s.trim())).collect();
+
             let mut iter_sheet_dst = range_ops::IterRowMut::new(sheet_dst, max_row, max_col);
 
             while let Some(mut it) = iter_sheet_dst.next() 
@@ -428,7 +431,7 @@ pub fn filter_sheet_by_col_and_accum(
                 if range_ops::is_col_in_range(tgt_col, &it_range_out)
                 {
                     // range_ops::print_range_cells_1(it.get_sheet(), it.get_range(), Some(12));
-                    
+/*
                     let allowed_cols: Vec<u32> = col_filter.split(',').map(|s| range_ops::column_to_index(s.trim())).collect();
 
                     if range_ops::comapre_ranges(sheet_in, range_in, it_sheet_out, &it_range_out, false, None, Some(allowed_cols))
@@ -444,6 +447,10 @@ pub fn filter_sheet_by_col_and_accum(
                     else
                     {
                         println!("[create_unique_entries_sheet] in-range [{}] differs from out-range [{}]!", range_ops::range_to_string(range_in), range_ops::range_to_string(&it_range_out));
+                    }
+*/
+                    if it.compare(range_src, false, None, Some(cmp_cols.clone()))
+                    {
                     }
                 }
                 else
