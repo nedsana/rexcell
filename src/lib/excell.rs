@@ -242,9 +242,9 @@ pub fn create_unique_entries_sheet<FRow, FCol, FCell>(
     _filter_col:  Option<FCol>,
     _filter_cell: Option<FCell>,
 ) -> bool 
-where FRow:  Fn(&Worksheet, &Range, &mut Worksheet) -> bool,
-      FCol:  Fn(&Worksheet, &Range, &mut Worksheet) -> bool, //is this needed
-      FCell: Fn(&Worksheet, &Range, &mut Worksheet) -> bool
+where FRow:  Fn(&dyn IRange, &mut Worksheet) -> bool,
+      FCol:  Fn(&dyn IRange, &mut Worksheet) -> bool, //is this needed
+      FCell: Fn(&dyn IRange, &mut Worksheet) -> bool
 {
     let mut res = false;
 
@@ -260,10 +260,10 @@ where FRow:  Fn(&Worksheet, &Range, &mut Worksheet) -> bool,
         let it_range = it.get_range();
         let passes_filter_row = match &filter_row 
         {
-            Some(f) => f(sheet_in, &it_range, sheet_out),
+            Some(f) => f(&it, sheet_out),
             None => true,
         };
-
+/*
         // To do ... how to use these filters? Do we need them at all? Maybe we can just apply them to the whole row/col/cell and not to the range, which is defined by the iterator?
         // let passes_filter_col = match &filter_col 
         // {
@@ -276,7 +276,7 @@ where FRow:  Fn(&Worksheet, &Range, &mut Worksheet) -> bool,
         //     Some(f) => f(sheet_in, &it_range, sheet_out),
         //     None => true,
         // };
-
+*/
         if passes_filter_row
         {
             let current_old_row = current_new_row;
@@ -402,8 +402,10 @@ pub fn filter_sheet_by_col_and_accum(
 {
     let tgt_col = range_ops::column_to_index(col_filter);
 
-    create_unique_entries_sheet(sheet_in, sheet_out, Some(|sheet_in: &Worksheet, range_in: &Range, sheet_out: &mut Worksheet| 
+    create_unique_entries_sheet(sheet_in, sheet_out, Some(|range_src: &dyn IRange, sheet_dst: &mut Worksheet| 
         {
+            let range_in = range_src.get_range();
+
             println!("[create_unique_entries_sheet] Check if range '{}' is present in the output sheet!", range_ops::range_to_string(range_in));
 
             if !range_ops::is_col_in_range(tgt_col, &range_in)
@@ -416,16 +418,16 @@ pub fn filter_sheet_by_col_and_accum(
             let max_row = MAX_ROW; //sheet_in.get_highest_row();
             let max_col = MAX_COL; //sheet_in.get_highest_column();
 
-            let mut iter_sheet_out = range_ops::IterRowMut::new(sheet_out, max_row, max_col);
+            let mut iter_sheet_dst = range_ops::IterRowMut::new(sheet_dst, max_row, max_col);
 
-            while let Some(mut it) = iter_sheet_out.next() 
+            while let Some(mut it) = iter_sheet_dst.next() 
             {
                 let it_range_out = it.get_range().clone();
                 let it_sheet_out = it.get_sheet_mut();
                 
                 if range_ops::is_col_in_range(tgt_col, &it_range_out)
                 {
-                    // range_ops::print_range_cells_1(iter_sheet_out.sheet, &it_range_out, Some(12));
+                    // range_ops::print_range_cells_1(iter_sheet_dst.sheet, &it_range_out, Some(12));
                     
                     let allowed_cols: Vec<u32> = col_filter.split(',').map(|s| range_ops::column_to_index(s.trim())).collect();
 
@@ -461,8 +463,8 @@ pub fn filter_sheet_by_col_and_accum(
 
             appended
         }),
-        None::<fn(&Worksheet, &Range, &mut Worksheet) -> bool>,
-        None::<fn(&Worksheet, &Range, &mut Worksheet) -> bool>,
+        None::<fn(&dyn IRange, &mut Worksheet) -> bool>,
+        None::<fn(&dyn IRange, &mut Worksheet) -> bool>,
     )
 }
 
