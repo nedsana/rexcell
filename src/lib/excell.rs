@@ -406,11 +406,11 @@ pub fn filter_sheet_by_col_and_accum(
         {
             let range_in = range_src.get_range();
 
-            println!("[create_unique_entries_sheet] Check if range '{}' is present in the output sheet!", range_ops::range_to_string(range_in));
+            println!("[create_unique_entries_sheet] Check if range '{}' is present in the output sheet!", range_ops::range_to_string(range_src.get_range()));
 
-            if !range_ops::is_col_in_range(tgt_col, &range_in)
+            if !range_ops::is_col_in_range(tgt_col, &range_src.get_range())
             {
-                println!("[create_unique_entries_sheet] Input Range [{}] does not contain target column {}!", range_ops::range_to_string(range_in), col_filter);
+                println!("[create_unique_entries_sheet] Input Range [{}] does not contain target column {}!", range_ops::range_to_string(range_src.get_range()), col_filter);
                 return false;
             }
 
@@ -427,7 +427,7 @@ pub fn filter_sheet_by_col_and_accum(
                 
                 if range_ops::is_col_in_range(tgt_col, &it_range_out)
                 {
-                    // range_ops::print_range_cells_1(iter_sheet_dst.sheet, &it_range_out, Some(12));
+                    // range_ops::print_range_cells_1(it.get_sheet(), it.get_range(), Some(12));
                     
                     let allowed_cols: Vec<u32> = col_filter.split(',').map(|s| range_ops::column_to_index(s.trim())).collect();
 
@@ -448,17 +448,17 @@ pub fn filter_sheet_by_col_and_accum(
                 }
                 else
                 {
-                    println!("[create_unique_entries_sheet] out-range [{}] does not contain target column {}!", range_ops::range_to_string(&it_range_out), col_filter);
+                    println!("[create_unique_entries_sheet] out-range [{}] does not contain target column {}!", range_ops::range_to_string(it.get_range()), col_filter);
                 }
             }
 
             if appended
             {
-                println!("[create_unique_entries_sheet] Appending in-range '{}' to the output sheet!", range_ops::range_to_string(range_in));
+                println!("[create_unique_entries_sheet] Appending in-range '{}' to the output sheet!", range_ops::range_to_string(range_src.get_range()));
             }
             else
             {
-                println!("[create_unique_entries_sheet] in-range [{}] is already present in the output sheet!", range_ops::range_to_string(range_in));
+                println!("[create_unique_entries_sheet] in-range [{}] is already present in the output sheet!", range_ops::range_to_string(range_src.get_range()));
             }
 
             appended
