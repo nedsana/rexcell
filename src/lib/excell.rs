@@ -239,8 +239,8 @@ pub fn create_unique_entries_sheet<FRow, FCol, FCell>(
     sheet_in:  &Worksheet, 
     sheet_out: &mut Worksheet,
     filter_row:  Option<FRow>,
-    filter_col:  Option<FCol>,
-    filter_cell: Option<FCell>,
+    _filter_col:  Option<FCol>,
+    _filter_cell: Option<FCell>,
 ) -> bool 
 where FRow:  Fn(&Worksheet, &Range, &mut Worksheet) -> bool,
       FCol:  Fn(&Worksheet, &Range, &mut Worksheet) -> bool, //is this needed
