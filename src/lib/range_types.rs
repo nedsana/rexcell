@@ -117,7 +117,7 @@ impl<'a> IRange for RangeBasic<'a> {
         {
             if allowed_rows.len() > 0 && !allowed_rows.contains(&row_num_a)
             {
-                // println!("[RangeBasic::compare_range], A{} is not in the allowed row list: {}!", row_num_a, _str_allowed_rows);
+                // println!("[RangeBasic::compare_range] A{} is not in the allowed row list: {}!", row_num_a, _str_allowed_rows);
                 continue; // skip this row if it's not in the allowed_rows list
             }
 
@@ -125,7 +125,7 @@ impl<'a> IRange for RangeBasic<'a> {
             {
                 if allowed_rows.len() > 0 && !allowed_rows.contains(&row_num_b)
                 {
-                    // println!("[RangeBasic::compare_range], B{} is not in the allowed row list: {}!", row_num_b, _str_allowed_rows);
+                    // println!("[RangeBasic::compare_range] B{} is not in the allowed row list: {}!", row_num_b, _str_allowed_rows);
                     continue; // skip this row if it's not in the allowed_rows list
                 }
 
@@ -137,7 +137,7 @@ impl<'a> IRange for RangeBasic<'a> {
 
                     if allowed_cols.len() > 0 && !allowed_cols.contains(&col_num_a) && !allowed_cols.contains(&col_num_b) 
                     {
-                        // println!("[RangeBasic::compare_range], A{} or B{} is not in the allowed column list: {}!", col_num_a, col_num_b, _str_allowed_cols);
+                        // println!("[RangeBasic::compare_range] A{} or B{} is not in the allowed column list: {}!", col_num_a, col_num_b, _str_allowed_cols);
                         col_match += 1;
                         continue; // skip this column if it's not in the allowed_cols list
                     }
@@ -260,7 +260,7 @@ impl<'a> IRange for RangeBasicMut<'a> {
         {
             if allowed_rows.len() > 0 && !allowed_rows.contains(&row_num_a)
             {
-                // println!("[RangeBasicMut::compare_range], A{} is not in the allowed row list: {}!", row_num_a, _str_allowed_rows);
+                // println!("[RangeBasicMut::compare_range] A{} is not in the allowed row list: {}!", row_num_a, _str_allowed_rows);
                 continue; // skip this row if it's not in the allowed_rows list
             }
 
@@ -268,7 +268,7 @@ impl<'a> IRange for RangeBasicMut<'a> {
             {
                 if allowed_rows.len() > 0 && !allowed_rows.contains(&row_num_b)
                 {
-                    // println!("[RangeBasicMut::compare_range], B{} is not in the allowed row list: {}!", row_num_b, _str_allowed_rows);
+                    // println!("[RangeBasicMut::compare_range] B{} is not in the allowed row list: {}!", row_num_b, _str_allowed_rows);
                     continue; // skip this row if it's not in the allowed_rows list
                 }
 
@@ -280,7 +280,7 @@ impl<'a> IRange for RangeBasicMut<'a> {
 
                     if allowed_cols.len() > 0 && !allowed_cols.contains(&col_num_a) && !allowed_cols.contains(&col_num_b) 
                     {
-                        // println!("[RangeBasicMut::compare_range], A{} or B{} is not in the allowed column list: {}!", col_num_a, col_num_b, _str_allowed_cols);
+                        // println!("[RangeBasicMut::compare_range] A{} or B{} is not in the allowed column list: {}!", col_num_a, col_num_b, _str_allowed_cols);
                         col_match += 1;
                         continue; // skip this column if it's not in the allowed_cols list
                     }
@@ -423,7 +423,7 @@ impl<'a> IRange for RangeMergedCells<'a> {
         {
             if allowed_rows.len() > 0 && !allowed_rows.contains(&row_num_a)
             {
-                // println!("[RangeMergedCells::compare_range], A{} is not in the allowed row list: {}!", row_num_a, _str_allowed_rows);
+                // println!("[RangeMergedCells::compare_range] A{} is not in the allowed row list: {}!", row_num_a, _str_allowed_rows);
                 continue; // skip this row if it's not in the allowed_rows list
             }
 
@@ -431,7 +431,7 @@ impl<'a> IRange for RangeMergedCells<'a> {
             {
                 if allowed_rows.len() > 0 && !allowed_rows.contains(&row_num_b)
                 {
-                    // println!("[RangeMergedCells::compare_range], B{} is not in the allowed row list: {}!", row_num_b, _str_allowed_rows);
+                    // println!("[RangeMergedCells::compare_range] B{} is not in the allowed row list: {}!", row_num_b, _str_allowed_rows);
                     continue; // skip this row if it's not in the allowed_rows list
                 }
 
@@ -443,7 +443,7 @@ impl<'a> IRange for RangeMergedCells<'a> {
 
                     if allowed_cols.len() > 0 && !allowed_cols.contains(&col_num_a) && !allowed_cols.contains(&col_num_b) 
                     {
-                        // println!("[RangeMergedCells::compare_range], A{} or B{} is not in the allowed column list: {}!", col_num_a, col_num_b, _str_allowed_cols);
+                        // println!("[RangeMergedCells::compare_range] A{} or B{} is not in the allowed column list: {}!", col_num_a, col_num_b, _str_allowed_cols);
                         col_match += 1;
                         continue; // skip this column if it's not in the allowed_cols list
                     }
@@ -566,7 +566,7 @@ impl<'a> IRange for RangeMergedCellsMut<'a> {
         {
             if allowed_rows.len() > 0 && !allowed_rows.contains(&row_num_a)
             {
-                // println!("[RangeMergedCellsMut::compare_range], A{} is not in the allowed row list: {}!", row_num_a, _str_allowed_rows);
+                // println!("[RangeMergedCellsMut::compare_range] A{} is not in the allowed row list: {}!", row_num_a, _str_allowed_rows);
                 continue; // skip this row if it's not in the allowed_rows list
             }
 
@@ -574,7 +574,7 @@ impl<'a> IRange for RangeMergedCellsMut<'a> {
             {
                 if allowed_rows.len() > 0 && !allowed_rows.contains(&row_num_b)
                 {
-                    // println!("[RangeMergedCellsMut::compare_range], B{} is not in the allowed row list: {}!", row_num_b, _str_allowed_rows);
+                    // println!("[RangeMergedCellsMut::compare_range] B{} is not in the allowed row list: {}!", row_num_b, _str_allowed_rows);
                     continue; // skip this row if it's not in the allowed_rows list
                 }
 
@@ -586,7 +586,7 @@ impl<'a> IRange for RangeMergedCellsMut<'a> {
 
                     if allowed_cols.len() > 0 && !allowed_cols.contains(&col_num_a) && !allowed_cols.contains(&col_num_b) 
                     {
-                        // println!("[RangeMergedCellsMut::compare_range], A{} or B{} is not in the allowed column list: {}!", col_num_a, col_num_b, _str_allowed_cols);
+                        // println!("[RangeMergedCellsMut::compare_range] A{} or B{} is not in the allowed column list: {}!", col_num_a, col_num_b, _str_allowed_cols);
                         col_match += 1;
                         continue; // skip this column if it's not in the allowed_cols list
                     }
@@ -729,7 +729,7 @@ impl<'a> IRange for RangeMultiline<'a> {
         {
             if allowed_rows.len() > 0 && !allowed_rows.contains(&row_num_a)
             {
-                // println!("[RangeMultiline::compare_range], A{} is not in the allowed row list: {}!", row_num_a, _str_allowed_rows);
+                // println!("[RangeMultiline::compare_range] A{} is not in the allowed row list: {}!", row_num_a, _str_allowed_rows);
                 continue; // skip this row if it's not in the allowed_rows list
             }
 
@@ -737,7 +737,7 @@ impl<'a> IRange for RangeMultiline<'a> {
             {
                 if allowed_rows.len() > 0 && !allowed_rows.contains(&row_num_b)
                 {
-                    // println!("[RangeMultiline::compare_range], B{} is not in the allowed row list: {}!", row_num_b, _str_allowed_rows);
+                    // println!("[RangeMultiline::compare_range] B{} is not in the allowed row list: {}!", row_num_b, _str_allowed_rows);
                     continue; // skip this row if it's not in the allowed_rows list
                 }
 
@@ -749,7 +749,7 @@ impl<'a> IRange for RangeMultiline<'a> {
 
                     if allowed_cols.len() > 0 && !allowed_cols.contains(&col_num_a) && !allowed_cols.contains(&col_num_b) 
                     {
-                        // println!("[RangeMultiline::compare_range], A{} or B{} is not in the allowed column list: {}!", col_num_a, col_num_b, _str_allowed_cols);
+                        // println!("[RangeMultiline::compare_range] A{} or B{} is not in the allowed column list: {}!", col_num_a, col_num_b, _str_allowed_cols);
                         col_match += 1;
                         continue; // skip this column if it's not in the allowed_cols list
                     }
@@ -844,10 +844,13 @@ impl<'a> IRange for RangeMultilineMut<'a> {
         let ecol_b = *range_b.get_coordinate_end_col().unwrap().get_num();
 
         //Get the legths of the ranges (number of rows and columns)
-        let rows_a = erow_a - brow_a;
-        let cols_a = ecol_a - bcol_a;
-        let rows_b = erow_b - brow_b;
-        let cols_b = ecol_b - bcol_b;
+        let rows_a = erow_a - brow_a + 1;
+        let cols_a = ecol_a - bcol_a + 1;
+        let rows_b = erow_b - brow_b + 1;
+        let cols_b = ecol_b - bcol_b + 1;
+
+        println!("[RangeMultilineMut::compare_range] Range A:[{} Rows:{} Cols:{}] vs Range B:[{} Rows:{} Cols:{}]", 
+                range_ops::range_to_string(range_a), rows_a, cols_a, range_ops::range_to_string(range_b), rows_b, cols_b);
 
         //If the legths are different, the ranges cannot be the same
         if strict && (rows_a != rows_b || cols_a != cols_b) 
@@ -857,22 +860,20 @@ impl<'a> IRange for RangeMultilineMut<'a> {
             return false;
         }
 
-        let cols_a_offsets: Vec<u32> = (0..=cols_a).collect();
-        let cols_b_offsets: Vec<u32> = (0..=cols_b).collect();    
+        let cols_a_offsets: Vec<u32> = (0..=(cols_a-1)).collect();
+        let cols_b_offsets: Vec<u32> = (0..=(cols_b-1)).collect();
         let allowed_rows: Vec<u32> = o_use_rows.unwrap_or_default();
         let allowed_cols: Vec<u32> = o_use_cols.unwrap_or_default();
 
-        let _str_allowed_rows = allowed_rows.iter().map(|r| r.to_string()).collect::<Vec<String>>().join(",");
-        let _str_allowed_cols = allowed_cols.iter().map(|c| c.to_string()).collect::<Vec<String>>().join(",");
+        let _str_allowed_rows = allowed_rows.iter().map(|r| range_ops::index_to_column(*r)).collect::<Vec<String>>().join(",");
+        let _str_allowed_cols = allowed_cols.iter().map(|c| range_ops::index_to_column(*c)).collect::<Vec<String>>().join(",");
 
         let mut row_match = 0;
-        let mut col_match = 0;
-
         for row_num_a in brow_a..=erow_a 
         {
             if allowed_rows.len() > 0 && !allowed_rows.contains(&row_num_a)
             {
-                // println!("[RangeMultilineMut::compare_range], A{} is not in the allowed row list: {}!", row_num_a, _str_allowed_rows);
+                // println!("[RangeMultilineMut::compare_range] A{} is not in the allowed row list: {}!", row_num_a, _str_allowed_rows);
                 continue; // skip this row if it's not in the allowed_rows list
             }
 
@@ -880,11 +881,11 @@ impl<'a> IRange for RangeMultilineMut<'a> {
             {
                 if allowed_rows.len() > 0 && !allowed_rows.contains(&row_num_b)
                 {
-                    // println!("[RangeMultilineMut::compare_range], B{} is not in the allowed row list: {}!", row_num_b, _str_allowed_rows);
+                    // println!("[RangeMultilineMut::compare_range] B{} is not in the allowed row list: {}!", row_num_b, _str_allowed_rows);
                     continue; // skip this row if it's not in the allowed_rows list
                 }
 
-                col_match = 0;
+                let mut col_match = 0;
                 for (col_a_offset, col_b_offset) in cols_a_offsets.iter().zip(cols_b_offsets.iter()) 
                 {
                     let col_num_a = bcol_a + col_a_offset;
@@ -892,8 +893,9 @@ impl<'a> IRange for RangeMultilineMut<'a> {
 
                     if allowed_cols.len() > 0 && !allowed_cols.contains(&col_num_a) && !allowed_cols.contains(&col_num_b) 
                     {
-                        // println!("[RangeMultilineMut::compare_range], A{} or B{} is not in the allowed column list: {}!", col_num_a, col_num_b, _str_allowed_cols);
                         col_match += 1;
+                        // println!("[RangeMultilineMut::compare_range] {}{} or {}{} is not in the allowed column list: {}! col_match:{}", 
+                        //     range_ops::index_to_column(col_num_a), row_num_a, range_ops::index_to_column(col_num_b), row_num_b, _str_allowed_cols, col_match);
                         continue; // skip this column if it's not in the allowed_cols list
                     }
 
@@ -902,14 +904,16 @@ impl<'a> IRange for RangeMultilineMut<'a> {
                         col_match += 1;
                     }
                 }
-            }
 
-            if col_match == cols_a
-            {
-                row_match += 1;
+                println!("[RangeMultilineMut::compare_range] Matching columns: {}/{} ! Returning {}", col_match, cols_a, col_match == cols_a);
+                if col_match == cols_a
+                {
+                    row_match += 1;
+                }
             }
         }
 
+        println!("[RangeMultilineMut::compare_range] Matching rows: {}/{} ! Returning {}", row_match, rows_a, row_match == rows_a);
         if !strict && row_match != rows_a 
         {
             return false;
