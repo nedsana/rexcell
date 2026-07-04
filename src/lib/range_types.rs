@@ -76,7 +76,7 @@ impl<'a> IRange for RangeBasic<'a> {
     }
 
     fn contains(&self, _other: &Range) -> bool {
-        todo!() 
+        false
     }
 
     fn compare_range(&self, other: &dyn IRange, strict: bool, o_use_rows: Option<vec::Vec<u32>>, o_use_cols: Option<vec::Vec<u32>>) -> bool 
@@ -220,15 +220,15 @@ impl<'a> IRange for RangeBasicMut<'a> {
     }
 
     fn contains(&self, _other: &Range) -> bool {
-        todo!() 
+        false
     }
 
     fn compare_range(&self, other: &dyn IRange, strict: bool, o_use_rows: Option<vec::Vec<u32>>, o_use_cols: Option<vec::Vec<u32>>) -> bool {
-        todo!()
+        false
     }
 
     fn compare_cell(&self, other: &dyn IRange, col_a: u32, row_a: u32, col_b: u32, row_b: u32, strict: bool) -> bool {
-        todo!()
+        false
     }    
 }
 
@@ -240,13 +240,13 @@ impl<'a> IRangeMut for RangeBasicMut<'a> {
 
 impl<'a> PartialEq for RangeBasic<'a> {
     fn eq(&self, _other: &Self) -> bool {
-        todo!()
+        false
     }
 }
 
 impl<'a> PartialEq for RangeBasicMut<'a> {
     fn eq(&self, _other: &Self) -> bool {
-        todo!()
+        false
     }
 }
 
@@ -262,15 +262,15 @@ impl<'a> IRange for RangeMergedCells<'a> {
     }
 
     fn contains(&self, _other: &Range) -> bool {
-        todo!()
+        false
     }
 
     fn compare_range(&self, other: &dyn IRange, strict: bool, o_use_rows: Option<vec::Vec<u32>>, o_use_cols: Option<vec::Vec<u32>>) -> bool {
-        todo!()
+        false
     }
 
     fn compare_cell(&self, other: &dyn IRange, col_a: u32, row_a: u32, col_b: u32, row_b: u32, strict: bool) -> bool {
-        todo!()
+        false
     }
 }
 
@@ -284,15 +284,15 @@ impl<'a> IRange for RangeMergedCellsMut<'a> {
     }
 
     fn contains(&self, _other: &Range) -> bool {
-        todo!()
+        false
     }
     
     fn compare_range(&self, other: &dyn IRange, strict: bool, o_use_rows: Option<vec::Vec<u32>>, o_use_cols: Option<vec::Vec<u32>>) -> bool {
-        todo!()
+        false
     }
 
     fn compare_cell(&self, other: &dyn IRange, col_a: u32, row_a: u32, col_b: u32, row_b: u32, strict: bool) -> bool {
-        todo!()
+        false
     }
 }
 
@@ -304,13 +304,13 @@ impl<'a> IRangeMut for RangeMergedCellsMut<'a> {
 
 impl<'a> PartialEq for RangeMergedCells<'a> {
     fn eq(&self, _other: &Self) -> bool {
-        todo!()
+        false
     }
 }
 
 impl<'a> PartialEq for RangeMergedCellsMut<'a> {
     fn eq(&self, _other: &Self) -> bool {
-        todo!()
+        false
     }
 }
 
@@ -326,15 +326,15 @@ impl<'a> IRange for RangeMultiline<'a> {
     }
 
     fn contains(&self, _other: &Range) -> bool {
-        todo!()
+        false
     }
 
     fn compare_range(&self, other: &dyn IRange, strict: bool, o_use_rows: Option<vec::Vec<u32>>, o_use_cols: Option<vec::Vec<u32>>) -> bool {
-        todo!()
+        false
     }
 
     fn compare_cell(&self, other: &dyn IRange, col_a: u32, row_a: u32, col_b: u32, row_b: u32, strict: bool) -> bool {
-        todo!()
+        false
     }
 }
 
@@ -348,15 +348,15 @@ impl<'a> IRange for RangeMultilineMut<'a> {
     }
 
     fn contains(&self, _other: &Range) -> bool {
-        todo!()
+        false
     }
 
     fn compare_range(&self, other: &dyn IRange, strict: bool, o_use_rows: Option<vec::Vec<u32>>, o_use_cols: Option<vec::Vec<u32>>) -> bool {
-        todo!()
+        false
     }
 
     fn compare_cell(&self, other: &dyn IRange, col_a: u32, row_a: u32, col_b: u32, row_b: u32, strict: bool) -> bool {
-        todo!()
+        false
     }
 }
 
@@ -368,13 +368,13 @@ impl<'a> IRangeMut for RangeMultilineMut<'a> {
 
 impl<'a> PartialEq for RangeMultiline<'a> {
     fn eq(&self, _other: &Self) -> bool {
-	    todo!()
+	    false
     }
 }
 
 impl<'a> PartialEq for RangeMultilineMut<'a> {
     fn eq(&self, _other: &Self) -> bool {
-	    todo!()
+	    false
     }
 }
 
