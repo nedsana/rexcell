@@ -269,9 +269,9 @@ where
 
                 if allowed_cols.len() > 0 && !allowed_cols.contains(&col_num_a) && !allowed_cols.contains(&col_num_b) 
                 {
-                    println!("[{}::compare_range] {}{} or {}{} is not in the allowed column list: {}!", label,
-                        range_ops::index_to_column(col_num_a), row_num_a,
-                        range_ops::index_to_column(col_num_b), row_num_b, _str_allowed_cols);
+                    // println!("[{}::compare_range] {}{} or {}{} is not in the allowed column list: {}!", label,
+                    //     range_ops::index_to_column(col_num_a), row_num_a,
+                    //     range_ops::index_to_column(col_num_b), row_num_b, _str_allowed_cols);
                     col_match += 1;
                     continue;
                 }

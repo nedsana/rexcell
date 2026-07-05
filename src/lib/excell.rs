@@ -1,9 +1,7 @@
 // use clap::error;
 use umya_spreadsheet::*;
 use std::collections::HashMap;
-use crate::range_types::IRange;
-use crate::range_types::IRangeMut;
-use crate::lib_impl::range_ops::LendingIterator;
+use crate::range_types::*;
 
 use super::common;
 use super::range_ops;
@@ -227,26 +225,42 @@ pub fn get_worksheet_names(path: &std::path::Path) -> Result<String, String> {
 }
 
 /**
- * Copy all rows, which don't contain merged cells, from sheet_in to sheet_out. 
- * Further filtering can be provided via the filter_* arguments.
+ * Find a matching range in the sheet.
+ * Returns Some(range) when a matching range is found, otherwise None.
+ */
+fn find_range_in_sheet<'a>(range: &'a dyn IRange, sheet: &'a Worksheet, cmp_cols: &'a Vec<u32>) -> Option<RangeType<'a>>
+{
+    let max_row = MAX_ROW; //sheet.get_highest_row();
+    let max_col = MAX_COL; //sheet.get_highest_column();
+    let iter_sheet = range_ops::IterRow::new(sheet, max_row, max_col);
+    for it in iter_sheet 
+    {
+        if it.compare_range(range, false, None, Some(cmp_cols.clone()))
+        {
+            return Some(it);
+        }
+    }
+    None
+}
+
+/**
+ * Filter the table. Collect only unique items found in col_filter and accumulate the content from col_accum.
  * sheet_in: source sheet, from which we read
  * sheet_out: destination sheet, to which we write
- * filter_row: filter lambda, applied per row
- * filter_col: filter lambda, applied per column
- * filter_cell: filter lambda, applied per cell
+ * col_filter: the filtering is based on the content of this column
+ * col_accum: when, we find item in col_filter, which is aleady present in sheet_out, we accumulate the data from col_accum
  */
-pub fn create_unique_entries_sheet<FRow, FCol, FCell>(
+pub fn filter_sheet_by_col_and_accum(
     sheet_in:  &Worksheet, 
     sheet_out: &mut Worksheet,
-    filter_row:  Option<FRow>,
-    _filter_col:  Option<FCol>,
-    _filter_cell: Option<FCell>,
+    col_filter: &String,
+    cols_accum: &String
 ) -> bool 
-where FRow:  Fn(&dyn IRange, &mut Worksheet) -> bool,
-      FCol:  Fn(&dyn IRange, &mut Worksheet) -> bool, //is this needed
-      FCell: Fn(&dyn IRange, &mut Worksheet) -> bool
 {
     let mut res = false;
+
+    let cmp_cols: Vec<u32> = col_filter.split(',').map(|s| range_ops::column_to_index(s.trim())).collect();
+    let acc_cols: Vec<u32> = cols_accum.split(',').map(|s| range_ops::column_to_index(s.trim())).collect();
 
     let max_row = MAX_ROW; //sheet_in.get_highest_row();
     let max_col = MAX_COL; //sheet_in.get_highest_column();
@@ -258,27 +272,23 @@ where FRow:  Fn(&dyn IRange, &mut Worksheet) -> bool,
     for it in iter_sheet 
     {
         let it_range = it.get_range();
-        let passes_filter_row = match &filter_row 
-        {
-            Some(f) => f(&it, sheet_out),
-            None => true,
-        };
-/*
-        // To do ... how to use these filters? Do we need them at all? Maybe we can just apply them to the whole row/col/cell and not to the range, which is defined by the iterator?
-        // let passes_filter_col = match &filter_col 
-        // {
-        //     Some(f) => f(sheet_in, &it_range, sheet_out),
-        //     None => true,
-        // };
 
-        // let passes_filter_cell = match &filter_cell 
-        // {
-        //     Some(f) => f(sheet_in, &it_range, sheet_out),
-        //     None => true,
-        // };
-*/
-        if passes_filter_row
-        {
+        if let Some(found_range) = find_range_in_sheet(&it, sheet_out, &cmp_cols)
+        { //accumulating
+            let found_range_clone = found_range.get_range().clone();
+            drop(found_range);
+
+            println!("[create_unique_entries_sheet] Range {} already exists in sheet {}! Accumulating data!", range_ops::range_to_string(it.get_range()), sheet_out.get_name());
+
+            if range_ops::accumulate_ranges(sheet_in, it_range, sheet_out, &found_range_clone, None, Some(acc_cols.clone()))
+            {
+                println!("[create_unique_entries_sheet] Accumulated in-range '{}' to out-range '{}'!", range_ops::range_to_string(it_range), range_ops::range_to_string(&found_range_clone));
+            }
+        }
+        else
+        { //appending
+            println!("[create_unique_entries_sheet] Range {} does not exist in sheet {}! Appending data!", range_ops::range_to_string(it.get_range()), sheet_out.get_name());
+
             let current_old_row = current_new_row;
 
             let rbeg = *it_range.get_coordinate_start_row().unwrap().get_num();
@@ -376,105 +386,10 @@ where FRow:  Fn(&dyn IRange, &mut Worksheet) -> bool,
                 sheet_out.add_merge_cells(mrange.get_range());
             } 
         }
-        else 
-        {
-            res = false;
-        }
-
         println!("[create_unique_entries_sheet]========================================================");
     }
     return res;
 }
-
-/**
- * Filter the table. Collect only unique items found in col_filter and accumulate the content from col_accum.
- * sheet_in: source sheet, from which we read
- * sheet_out: destination sheet, to which we write
- * col_filter: the filtering is based on the content of this column
- * col_accum: when, we find item in col_filter, which is aleady present in sheet_out, we accumulate the data from col_accum
- */
-pub fn filter_sheet_by_col_and_accum(
-    sheet_in:  &Worksheet, 
-    sheet_out: &mut Worksheet,
-    col_filter: &String,
-    cols_accum: &String
-) -> bool
-{
-    let tgt_col = range_ops::column_to_index(col_filter);
-
-    create_unique_entries_sheet(sheet_in, sheet_out, Some(|range_src: &dyn IRange, sheet_dst: &mut Worksheet| 
-        {
-            let range_in = range_src.get_range();
-
-            println!("[create_unique_entries_sheet] Check if range '{}' is present in the output sheet!", range_ops::range_to_string(range_src.get_range()));
-
-            if !range_ops::is_col_in_range(tgt_col, &range_src.get_range())
-            {
-                println!("[create_unique_entries_sheet] Input Range [{}] does not contain target column {}!", range_ops::range_to_string(range_src.get_range()), col_filter);
-                return false;
-            }
-
-            let mut appended = true;
-            let max_row = MAX_ROW; //sheet_in.get_highest_row();
-            let max_col = MAX_COL; //sheet_in.get_highest_column();
-
-            let cmp_cols: Vec<u32> = col_filter.split(',').map(|s| range_ops::column_to_index(s.trim())).collect();
-            let acc_cols: Vec<u32> = cols_accum.split(',').map(|s| range_ops::column_to_index(s.trim())).collect();
-
-            let mut iter_sheet_dst = range_ops::IterRowMut::new(sheet_dst, max_row, max_col);
-
-            while let Some(mut it) = iter_sheet_dst.next() 
-            {
-                let it_range_out = it.get_range().clone();
-                let it_sheet_out = it.get_sheet_mut();
-                
-                if range_ops::is_col_in_range(tgt_col, &it_range_out)
-                {
-                    // range_ops::print_range_cells_1(it.get_sheet(), it.get_range(), Some(12));
-/*
-                    let allowed_cols: Vec<u32> = col_filter.split(',').map(|s| range_ops::column_to_index(s.trim())).collect();
-
-                    if range_ops::comapre_ranges(sheet_in, range_in, it_sheet_out, &it_range_out, false, None, Some(allowed_cols))
-                    {
-                        let allowed_cols: Vec<u32> = cols_accum.split(',').map(|s| range_ops::column_to_index(s.trim())).collect();
-
-                        if range_ops::accumulate_ranges(sheet_in, range_in, it_sheet_out, &it_range_out, None, Some(allowed_cols))
-                        {
-                            appended = false;
-                            println!("[create_unique_entries_sheet] Accumulated in-range '{}' to out-range '{}'!", range_ops::range_to_string(range_in), range_ops::range_to_string(&it_range_out));
-                        }
-                    }
-                    else
-                    {
-                        println!("[create_unique_entries_sheet] in-range [{}] differs from out-range [{}]!", range_ops::range_to_string(range_in), range_ops::range_to_string(&it_range_out));
-                    }
-*/
-                    if it.compare_range(range_src, false, None, Some(cmp_cols.clone()))
-                    {
-                    }
-                }
-                else
-                {
-                    println!("[create_unique_entries_sheet] out-range [{}] does not contain target column {}!", range_ops::range_to_string(it.get_range()), col_filter);
-                }
-            }
-
-            if appended
-            {
-                println!("[create_unique_entries_sheet] Appending in-range '{}' to the output sheet!", range_ops::range_to_string(range_src.get_range()));
-            }
-            else
-            {
-                println!("[create_unique_entries_sheet] in-range [{}] is already present in the output sheet!", range_ops::range_to_string(range_src.get_range()));
-            }
-
-            appended
-        }),
-        None::<fn(&dyn IRange, &mut Worksheet) -> bool>,
-        None::<fn(&dyn IRange, &mut Worksheet) -> bool>,
-    )
-}
-
 
 pub fn execute(cfg: &common::Config) -> Result<(Vec<String>, Vec<String>), String> 
 {
