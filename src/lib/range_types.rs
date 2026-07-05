@@ -2,16 +2,6 @@ use umya_spreadsheet::{Range, Worksheet};
 use super::range_ops;
 use std::vec;
 
-fn range_bounds(range: &Range) -> (u32, u32, u32, u32, u32, u32) {
-    let brow = *range.get_coordinate_start_row().unwrap().get_num();
-    let erow = *range.get_coordinate_end_row().unwrap().get_num();
-    let bcol = *range.get_coordinate_start_col().unwrap().get_num();
-    let ecol = *range.get_coordinate_end_col().unwrap().get_num();
-    let rows = erow - brow;
-    let cols = ecol - bcol;
-    (brow, erow, bcol, ecol, rows, cols)
-}
-
 fn compare_cell_impl<T>(
     this: &T,           col_this: u32,  row_this: u32,
     other: &dyn IRange, col_other: u32, row_other: u32,
@@ -73,8 +63,8 @@ where
     let range_a = this.get_range();
     let range_b = other.get_range();
 
-    let (brow_a, erow_a, bcol_a, _ecol_a, rows_a, cols_a) = range_bounds(range_a);
-    let (brow_b, erow_b, bcol_b, _ecol_b, rows_b, cols_b) = range_bounds(range_b);
+    let (brow_a, erow_a, bcol_a, _ecol_a, rows_a, cols_a) = range_ops::range_bounds(range_a);
+    let (brow_b, erow_b, bcol_b, _ecol_b, rows_b, cols_b) = range_ops::range_bounds(range_b);
 
     if strict && (rows_a != rows_b || cols_a != cols_b) {
         println!("[{}::compare_range] Size missmatch! Range A:[{}, len:{}] != Range B:[{}, len:{}]", 
@@ -144,8 +134,8 @@ where
     let range_a = this.get_range();
     let range_b = other.get_range();
 
-    let (brow_a, erow_a, bcol_a, _ecol_a, rows_a, cols_a) = range_bounds(range_a);
-    let (brow_b, erow_b, bcol_b, _ecol_b, rows_b, cols_b) = range_bounds(range_b);
+    let (brow_a, erow_a, bcol_a, _ecol_a, rows_a, cols_a) = range_ops::range_bounds(range_a);
+    let (brow_b, erow_b, bcol_b, _ecol_b, rows_b, cols_b) = range_ops::range_bounds(range_b);
 
     if strict && (rows_a != rows_b || cols_a != cols_b) {
         println!("[{}::compare_range] Size missmatch! Range A:[{}, len:{}] != Range B:[{}, len:{}]", 
@@ -215,9 +205,9 @@ where
     let range_this = this.get_range();
     let range_other = other.get_range();
 
-    let (brow_this, erow_this, bcol_this, _ecol_this, rows_this, cols_this) = range_bounds(range_this);
+    let (brow_this, erow_this, bcol_this, _ecol_this, rows_this, cols_this) = range_ops::range_bounds(range_this);
 
-    let (brow_other, erow_other, bcol_other, _ecol_other, rows_other, cols_other) = range_bounds(range_other);
+    let (brow_other, erow_other, bcol_other, _ecol_other, rows_other, cols_other) = range_ops::range_bounds(range_other);
 
     let rows_cnt_this = rows_this + 1;
     let cols_cnt_this = cols_this + 1;

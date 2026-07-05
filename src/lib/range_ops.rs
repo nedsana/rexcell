@@ -71,19 +71,22 @@ pub fn is_col_in_range(col: u32, range: &Range) -> bool
     false
 }
 
+pub fn range_bounds(range: &Range) -> (u32, u32, u32, u32, u32, u32) {
+    let brow = *range.get_coordinate_start_row().unwrap().get_num();
+    let erow = *range.get_coordinate_end_row().unwrap().get_num();
+    let bcol = *range.get_coordinate_start_col().unwrap().get_num();
+    let ecol = *range.get_coordinate_end_col().unwrap().get_num();
+    let rows = erow - brow;
+    let cols = ecol - bcol;
+    (brow, erow, bcol, ecol, rows, cols)
+}
+
 pub fn is_range_in_range(sub_range: &Range, main_range: &Range) -> bool 
 {
     // println!("sub-range:{} range:{}", range_to_string(sub_range), range_to_string(main_range));
 
-    let m_start_row = *main_range.get_coordinate_start_row().unwrap().get_num();
-    let m_end_row = *main_range.get_coordinate_end_row().unwrap().get_num();
-    let m_start_col = *main_range.get_coordinate_start_col().unwrap().get_num();
-    let m_end_col = *main_range.get_coordinate_end_col().unwrap().get_num();
-
-    let s_start_row = *sub_range.get_coordinate_start_row().unwrap().get_num();
-    let s_end_row = *sub_range.get_coordinate_end_row().unwrap().get_num();
-    let s_start_col = *sub_range.get_coordinate_start_col().unwrap().get_num();
-    let s_end_col = *sub_range.get_coordinate_end_col().unwrap().get_num();
+    let (m_start_row, m_end_row, m_start_col, m_end_col, _, _) = range_bounds(main_range);
+    let (s_start_row, s_end_row, s_start_col, s_end_col, _, _) = range_bounds(sub_range);
 
     s_start_row >= m_start_row && s_end_row <= m_end_row &&
     s_start_col >= m_start_col && s_end_col <= m_end_col
@@ -91,15 +94,8 @@ pub fn is_range_in_range(sub_range: &Range, main_range: &Range) -> bool
 
 pub fn do_ranges_overlap(range_a: &Range, range_b: &Range) -> bool 
 {
-    let a_start_row = *range_a.get_coordinate_start_row().unwrap().get_num();
-    let a_end_row = *range_a.get_coordinate_end_row().unwrap().get_num();
-    let a_start_col = *range_a.get_coordinate_start_col().unwrap().get_num();
-    let a_end_col = *range_a.get_coordinate_end_col().unwrap().get_num();
-
-    let b_start_row = *range_b.get_coordinate_start_row().unwrap().get_num();
-    let b_end_row = *range_b.get_coordinate_end_row().unwrap().get_num();
-    let b_start_col = *range_b.get_coordinate_start_col().unwrap().get_num();
-    let b_end_col = *range_b.get_coordinate_end_col().unwrap().get_num();
+    let (a_start_row, a_end_row, a_start_col, a_end_col, _, _) = range_bounds(range_a);
+    let (b_start_row, b_end_row, b_start_col, b_end_col, _, _) = range_bounds(range_b);
 
     let row_overlap = a_start_row <= b_end_row && a_end_row >= b_start_row;
     let col_overlap = a_start_col <= b_end_col && a_end_col >= b_start_col;
@@ -163,10 +159,7 @@ pub fn limit_str(s: &str, max_chars: usize) -> String
 
 pub fn range_to_string(range: &Range) -> String
 {
-    let rbeg = *range.get_coordinate_start_row().unwrap().get_num();
-    let rend = *range.get_coordinate_end_row().unwrap().get_num();
-    let cbeg = *range.get_coordinate_start_col().unwrap().get_num();
-    let cend = *range.get_coordinate_end_col().unwrap().get_num();
+    let (rbeg, rend, cbeg, cend, _, _) = range_bounds(range);
 
     format!("{}:{}", umya_spreadsheet::helper::coordinate::coordinate_from_index(&cbeg, &rbeg), // Returns "A1"
                      umya_spreadsheet::helper::coordinate::coordinate_from_index(&cend, &rend)  // Returns "C10"
@@ -175,10 +168,7 @@ pub fn range_to_string(range: &Range) -> String
 
 pub fn print_range_cells_0(sheet: &Worksheet, range: &Range) 
 {
-    let rbeg = *range.get_coordinate_start_row().unwrap().get_num();
-    let rend = *range.get_coordinate_end_row().unwrap().get_num();
-    let cbeg = *range.get_coordinate_start_col().unwrap().get_num();
-    let cend = *range.get_coordinate_end_col().unwrap().get_num();
+    let (rbeg, rend, cbeg, cend, _, _) = range_bounds(range);
 
     println!("Sheet {} range ({}:{}) ---", sheet.get_name(), 
         umya_spreadsheet::helper::coordinate::coordinate_from_index(&cbeg, &rbeg), // Returns "A1"
@@ -198,10 +188,7 @@ pub fn print_range_cells_0(sheet: &Worksheet, range: &Range)
 
 pub fn print_range_cells_1(sheet: &Worksheet, range: &Range, truncate_len: Option<u32>) 
 {
-    let rbeg = *range.get_coordinate_start_row().unwrap().get_num();
-    let rend = *range.get_coordinate_end_row().unwrap().get_num();
-    let cbeg = *range.get_coordinate_start_col().unwrap().get_num();
-    let cend = *range.get_coordinate_end_col().unwrap().get_num();
+    let (rbeg, rend, cbeg, cend, _, _) = range_bounds(range);
 
     // choose separator: when truncate_len is provided, use that many spaces,
     // otherwise keep the original tab-based separator
@@ -288,22 +275,10 @@ pub fn comapre_ranges(
 ) -> bool 
 {
     //Get the range numeric boundaries for range_a
-    let brow_a = *range_a.get_coordinate_start_row().unwrap().get_num();
-    let erow_a = *range_a.get_coordinate_end_row().unwrap().get_num();
-    let bcol_a = *range_a.get_coordinate_start_col().unwrap().get_num();
-    let ecol_a = *range_a.get_coordinate_end_col().unwrap().get_num();
+    let (brow_a, erow_a, bcol_a, _, rows_a, cols_a) = range_bounds(range_a);
 
     //Get the range numeric boundaries for range_b
-    let brow_b = *range_b.get_coordinate_start_row().unwrap().get_num();
-    let erow_b = *range_b.get_coordinate_end_row().unwrap().get_num();
-    let bcol_b = *range_b.get_coordinate_start_col().unwrap().get_num();
-    let ecol_b = *range_b.get_coordinate_end_col().unwrap().get_num();
-
-    //Get the legths of the ranges (number of rows and columns)
-    let rows_a = erow_a - brow_a;
-    let cols_a = ecol_a - bcol_a;
-    let rows_b = erow_b - brow_b;
-    let cols_b = ecol_b - bcol_b;
+    let (brow_b, erow_b, bcol_b, _, rows_b, cols_b) = range_bounds(range_b);
 
     //If the legths are different, the ranges cannot be the same
     if strict && (rows_a != rows_b || cols_a != cols_b) 
@@ -386,22 +361,10 @@ pub fn accumulate_ranges(
     let mut accumulated: bool = false;
 
     //Get the range numeric boundaries for range_a
-    let brow_a = *range_a.get_coordinate_start_row().unwrap().get_num();
-    let erow_a = *range_a.get_coordinate_end_row().unwrap().get_num();
-    let bcol_a = *range_a.get_coordinate_start_col().unwrap().get_num();
-    let ecol_a = *range_a.get_coordinate_end_col().unwrap().get_num();
+    let (brow_a, _, bcol_a, _, rows_a, cols_a) = range_bounds(range_a);
 
     //Get the range numeric boundaries for range_b
-    let brow_b = *range_b.get_coordinate_start_row().unwrap().get_num();
-    let erow_b = *range_b.get_coordinate_end_row().unwrap().get_num();
-    let bcol_b = *range_b.get_coordinate_start_col().unwrap().get_num();
-    let ecol_b = *range_b.get_coordinate_end_col().unwrap().get_num();
-
-    //Get the legths of the ranges (number of rows and columns)
-    let rows_a = erow_a - brow_a;
-    let cols_a = ecol_a - bcol_a;
-    let rows_b = erow_b - brow_b;
-    let cols_b = ecol_b - bcol_b;
+    let (brow_b, _, bcol_b, _, rows_b, cols_b) = range_bounds(range_b);
 
     //If the legths are different, the ranges cannot proceed with accumulation
     if rows_a != rows_b || cols_a != cols_b 
@@ -478,24 +441,19 @@ fn iter_row_next_impl<'a>(
 
         if let Some(merged_cells) = sheet_merged_cells.iter().find(|range| { is_row_in_range(*current_row, range) }) 
         {
-            let cells_range = make_range_from_indexes(1, *current_row, 1 + max_col, 
-                            *merged_cells.get_coordinate_end_row().unwrap().get_num());
+            let (_, merged_end_row, _, _, _, _) = range_bounds(merged_cells);
+            let cells_range = make_range_from_indexes(1, *current_row, 1 + max_col, merged_end_row);
 
             let mut loop_on = true;
             while loop_on //do I really need to loop here???
             {
                 //handle rows with merged cells - return all rows which are part of the merged cell
-                let brow = cells_range.get_coordinate_start_row().unwrap().get_num();
-                let erow = cells_range.get_coordinate_end_row().unwrap().get_num();
-                let range_rows = erow - brow;
-
-                let bcol = cells_range.get_coordinate_start_col().unwrap().get_num();
-                let ecol = cells_range.get_coordinate_end_col().unwrap().get_num();
+                let (brow, erow, bcol, ecol, range_rows, _) = range_bounds(&cells_range);
 
                 println!("[iter_row_next_impl] Found merged cells range '{}'", range_to_string(&merged_cells));
-                println!("[iter_row_next_impl] Found merged cells range '{}' for row {}! bcol:{} ecol:{} brow:{} erow:{}", range_to_string(&cells_range), *current_row, *bcol, *ecol, *brow, *erow);
+                println!("[iter_row_next_impl] Found merged cells range '{}' for row {}! bcol:{} ecol:{} brow:{} erow:{}", range_to_string(&cells_range), *current_row, bcol, ecol, brow, erow);
 
-                if *bcol == *ecol && *bcol == 1
+                if bcol == ecol && bcol == 1
                 {
                     loop_on = false;
                     println!("[iter_row_next_impl] Range [{}]: from merged cells!", range_to_string(&cells_range));
@@ -515,7 +473,10 @@ fn iter_row_next_impl<'a>(
             if first_cell_data_type == "n"
             {
                 let mut cells_range = make_range_from_indexes(1, *current_row, 1 + max_col, *current_row);
-                let mut range_rows    = cells_range.get_coordinate_end_row().unwrap().get_num() - cells_range.get_coordinate_start_row().unwrap().get_num();
+                let mut range_rows    = {
+                    let (_, _, _, _, rows, _) = range_bounds(&cells_range);
+                    rows
+                };
                 let mut multiline = false;
             
                 //check if the next row starts with numeric. I yes, process the current row. If not make range of all rows starting with '-'
@@ -534,7 +495,8 @@ fn iter_row_next_impl<'a>(
                         else if next_cell_data_type == "s" && _next_cell_value == "-"
                         {
                             cells_range = make_range_from_indexes(1, *current_row, 1 + max_col, nrow);
-                            range_rows  = cells_range.get_coordinate_end_row().unwrap().get_num() - cells_range.get_coordinate_start_row().unwrap().get_num();
+                            let (_, _, _, _, new_range_rows, _) = range_bounds(&cells_range);
+                            range_rows  = new_range_rows;
                             multiline = true;
                         }
                     }
@@ -585,24 +547,19 @@ fn iter_row_next_impl_mut<'a>(
 
         if let Some(merged_cells) = sheet_merged_cells.iter().find(|range| { is_row_in_range(*current_row, range) }) 
         {
-            let cells_range = make_range_from_indexes(1, *current_row, 1 + max_col, 
-                            *merged_cells.get_coordinate_end_row().unwrap().get_num());
+            let (_, merged_end_row, _, _, _, _) = range_bounds(merged_cells);
+            let cells_range = make_range_from_indexes(1, *current_row, 1 + max_col, merged_end_row);
 
             let mut loop_on = true;
             while loop_on //do I really need to loop here???
             {
                 //handle rows with merged cells - return all rows which are part of the merged cell
-                let brow = cells_range.get_coordinate_start_row().unwrap().get_num();
-                let erow = cells_range.get_coordinate_end_row().unwrap().get_num();
-                let range_rows = erow - brow;
-
-                let bcol = cells_range.get_coordinate_start_col().unwrap().get_num();
-                let ecol = cells_range.get_coordinate_end_col().unwrap().get_num();
+                let (brow, erow, bcol, ecol, range_rows, _) = range_bounds(&cells_range);
 
                 println!("[iter_row_next_impl] Found merged cells range '{}'", range_to_string(&merged_cells));
-                println!("[iter_row_next_impl] Found merged cells range '{}' for row {}! bcol:{} ecol:{} brow:{} erow:{}", range_to_string(&cells_range), *current_row, *bcol, *ecol, *brow, *erow);
+                println!("[iter_row_next_impl] Found merged cells range '{}' for row {}! bcol:{} ecol:{} brow:{} erow:{}", range_to_string(&cells_range), *current_row, bcol, ecol, brow, erow);
 
-                if *bcol == *ecol && *bcol == 1
+                if bcol == ecol && bcol == 1
                 {
                     loop_on = false;
                     println!("[iter_row_next_impl] Range [{}]: from merged cells!", range_to_string(&cells_range));
@@ -622,7 +579,10 @@ fn iter_row_next_impl_mut<'a>(
             if first_cell_data_type == "n"
             {
                 let mut cells_range = make_range_from_indexes(1, *current_row, 1 + max_col, *current_row);
-                let mut range_rows    = cells_range.get_coordinate_end_row().unwrap().get_num() - cells_range.get_coordinate_start_row().unwrap().get_num();
+                let mut range_rows    = {
+                    let (_, _, _, _, rows, _) = range_bounds(&cells_range);
+                    rows
+                };
                 let mut multiline = false;
             
                 //check if the next row starts with numeric. I yes, process the current row. If not make range of all rows starting with '-'
@@ -634,14 +594,15 @@ fn iter_row_next_impl_mut<'a>(
                         let _next_cell_value = next_cell.get_value().clone();
                         let next_cell_data_type = next_cell.get_data_type().to_string();
 
-                        if next_cell_data_type == "n"
+                                if next_cell_data_type == "n"
                         {
                             break;
                         }
                         else if next_cell_data_type == "s" && _next_cell_value == "-"
                         {
                             cells_range = make_range_from_indexes(1, *current_row, 1 + max_col, nrow);
-                            range_rows  = cells_range.get_coordinate_end_row().unwrap().get_num() - cells_range.get_coordinate_start_row().unwrap().get_num();
+                            let (_, _, _, _, new_range_rows, _) = range_bounds(&cells_range);
+                            range_rows  = new_range_rows;
                             multiline = true;
                         }
                     }
