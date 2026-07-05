@@ -2,6 +2,161 @@ use umya_spreadsheet::{Range, Worksheet};
 use super::range_ops;
 use std::vec;
 
+fn range_otherounds(range: &Range) -> (u32, u32, u32, u32, u32, u32) {
+    let brow = *range.get_coordinate_start_row().unwrap().get_num();
+    let erow = *range.get_coordinate_end_row().unwrap().get_num();
+    let bcol = *range.get_coordinate_start_col().unwrap().get_num();
+    let ecol = *range.get_coordinate_end_col().unwrap().get_num();
+    let rows = erow - brow;
+    let cols = ecol - bcol;
+    (brow, erow, bcol, ecol, rows, cols)
+}
+
+fn compare_cell_impl<T>(
+    this: &T,           col_this: u32,  row_this: u32,
+    other: &dyn IRange, col_other: u32, row_other: u32,
+    strict: bool,   label: &str,
+) -> bool
+where
+    T: IRange,
+{
+    let sheet_this = this.get_sheet();
+    let sheet_other = other.get_sheet();
+
+    let mut r = false;
+    let cell_a_coord = (col_this, row_this);
+    let cell_b_coord = (col_other, row_other);
+    let val_a = sheet_this.get_cell_value(cell_a_coord).get_value();
+    let val_b = sheet_other.get_cell_value(cell_b_coord).get_value();
+
+    let cell_a_obj = sheet_this.get_cell(cell_a_coord);
+    let cell_b_obj = sheet_other.get_cell(cell_b_coord);
+    let rich_a = cell_a_obj.and_then(|c| c.get_cell_value().get_raw_value().get_rich_text());
+    let rich_b = cell_b_obj.and_then(|c| c.get_cell_value().get_raw_value().get_rich_text());
+
+    if rich_a != rich_b && strict 
+    {
+        println!("[{}::compare_cell] Rich text mismatch: {}:{} and {}:{}", label, 
+            range_ops::coords_to_str(col_this, row_this), val_a,
+            range_ops::coords_to_str(col_other, row_other), val_b);
+        return r;
+    }
+
+    if range_ops::cmp_strs(&val_a, &val_b) 
+    {
+        println!("[{}::compare_cell] {}:{} equals {}:{}", label,
+            range_ops::coords_to_str(col_this, row_this), val_a,
+            range_ops::coords_to_str(col_other, row_other), val_b);
+        r = true;
+    } 
+    else 
+    {
+        println!("[{}::compare_cell] {}:{} differs {}:{}", label,
+            range_ops::coords_to_str(col_this, row_this), val_a,
+            range_ops::coords_to_str(col_other, row_other), val_b);
+        r = false;
+    }
+    r
+}
+
+fn compare_multiline_range_impl<T>(
+    this: &T,
+    other: &dyn IRange,
+    strict: bool,
+    o_use_rows: Option<vec::Vec<u32>>,
+    o_use_cols: Option<vec::Vec<u32>>,
+    label: &str,
+) -> bool
+where
+    T: IRange,
+{
+    let range_this = this.get_range();
+    let range_other = other.get_range();
+
+    let (brow_this, erow_this, bcol_this, ecol_this, rows_this, cols_this) = range_otherounds(range_this);
+
+    let (brow_other, erow_other, bcol_other, ecol_other, rows_other, cols_other) = range_otherounds(range_other);
+
+    let rows_cnt_this = rows_this + 1;
+    let cols_cnt_this = cols_this + 1;
+    let rows_cnt_other = rows_other + 1;
+    let cols_cnt_other = cols_other + 1;
+
+    println!( "[{}::compare_range] Range A:[{} Rows:{} Cols:{}] vs Range B:[{} Rows:{} Cols:{}]", label,
+        range_ops::range_to_string(range_this), rows_cnt_this, cols_cnt_this,
+        range_ops::range_to_string(range_other), rows_cnt_other, cols_cnt_other);
+
+    if strict && (rows_cnt_this != rows_cnt_other || cols_cnt_this != cols_cnt_other) 
+    {
+        println!("[{}::compare_range] Size missmatch! Range A:[{}, len:{}] != Range B:[{}, len:{}]", label,
+            range_ops::range_to_string(range_this), rows_cnt_this,
+            range_ops::range_to_string(range_other), rows_cnt_other);
+        return false;
+    }
+
+    let cols_cnt_this_offsets: Vec<u32> = (0..=(cols_cnt_this - 1)).collect();
+    let cols_cnt_other_offsets: Vec<u32> = (0..=(cols_cnt_other - 1)).collect();
+    let allowed_rows: Vec<u32> = o_use_rows.unwrap_or_default();
+    let allowed_cols: Vec<u32> = o_use_cols.unwrap_or_default();
+
+    let _str_allowed_rows = allowed_rows.iter().map(|r| range_ops::index_to_column(*r)).collect::<Vec<String>>().join(",");
+    let _str_allowed_cols = allowed_cols.iter().map(|c| range_ops::index_to_column(*c)).collect::<Vec<String>>().join(",");
+
+    let mut row_match = 0;
+    for row_num_a in brow_this..=erow_this 
+    {
+        if allowed_rows.len() > 0 && !allowed_rows.contains(&row_num_a) 
+        {
+            println!("[{}::compare_range] A{} is not in the allowed row list: {}!", label, row_num_a, _str_allowed_rows);
+            continue;
+        }
+
+        for row_num_b in brow_other..=erow_other 
+        {
+            if allowed_rows.len() > 0 && !allowed_rows.contains(&row_num_b) 
+            {
+                println!("[{}::compare_range] B{} is not in the allowed row list: {}!", label, row_num_b, _str_allowed_rows);
+                continue;
+            }
+
+            let mut col_match = 0;
+            for (col_a_offset, col_b_offset) in cols_cnt_this_offsets.iter().zip(cols_cnt_other_offsets.iter()) 
+            {
+                let col_num_a = bcol_this + col_a_offset;
+                let col_num_b = bcol_other + col_b_offset;
+
+                if allowed_cols.len() > 0 && !allowed_cols.contains(&col_num_a) && !allowed_cols.contains(&col_num_b) 
+                {
+                    println!("[{}::compare_range] {}{} or {}{} is not in the allowed column list: {}!", label,
+                        range_ops::index_to_column(col_num_a), row_num_a,
+                        range_ops::index_to_column(col_num_b), row_num_b, _str_allowed_cols);
+                    col_match += 1;
+                    continue;
+                }
+
+                if this.compare_cell(col_num_a, row_num_a, other, col_num_b, row_num_b, strict) 
+                {
+                    col_match += 1;
+                }
+            }
+
+            println!("[{}::compare_range] Matching columns: {}/{} ! Returning {}", label, col_match, cols_cnt_this, col_match == cols_cnt_this);
+
+            if col_match == cols_cnt_this 
+            {
+                row_match += 1;
+            }
+        }
+    }
+
+    println!("[{}::compare_range] Matching rows: {}/{} ! Returning {}", label, row_match, rows_cnt_this, row_match == rows_cnt_this);
+
+    if !strict && row_match != rows_cnt_this 
+    {
+        return false;
+    }
+    true
+}
 // ==========================================
 // TRAIT
 // ==========================================
@@ -11,7 +166,7 @@ pub trait IRange {
     fn get_sheet(&self) -> &Worksheet;
     fn contains(&self, other: &Range) -> bool;
     fn compare_range(&self, other: &dyn IRange, strict: bool, o_use_rows: Option<vec::Vec<u32>>, o_use_cols: Option<vec::Vec<u32>>) -> bool;
-    fn compare_cell(&self, other: &dyn IRange, col_a: u32, row_a: u32, col_b: u32, row_b: u32, strict: bool) -> bool;
+    fn compare_cell(&self, col_a: u32, row_a: u32, other: &dyn IRange, col_b: u32, row_b: u32, strict: bool) -> bool;
 }
 
 pub trait IRangeMut: IRange {
@@ -73,32 +228,20 @@ impl<'a> IRange for RangeBasic<'a> {
 
     fn compare_range(&self, other: &dyn IRange, strict: bool, o_use_rows: Option<vec::Vec<u32>>, o_use_cols: Option<vec::Vec<u32>>) -> bool 
     {
-        let range_a = self.get_range();
-        let range_b = other.get_range();
+        let range_this = self.get_range();
+        let range_other = other.get_range();
 
-        //Get the range numeric boundaries for range_a
-        let brow_a = *range_a.get_coordinate_start_row().unwrap().get_num();
-        let erow_a = *range_a.get_coordinate_end_row().unwrap().get_num();
-        let bcol_a = *range_a.get_coordinate_start_col().unwrap().get_num();
-        let ecol_a = *range_a.get_coordinate_end_col().unwrap().get_num();
+        //Get the range numeric boundaries for range_this
+        let (brow_a, erow_a, bcol_a, ecol_a, rows_a, cols_a) = range_otherounds(range_this);
 
-        //Get the range numeric boundaries for range_b
-        let brow_b = *range_b.get_coordinate_start_row().unwrap().get_num();
-        let erow_b = *range_b.get_coordinate_end_row().unwrap().get_num();
-        let bcol_b = *range_b.get_coordinate_start_col().unwrap().get_num();
-        let ecol_b = *range_b.get_coordinate_end_col().unwrap().get_num();
-
-        //Get the legths of the ranges (number of rows and columns)
-        let rows_a = erow_a - brow_a;
-        let cols_a = ecol_a - bcol_a;
-        let rows_b = erow_b - brow_b;
-        let cols_b = ecol_b - bcol_b;
+        //Get the range numeric boundaries for range_other
+        let (brow_b, erow_b, bcol_b, ecol_b, rows_b, cols_b) = range_otherounds(range_other);
 
         //If the legths are different, the ranges cannot be the same
         if strict && (rows_a != rows_b || cols_a != cols_b) 
         {
             println!("[RangeBasic::compare_range] Size missmatch! Range A:[{}, len:{}] != Range B:[{}, len:{}]", 
-                    range_ops::range_to_string(range_a), rows_a, range_ops::range_to_string(range_b), rows_b);
+                    range_ops::range_to_string(range_this), rows_a, range_ops::range_to_string(range_other), rows_b);
             return false;
         }
 
@@ -142,7 +285,7 @@ impl<'a> IRange for RangeBasic<'a> {
                         continue; // skip this column if it's not in the allowed_cols list
                     }
 
-                    if self.compare_cell(other, col_num_a, row_num_a, col_num_b, row_num_b, strict)
+                    if self.compare_cell(col_num_a, row_num_a, other, col_num_b, row_num_b, strict)
                     {
                         col_match += 1;
                     }
@@ -162,42 +305,9 @@ impl<'a> IRange for RangeBasic<'a> {
         true
     }
 
-    fn compare_cell(&self, other: &dyn IRange, col_a: u32, row_a: u32, col_b: u32, row_b: u32, strict: bool) -> bool 
+    fn compare_cell(&self, col_this: u32, row_this: u32, other: &dyn IRange, col_other: u32, row_other: u32, strict: bool) -> bool 
     {
-        let sheet_a = self.get_sheet();
-        let sheet_b = other.get_sheet();
-
-        let mut r = false;
-        //Calculate the actual coordinates for sheet A and sheet B and get the text values of the two cells
-        let cell_a_coord = (col_a, row_a);
-        let cell_b_coord = (col_b, row_b);
-        let val_a = sheet_a.get_cell_value(cell_a_coord).get_value();
-        let val_b = sheet_b.get_cell_value(cell_b_coord).get_value();
-
-        //check if the cells have rich text and compare them if they do
-        let cell_a_obj = sheet_a.get_cell(cell_a_coord);
-        let cell_b_obj = sheet_b.get_cell(cell_b_coord);
-        let rich_a = cell_a_obj.and_then(|c| c.get_cell_value().get_raw_value().get_rich_text());
-        let rich_b = cell_b_obj.and_then(|c| c.get_cell_value().get_raw_value().get_rich_text());
-
-        if rich_a != rich_b && strict
-        {
-            println!("[RangeBasic::comapre_cell] Rich text mismatch: {}:{} and {}:{}", range_ops::coords_to_str(col_a, row_a), val_a, range_ops::coords_to_str(col_b, row_b), val_b);
-            return r;
-        }
-
-        // If there is any mismatch, immediately stop and return false
-        if range_ops::cmp_strs(&val_a, &val_b) 
-        {
-            println!("[RangeBasic::comapre_cell] {}:{} equals {}:{}", range_ops::coords_to_str(col_a, row_a), val_a, range_ops::coords_to_str(col_b, row_b), val_b);
-            r = true;
-        }
-        else 
-        {
-            println!("[RangeBasic::comapre_cell] {}:{} differs {}:{}", range_ops::coords_to_str(col_a, row_a), val_a, range_ops::coords_to_str(col_b, row_b), val_b); 
-            r = false;
-        }
-        r
+        compare_cell_impl(self, col_this, row_this, other, col_other, row_other, strict, "RangeBasic")
     }
 }
 
@@ -216,32 +326,20 @@ impl<'a> IRange for RangeBasicMut<'a> {
 
     fn compare_range(&self, other: &dyn IRange, strict: bool, o_use_rows: Option<vec::Vec<u32>>, o_use_cols: Option<vec::Vec<u32>>) -> bool 
     {
-        let range_a = self.get_range();
-        let range_b = other.get_range();
+        let range_this = self.get_range();
+        let range_other = other.get_range();
 
-        //Get the range numeric boundaries for range_a
-        let brow_a = *range_a.get_coordinate_start_row().unwrap().get_num();
-        let erow_a = *range_a.get_coordinate_end_row().unwrap().get_num();
-        let bcol_a = *range_a.get_coordinate_start_col().unwrap().get_num();
-        let ecol_a = *range_a.get_coordinate_end_col().unwrap().get_num();
+        //Get the range numeric boundaries for range_this
+        let (brow_a, erow_a, bcol_a, ecol_a, rows_a, cols_a) = range_otherounds(range_this);
 
-        //Get the range numeric boundaries for range_b
-        let brow_b = *range_b.get_coordinate_start_row().unwrap().get_num();
-        let erow_b = *range_b.get_coordinate_end_row().unwrap().get_num();
-        let bcol_b = *range_b.get_coordinate_start_col().unwrap().get_num();
-        let ecol_b = *range_b.get_coordinate_end_col().unwrap().get_num();
-
-        //Get the legths of the ranges (number of rows and columns)
-        let rows_a = erow_a - brow_a;
-        let cols_a = ecol_a - bcol_a;
-        let rows_b = erow_b - brow_b;
-        let cols_b = ecol_b - bcol_b;
+        //Get the range numeric boundaries for range_other
+        let (brow_b, erow_b, bcol_b, ecol_b, rows_b, cols_b) = range_otherounds(range_other);
 
         //If the legths are different, the ranges cannot be the same
         if strict && (rows_a != rows_b || cols_a != cols_b) 
         {
             println!("[RangeBasicMut::compare_range] Size missmatch! Range A:[{}, len:{}] != Range B:[{}, len:{}]", 
-                    range_ops::range_to_string(range_a), rows_a, range_ops::range_to_string(range_b), rows_b);
+                    range_ops::range_to_string(range_this), rows_a, range_ops::range_to_string(range_other), rows_b);
             return false;
         }
 
@@ -285,7 +383,7 @@ impl<'a> IRange for RangeBasicMut<'a> {
                         continue; // skip this column if it's not in the allowed_cols list
                     }
 
-                    if self.compare_cell(other, col_num_a, row_num_a, col_num_b, row_num_b, strict)
+                    if self.compare_cell(col_num_a, row_num_a, other, col_num_b, row_num_b, strict)
                     {
                         col_match += 1;
                     }
@@ -305,42 +403,9 @@ impl<'a> IRange for RangeBasicMut<'a> {
         true
     }
 
-    fn compare_cell(&self, other: &dyn IRange, col_a: u32, row_a: u32, col_b: u32, row_b: u32, strict: bool) -> bool 
+    fn compare_cell(&self, col_this: u32, row_this: u32, other: &dyn IRange, col_other: u32, row_other: u32, strict: bool) -> bool 
     {
-        let sheet_a = self.get_sheet();
-        let sheet_b = other.get_sheet();
-
-        let mut r = false;
-        //Calculate the actual coordinates for sheet A and sheet B and get the text values of the two cells
-        let cell_a_coord = (col_a, row_a);
-        let cell_b_coord = (col_b, row_b);
-        let val_a = sheet_a.get_cell_value(cell_a_coord).get_value();
-        let val_b = sheet_b.get_cell_value(cell_b_coord).get_value();
-
-        //check if the cells have rich text and compare them if they do
-        let cell_a_obj = sheet_a.get_cell(cell_a_coord);
-        let cell_b_obj = sheet_b.get_cell(cell_b_coord);
-        let rich_a = cell_a_obj.and_then(|c| c.get_cell_value().get_raw_value().get_rich_text());
-        let rich_b = cell_b_obj.and_then(|c| c.get_cell_value().get_raw_value().get_rich_text());
-
-        if rich_a != rich_b && strict
-        {
-            println!("[RangeBasicMut::comapre_cell] Rich text mismatch: {}:{} and {}:{}", range_ops::coords_to_str(col_a, row_a), val_a, range_ops::coords_to_str(col_b, row_b), val_b);
-            return r;
-        }
-
-        // If there is any mismatch, immediately stop and return false
-        if range_ops::cmp_strs(&val_a, &val_b) 
-        {
-            println!("[RangeBasicMut::comapre_cell] {}:{} equals {}:{}", range_ops::coords_to_str(col_a, row_a), val_a, range_ops::coords_to_str(col_b, row_b), val_b);
-            r = true;
-        }
-        else 
-        {
-            println!("[RangeBasicMut::comapre_cell] {}:{} differs {}:{}", range_ops::coords_to_str(col_a, row_a), val_a, range_ops::coords_to_str(col_b, row_b), val_b); 
-            r = false;
-        }
-        r
+        compare_cell_impl(self, col_this, row_this, other, col_other, row_other, strict, "RangeBasicMut")
     }    
 }
 
@@ -379,32 +444,20 @@ impl<'a> IRange for RangeMergedCells<'a> {
 
     fn compare_range(&self, other: &dyn IRange, strict: bool, o_use_rows: Option<vec::Vec<u32>>, o_use_cols: Option<vec::Vec<u32>>) -> bool 
     {
-        let range_a = self.get_range();
-        let range_b = other.get_range();
+        let range_this = self.get_range();
+        let range_other = other.get_range();
 
-        //Get the range numeric boundaries for range_a
-        let brow_a = *range_a.get_coordinate_start_row().unwrap().get_num();
-        let erow_a = *range_a.get_coordinate_end_row().unwrap().get_num();
-        let bcol_a = *range_a.get_coordinate_start_col().unwrap().get_num();
-        let ecol_a = *range_a.get_coordinate_end_col().unwrap().get_num();
+        //Get the range numeric boundaries for range_this
+        let (brow_a, erow_a, bcol_a, ecol_a, rows_a, cols_a) = range_otherounds(range_this);
 
-        //Get the range numeric boundaries for range_b
-        let brow_b = *range_b.get_coordinate_start_row().unwrap().get_num();
-        let erow_b = *range_b.get_coordinate_end_row().unwrap().get_num();
-        let bcol_b = *range_b.get_coordinate_start_col().unwrap().get_num();
-        let ecol_b = *range_b.get_coordinate_end_col().unwrap().get_num();
-
-        //Get the legths of the ranges (number of rows and columns)
-        let rows_a = erow_a - brow_a;
-        let cols_a = ecol_a - bcol_a;
-        let rows_b = erow_b - brow_b;
-        let cols_b = ecol_b - bcol_b;
+        //Get the range numeric boundaries for range_other
+        let (brow_b, erow_b, bcol_b, ecol_b, rows_b, cols_b) = range_otherounds(range_other);
 
         //If the legths are different, the ranges cannot be the same
         if strict && (rows_a != rows_b || cols_a != cols_b) 
         {
             println!("[RangeMergedCells::compare_range] Size missmatch! Range A:[{}, len:{}] != Range B:[{}, len:{}]", 
-                    range_ops::range_to_string(range_a), rows_a, range_ops::range_to_string(range_b), rows_b);
+                    range_ops::range_to_string(range_this), rows_a, range_ops::range_to_string(range_other), rows_b);
             return false;
         }
 
@@ -448,7 +501,7 @@ impl<'a> IRange for RangeMergedCells<'a> {
                         continue; // skip this column if it's not in the allowed_cols list
                     }
 
-                    if self.compare_cell(other, col_num_a, row_num_a, col_num_b, row_num_b, strict)
+                    if self.compare_cell(col_num_a, row_num_a, other, col_num_b, row_num_b, strict)
                     {
                         col_match += 1;
                     }
@@ -468,42 +521,9 @@ impl<'a> IRange for RangeMergedCells<'a> {
         true
     }
 
-    fn compare_cell(&self, other: &dyn IRange, col_a: u32, row_a: u32, col_b: u32, row_b: u32, strict: bool) -> bool 
+    fn compare_cell(&self, col_this: u32, row_this: u32, other: &dyn IRange, col_other: u32, row_other: u32, strict: bool) -> bool 
     {
-        let sheet_a = self.get_sheet();
-        let sheet_b = other.get_sheet();
-
-        let mut r = false;
-        //Calculate the actual coordinates for sheet A and sheet B and get the text values of the two cells
-        let cell_a_coord = (col_a, row_a);
-        let cell_b_coord = (col_b, row_b);
-        let val_a = sheet_a.get_cell_value(cell_a_coord).get_value();
-        let val_b = sheet_b.get_cell_value(cell_b_coord).get_value();
-
-        //check if the cells have rich text and compare them if they do
-        let cell_a_obj = sheet_a.get_cell(cell_a_coord);
-        let cell_b_obj = sheet_b.get_cell(cell_b_coord);
-        let rich_a = cell_a_obj.and_then(|c| c.get_cell_value().get_raw_value().get_rich_text());
-        let rich_b = cell_b_obj.and_then(|c| c.get_cell_value().get_raw_value().get_rich_text());
-
-        if rich_a != rich_b && strict
-        {
-            println!("[RangeMergedCells::compare_cell] Rich text mismatch: {}:{} and {}:{}", range_ops::coords_to_str(col_a, row_a), val_a, range_ops::coords_to_str(col_b, row_b), val_b);
-            return r;
-        }
-
-        // If there is any mismatch, immediately stop and return false
-        if range_ops::cmp_strs(&val_a, &val_b) 
-        {
-            println!("[RangeMergedCells::compare_cell] {}:{} equals {}:{}", range_ops::coords_to_str(col_a, row_a), val_a, range_ops::coords_to_str(col_b, row_b), val_b);
-            r = true;
-        }
-        else 
-        {
-            println!("[RangeMergedCells::compare_cell] {}:{} differs {}:{}", range_ops::coords_to_str(col_a, row_a), val_a, range_ops::coords_to_str(col_b, row_b), val_b); 
-            r = false;
-        }
-        r
+        compare_cell_impl(self, col_this, row_this, other, col_other, row_other, strict, "RangeMergedCells")
     }
 }
 
@@ -522,32 +542,20 @@ impl<'a> IRange for RangeMergedCellsMut<'a> {
     
     fn compare_range(&self, other: &dyn IRange, strict: bool, o_use_rows: Option<vec::Vec<u32>>, o_use_cols: Option<vec::Vec<u32>>) -> bool 
     {
-        let range_a = self.get_range();
-        let range_b = other.get_range();
+        let range_this = self.get_range();
+        let range_other = other.get_range();
 
-        //Get the range numeric boundaries for range_a
-        let brow_a = *range_a.get_coordinate_start_row().unwrap().get_num();
-        let erow_a = *range_a.get_coordinate_end_row().unwrap().get_num();
-        let bcol_a = *range_a.get_coordinate_start_col().unwrap().get_num();
-        let ecol_a = *range_a.get_coordinate_end_col().unwrap().get_num();
+        //Get the range numeric boundaries for range_this
+        let (brow_a, erow_a, bcol_a, ecol_a, rows_a, cols_a) = range_otherounds(range_this);
 
-        //Get the range numeric boundaries for range_b
-        let brow_b = *range_b.get_coordinate_start_row().unwrap().get_num();
-        let erow_b = *range_b.get_coordinate_end_row().unwrap().get_num();
-        let bcol_b = *range_b.get_coordinate_start_col().unwrap().get_num();
-        let ecol_b = *range_b.get_coordinate_end_col().unwrap().get_num();
-
-        //Get the legths of the ranges (number of rows and columns)
-        let rows_a = erow_a - brow_a;
-        let cols_a = ecol_a - bcol_a;
-        let rows_b = erow_b - brow_b;
-        let cols_b = ecol_b - bcol_b;
+        //Get the range numeric boundaries for range_other
+        let (brow_b, erow_b, bcol_b, ecol_b, rows_b, cols_b) = range_otherounds(range_other);
 
         //If the legths are different, the ranges cannot be the same
         if strict && (rows_a != rows_b || cols_a != cols_b) 
         {
             println!("[RangeMergedCellsMut::compare_range] Size missmatch! Range A:[{}, len:{}] != Range B:[{}, len:{}]", 
-                    range_ops::range_to_string(range_a), rows_a, range_ops::range_to_string(range_b), rows_b);
+                    range_ops::range_to_string(range_this), rows_a, range_ops::range_to_string(range_other), rows_b);
             return false;
         }
 
@@ -591,7 +599,7 @@ impl<'a> IRange for RangeMergedCellsMut<'a> {
                         continue; // skip this column if it's not in the allowed_cols list
                     }
 
-                    if self.compare_cell(other, col_num_a, row_num_a, col_num_b, row_num_b, strict)
+                    if self.compare_cell(col_num_a, row_num_a, other, col_num_b, row_num_b, strict)
                     {
                         col_match += 1;
                     }
@@ -611,42 +619,9 @@ impl<'a> IRange for RangeMergedCellsMut<'a> {
         true
     }
 
-    fn compare_cell(&self, other: &dyn IRange, col_a: u32, row_a: u32, col_b: u32, row_b: u32, strict: bool) -> bool 
+    fn compare_cell(&self, col_this: u32, row_this: u32, other: &dyn IRange, col_other: u32, row_other: u32, strict: bool) -> bool 
     {
-        let sheet_a = self.get_sheet();
-        let sheet_b = other.get_sheet();
-
-        let mut r = false;
-        //Calculate the actual coordinates for sheet A and sheet B and get the text values of the two cells
-        let cell_a_coord = (col_a, row_a);
-        let cell_b_coord = (col_b, row_b);
-        let val_a = sheet_a.get_cell_value(cell_a_coord).get_value();
-        let val_b = sheet_b.get_cell_value(cell_b_coord).get_value();
-
-        //check if the cells have rich text and compare them if they do
-        let cell_a_obj = sheet_a.get_cell(cell_a_coord);
-        let cell_b_obj = sheet_b.get_cell(cell_b_coord);
-        let rich_a = cell_a_obj.and_then(|c| c.get_cell_value().get_raw_value().get_rich_text());
-        let rich_b = cell_b_obj.and_then(|c| c.get_cell_value().get_raw_value().get_rich_text());
-
-        if rich_a != rich_b && strict
-        {
-            println!("[RangeMergedCellsMut::compare_cell] Rich text mismatch: {}:{} and {}:{}", range_ops::coords_to_str(col_a, row_a), val_a, range_ops::coords_to_str(col_b, row_b), val_b);
-            return r;
-        }
-
-        // If there is any mismatch, immediately stop and return false
-        if range_ops::cmp_strs(&val_a, &val_b) 
-        {
-            println!("[RangeMergedCellsMut::compare_cell] {}:{} equals {}:{}", range_ops::coords_to_str(col_a, row_a), val_a, range_ops::coords_to_str(col_b, row_b), val_b);
-            r = true;
-        }
-        else 
-        {
-            println!("[RangeMergedCellsMut::compare_cell] {}:{} differs {}:{}", range_ops::coords_to_str(col_a, row_a), val_a, range_ops::coords_to_str(col_b, row_b), val_b); 
-            r = false;
-        }
-        r
+        compare_cell_impl(self, col_this, row_this, other, col_other, row_other, strict, "RangeMergedCellsMut")
     }
 }
 
@@ -666,204 +641,6 @@ impl<'a> PartialEq for RangeMergedCellsMut<'a> {
     fn eq(&self, _other: &Self) -> bool {
         false
     }
-}
-
-fn compare_multiline_range_impl<T>(
-    this: &T,
-    other: &dyn IRange,
-    strict: bool,
-    o_use_rows: Option<vec::Vec<u32>>,
-    o_use_cols: Option<vec::Vec<u32>>,
-    label: &str,
-) -> bool
-where
-    T: IRange,
-{
-    let range_a = this.get_range();
-    let range_b = other.get_range();
-
-    let brow_a = *range_a.get_coordinate_start_row().unwrap().get_num();
-    let erow_a = *range_a.get_coordinate_end_row().unwrap().get_num();
-    let bcol_a = *range_a.get_coordinate_start_col().unwrap().get_num();
-    let ecol_a = *range_a.get_coordinate_end_col().unwrap().get_num();
-
-    let brow_b = *range_b.get_coordinate_start_row().unwrap().get_num();
-    let erow_b = *range_b.get_coordinate_end_row().unwrap().get_num();
-    let bcol_b = *range_b.get_coordinate_start_col().unwrap().get_num();
-    let ecol_b = *range_b.get_coordinate_end_col().unwrap().get_num();
-
-    let rows_a = erow_a - brow_a + 1;
-    let cols_a = ecol_a - bcol_a + 1;
-    let rows_b = erow_b - brow_b + 1;
-    let cols_b = ecol_b - bcol_b + 1;
-
-    println!(
-        "[{}::compare_range] Range A:[{} Rows:{} Cols:{}] vs Range B:[{} Rows:{} Cols:{}]",
-        label,
-        range_ops::range_to_string(range_a),
-        rows_a,
-        cols_a,
-        range_ops::range_to_string(range_b),
-        rows_b,
-        cols_b
-    );
-
-    if strict && (rows_a != rows_b || cols_a != cols_b) {
-        println!(
-            "[{}::compare_range] Size missmatch! Range A:[{}, len:{}] != Range B:[{}, len:{}]",
-            label,
-            range_ops::range_to_string(range_a),
-            rows_a,
-            range_ops::range_to_string(range_b),
-            rows_b
-        );
-        return false;
-    }
-
-    let cols_a_offsets: Vec<u32> = (0..=(cols_a - 1)).collect();
-    let cols_b_offsets: Vec<u32> = (0..=(cols_b - 1)).collect();
-    let allowed_rows: Vec<u32> = o_use_rows.unwrap_or_default();
-    let allowed_cols: Vec<u32> = o_use_cols.unwrap_or_default();
-
-    let _str_allowed_rows = allowed_rows.iter().map(|r| range_ops::index_to_column(*r)).collect::<Vec<String>>().join(",");
-    let _str_allowed_cols = allowed_cols.iter().map(|c| range_ops::index_to_column(*c)).collect::<Vec<String>>().join(",");
-
-    let mut row_match = 0;
-    for row_num_a in brow_a..=erow_a {
-        if allowed_rows.len() > 0 && !allowed_rows.contains(&row_num_a) {
-            println!(
-                "[{}::compare_range] A{} is not in the allowed row list: {}!",
-                label,
-                row_num_a,
-                _str_allowed_rows
-            );
-            continue;
-        }
-
-        for row_num_b in brow_b..=erow_b {
-            if allowed_rows.len() > 0 && !allowed_rows.contains(&row_num_b) {
-                println!(
-                    "[{}::compare_range] B{} is not in the allowed row list: {}!",
-                    label,
-                    row_num_b,
-                    _str_allowed_rows
-                );
-                continue;
-            }
-
-            let mut col_match = 0;
-            for (col_a_offset, col_b_offset) in cols_a_offsets.iter().zip(cols_b_offsets.iter()) {
-                let col_num_a = bcol_a + col_a_offset;
-                let col_num_b = bcol_b + col_b_offset;
-
-                if allowed_cols.len() > 0 && !allowed_cols.contains(&col_num_a) && !allowed_cols.contains(&col_num_b) {
-                    println!(
-                        "[{}::compare_range] {}{} or {}{} is not in the allowed column list: {}!",
-                        label,
-                        range_ops::index_to_column(col_num_a),
-                        row_num_a,
-                        range_ops::index_to_column(col_num_b),
-                        row_num_b,
-                        _str_allowed_cols
-                    );
-                    col_match += 1;
-                    continue;
-                }
-
-                if this.compare_cell(other, col_num_a, row_num_a, col_num_b, row_num_b, strict) {
-                    col_match += 1;
-                }
-            }
-
-            println!(
-                "[{}::compare_range] Matching columns: {}/{} ! Returning {}",
-                label,
-                col_match,
-                cols_a,
-                col_match == cols_a
-            );
-
-            if col_match == cols_a {
-                row_match += 1;
-            }
-        }
-    }
-
-    println!(
-        "[{}::compare_range] Matching rows: {}/{} ! Returning {}",
-        label,
-        row_match,
-        rows_a,
-        row_match == rows_a
-    );
-
-    if !strict && row_match != rows_a {
-        return false;
-    }
-    true
-}
-
-fn compare_multiline_cell_impl<T>(
-    this: &T,
-    other: &dyn IRange,
-    col_a: u32,
-    row_a: u32,
-    col_b: u32,
-    row_b: u32,
-    strict: bool,
-    label: &str,
-) -> bool
-where
-    T: IRange,
-{
-    let sheet_a = this.get_sheet();
-    let sheet_b = other.get_sheet();
-
-    let mut r = false;
-    let cell_a_coord = (col_a, row_a);
-    let cell_b_coord = (col_b, row_b);
-    let val_a = sheet_a.get_cell_value(cell_a_coord).get_value();
-    let val_b = sheet_b.get_cell_value(cell_b_coord).get_value();
-
-    let cell_a_obj = sheet_a.get_cell(cell_a_coord);
-    let cell_b_obj = sheet_b.get_cell(cell_b_coord);
-    let rich_a = cell_a_obj.and_then(|c| c.get_cell_value().get_raw_value().get_rich_text());
-    let rich_b = cell_b_obj.and_then(|c| c.get_cell_value().get_raw_value().get_rich_text());
-
-    if rich_a != rich_b && strict {
-        println!(
-            "[{}::compare_cell] Rich text mismatch: {}:{} and {}:{}",
-            label,
-            range_ops::coords_to_str(col_a, row_a),
-            val_a,
-            range_ops::coords_to_str(col_b, row_b),
-            val_b
-        );
-        return r;
-    }
-
-    if range_ops::cmp_strs(&val_a, &val_b) {
-        println!(
-            "[{}::compare_cell] {}:{} equals {}:{}",
-            label,
-            range_ops::coords_to_str(col_a, row_a),
-            val_a,
-            range_ops::coords_to_str(col_b, row_b),
-            val_b
-        );
-        r = true;
-    } else {
-        println!(
-            "[{}::compare_cell] {}:{} differs {}:{}",
-            label,
-            range_ops::coords_to_str(col_a, row_a),
-            val_a,
-            range_ops::coords_to_str(col_b, row_b),
-            val_b
-        );
-        r = false;
-    }
-    r
 }
 
 // ----------------------  RangeMultiline ----------------------
@@ -886,9 +663,9 @@ impl<'a> IRange for RangeMultiline<'a> {
         compare_multiline_range_impl(self, other, strict, o_use_rows, o_use_cols, "RangeMultiline")
     }
 
-    fn compare_cell(&self, other: &dyn IRange, col_a: u32, row_a: u32, col_b: u32, row_b: u32, strict: bool) -> bool 
+    fn compare_cell(&self, col_this: u32, row_this: u32, other: &dyn IRange, col_other: u32, row_other: u32, strict: bool) -> bool 
     {
-        compare_multiline_cell_impl(self, other, col_a, row_a, col_b, row_b, strict, "RangeMultiline")
+        compare_cell_impl(self, col_this, row_this, other, col_other, row_other, strict, "RangeMultiline")
     }
 }
 
@@ -910,9 +687,9 @@ impl<'a> IRange for RangeMultilineMut<'a> {
         compare_multiline_range_impl(self, other, strict, o_use_rows, o_use_cols, "RangeMultilineMut")
     }
 
-    fn compare_cell(&self, other: &dyn IRange, col_a: u32, row_a: u32, col_b: u32, row_b: u32, strict: bool) -> bool 
+    fn compare_cell(&self, col_this: u32, row_this: u32, other: &dyn IRange, col_other: u32, row_other: u32, strict: bool) -> bool 
     {
-        compare_multiline_cell_impl(self, other, col_a, row_a, col_b, row_b, strict, "RangeMultilineMut")
+        compare_cell_impl(self, col_this, row_this, other, col_other, row_other, strict, "RangeMultilineMut")
     }
 }
 
@@ -983,11 +760,11 @@ impl<'a> IRange for RangeType<'a> {
         }
     }
 
-    fn compare_cell(&self, other: &dyn IRange, col_a: u32, row_a: u32, col_b: u32, row_b: u32, strict: bool) -> bool {
+    fn compare_cell(&self, col_this: u32, row_this: u32, other: &dyn IRange, col_other: u32, row_other: u32, strict: bool) -> bool {
         match self {
-            RangeType::Basic(r) => r.compare_cell(other, col_a, row_a, col_b, row_b, strict),
-            RangeType::Merged(r) => r.compare_cell(other, col_a, row_a, col_b, row_b, strict),
-            RangeType::Multiline(r) => r.compare_cell(other, col_a, row_a, col_b, row_b, strict),
+            RangeType::Basic(r) => r.compare_cell(col_this, row_this, other, col_other, row_other, strict),
+            RangeType::Merged(r) => r.compare_cell(col_this, row_this, other, col_other, row_other, strict),
+            RangeType::Multiline(r) => r.compare_cell(col_this, row_this, other, col_other, row_other, strict),
         }
     }
 }
@@ -1025,11 +802,11 @@ impl<'a> IRange for RangeTypeMut<'a> {
         }
     }
 
-    fn compare_cell(&self, other: &dyn IRange, col_a: u32, row_a: u32, col_b: u32, row_b: u32, strict: bool) -> bool {
+    fn compare_cell(&self, col_this: u32, row_this: u32, other: &dyn IRange, col_other: u32, row_other: u32, strict: bool) -> bool {
         match self {
-            RangeTypeMut::Basic(r) => r.compare_cell(other, col_a, row_a, col_b, row_b, strict),
-            RangeTypeMut::Merged(r) => r.compare_cell(other, col_a, row_a, col_b, row_b, strict),
-            RangeTypeMut::Multiline(r) => r.compare_cell(other, col_a, row_a, col_b, row_b, strict),
+            RangeTypeMut::Basic(r) => r.compare_cell(col_this, row_this, other, col_other, row_other, strict),
+            RangeTypeMut::Merged(r) => r.compare_cell(col_this, row_this, other, col_other, row_other, strict),
+            RangeTypeMut::Multiline(r) => r.compare_cell(col_this, row_this, other, col_other, row_other, strict),
         }
     }
 }
