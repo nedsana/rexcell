@@ -556,13 +556,13 @@ fn iter_row_next_impl_mut<'a>(
                 //handle rows with merged cells - return all rows which are part of the merged cell
                 let (brow, erow, bcol, ecol, range_rows, _) = range_bounds(&cells_range);
 
-                println!("[iter_row_next_impl] Found merged cells range '{}'", range_to_string(&merged_cells));
-                println!("[iter_row_next_impl] Found merged cells range '{}' for row {}! bcol:{} ecol:{} brow:{} erow:{}", range_to_string(&cells_range), *current_row, bcol, ecol, brow, erow);
+                println!("[iter_row_next_impl_mut] Found merged cells range '{}'", range_to_string(&merged_cells));
+                println!("[iter_row_next_impl_mut] Found merged cells range '{}' for row {}! bcol:{} ecol:{} brow:{} erow:{}", range_to_string(&cells_range), *current_row, bcol, ecol, brow, erow);
 
                 if bcol == ecol && bcol == 1
                 {
                     loop_on = false;
-                    println!("[iter_row_next_impl] Range [{}]: from merged cells!", range_to_string(&cells_range));
+                    println!("[iter_row_next_impl_mut] Range [{}]: from merged cells!", range_to_string(&cells_range));
                 }
                 *current_row += range_rows + 1;
             }
@@ -613,23 +613,23 @@ fn iter_row_next_impl_mut<'a>(
                 let rs = range_to_string(&cells_range);
                 if multiline
                 {
-                    println!("[iter_row_next_impl] Range [{}]: from multiline cells!", rs);
+                    println!("[iter_row_next_impl_mut] Range [{}]: from multiline cells!", rs);
                     ret = Some(range_types::RangeTypeMut::Multiline(range_types::RangeMultilineMut {range: cells_range, sheet: sheet}));
                 }
                 else 
                 {
-                    println!("[iter_row_next_impl] Range [{}]: from regular cells!", rs);
+                    println!("[iter_row_next_impl_mut] Range [{}]: from regular cells!", rs);
                     ret = Some(range_types::RangeTypeMut::Basic(range_types::RangeBasicMut {range: cells_range, sheet: sheet}));
                 }
             }
             else 
             {
-                println!("[iter_row_next_impl] Current row {} starts with unexpected type:{}!", *current_row, first_cell_data_type );
+                println!("[iter_row_next_impl_mut] Current row {} starts with unexpected type:{}!", *current_row, first_cell_data_type );
             }
         }
         else
         {
-            println!("[iter_row_next_impl] Processing unexpected row:{}!", *current_row);
+            println!("[iter_row_next_impl_mut] Processing unexpected row:{}!", *current_row);
             *current_row += 1;
         }
     }
