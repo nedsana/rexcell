@@ -305,6 +305,12 @@ pub trait IRangeMut: IRange {
     fn get_sheet_mut(&mut self) -> &mut Worksheet;
 }
 
+pub enum IterRowNextKind {
+    Basic,
+    Merged,
+    Multiline,
+}
+
 // ==========================================
 // STRUCTS
 // ==========================================

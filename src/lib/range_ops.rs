@@ -425,61 +425,56 @@ pub fn accumulate_ranges(
     accumulated
 }
 
-// Helper function that contains the common logic for IterRow and IterRowMut next() method
-fn iter_row_next_impl<'a>(
-    sheet: &'a Worksheet,
+fn iter_row_next_impl_shared<'a>(
+    sheet: &Worksheet,
     current_row: &mut u32,
     max_row: u32,
     max_col: u32,
-) -> Option<range_types::RangeType<'a>>
+    label: &str,
+) -> Option<(Range, range_types::IterRowNextKind)> 
 {
-    let mut ret: Option<range_types::RangeType<'a>> = None;
+    let mut ret: Option<(Range, range_types::IterRowNextKind)> = None;
 
-    if max_row > *current_row
+    if max_row > *current_row 
     {
         let sheet_merged_cells = sheet.get_merge_cells();
 
-        if let Some(merged_cells) = sheet_merged_cells.iter().find(|range| { is_row_in_range(*current_row, range) }) 
+        if let Some(merged_cells) = sheet_merged_cells.iter().find(|range| is_row_in_range(*current_row, range)) 
         {
             let (_, merged_end_row, _, _, _, _) = range_bounds(merged_cells);
             let cells_range = make_range_from_indexes(1, *current_row, 1 + max_col, merged_end_row);
 
             let mut loop_on = true;
-            while loop_on //do I really need to loop here???
+            while loop_on 
             {
-                //handle rows with merged cells - return all rows which are part of the merged cell
                 let (brow, erow, bcol, ecol, range_rows, _) = range_bounds(&cells_range);
 
-                println!("[iter_row_next_impl] Found merged cells range '{}'", range_to_string(&merged_cells));
-                println!("[iter_row_next_impl] Found merged cells range '{}' for row {}! bcol:{} ecol:{} brow:{} erow:{}", range_to_string(&cells_range), *current_row, bcol, ecol, brow, erow);
+                println!("[{label}] Found merged cells range '{}'", range_to_string(&merged_cells));
+                println!("[{label}] Found merged cells range '{}' for row {}! bcol:{} ecol:{} brow:{} erow:{}", range_to_string(&cells_range), *current_row, bcol, ecol, brow, erow);
 
-                if bcol == ecol && bcol == 1
-                {
+                if bcol == ecol && bcol == 1 {
                     loop_on = false;
-                    println!("[iter_row_next_impl] Range [{}]: from merged cells!", range_to_string(&cells_range));
+                    println!("[{label}] Range [{}]: from merged cells!", range_to_string(&cells_range));
                 }
                 *current_row += range_rows + 1;
             }
 
-            ret = Some(range_types::RangeType::Merged(range_types::RangeMergedCells {range: cells_range, sheet: sheet}));
-
+            ret = Some((cells_range, range_types::IterRowNextKind::Merged));
         } 
         else if let Some(src_cell) = sheet.get_cell((1, *current_row)) 
         {
-            //Handle rows without merged cells. If we have in colA numeric, followed by symbol '-', return all rows starting with '-'
             let _first_cell_value = src_cell.get_value().clone();
             let first_cell_data_type = src_cell.get_data_type().to_string();
 
-            if first_cell_data_type == "n"
+            if first_cell_data_type == "n" 
             {
                 let mut cells_range = make_range_from_indexes(1, *current_row, 1 + max_col, *current_row);
-                let mut range_rows    = {
+                let mut range_rows = {
                     let (_, _, _, _, rows, _) = range_bounds(&cells_range);
                     rows
                 };
                 let mut multiline = false;
-            
-                //check if the next row starts with numeric. I yes, process the current row. If not make range of all rows starting with '-'
+
                 let next_row = *current_row + 1;
                 for nrow in next_row..=max_row 
                 {
@@ -488,15 +483,15 @@ fn iter_row_next_impl<'a>(
                         let _next_cell_value = next_cell.get_value().clone();
                         let next_cell_data_type = next_cell.get_data_type().to_string();
 
-                        if next_cell_data_type == "n"
+                        if next_cell_data_type == "n" 
                         {
                             break;
-                        }
-                        else if next_cell_data_type == "s" && _next_cell_value == "-"
+                        } 
+                        else if next_cell_data_type == "s" && _next_cell_value == "-" 
                         {
                             cells_range = make_range_from_indexes(1, *current_row, 1 + max_col, nrow);
                             let (_, _, _, _, new_range_rows, _) = range_bounds(&cells_range);
-                            range_rows  = new_range_rows;
+                            range_rows = new_range_rows;
                             multiline = true;
                         }
                     }
@@ -505,25 +500,25 @@ fn iter_row_next_impl<'a>(
                 *current_row += range_rows + 1;
 
                 let rs = range_to_string(&cells_range);
-                if multiline
+                if multiline 
                 {
-                    println!("[iter_row_next_impl] Range [{}]: from multiline cells!", rs);
-                    ret = Some(range_types::RangeType::Multiline(range_types::RangeMultiline {range: cells_range, sheet: sheet}));
-                }
+                    println!("[{label}] Range [{}]: from multiline cells!", rs);
+                    ret = Some((cells_range, range_types::IterRowNextKind::Multiline));
+                } 
                 else 
                 {
-                    println!("[iter_row_next_impl] Range [{}]: from regular cells!", rs);
-                    ret = Some(range_types::RangeType::Basic(range_types::RangeBasic {range: cells_range, sheet: sheet}));
+                    println!("[{label}] Range [{}]: from regular cells!", rs);
+                    ret = Some((cells_range, range_types::IterRowNextKind::Basic));
                 }
-            }
+            } 
             else 
             {
-                println!("[iter_row_next_impl] Current row {} starts with unexpected type:{}!", *current_row, first_cell_data_type );
+                println!("[{label}] Current row {} starts with unexpected type:{}!", *current_row, first_cell_data_type);
             }
-        }
-        else
+        } 
+        else 
         {
-            println!("[iter_row_next_impl] Processing unexpected row:{}!", *current_row);
+            println!("[{label}] Processing unexpected row:{}!", *current_row);
             *current_row += 1;
         }
     }
@@ -532,109 +527,37 @@ fn iter_row_next_impl<'a>(
 }
 
 // Helper function that contains the common logic for IterRow and IterRowMut next() method
+fn iter_row_next_impl<'a>(
+    sheet: &'a Worksheet,
+    current_row: &mut u32,
+    max_row: u32,
+    max_col: u32,
+) -> Option<range_types::RangeType<'a>> 
+{
+    match iter_row_next_impl_shared(sheet, current_row, max_row, max_col, "iter_row_next_impl") 
+    {
+        Some((range, range_types::IterRowNextKind::Basic)) => Some(range_types::RangeType::Basic(range_types::RangeBasic { range, sheet })),
+        Some((range, range_types::IterRowNextKind::Merged)) => Some(range_types::RangeType::Merged(range_types::RangeMergedCells { range, sheet })),
+        Some((range, range_types::IterRowNextKind::Multiline)) => Some(range_types::RangeType::Multiline(range_types::RangeMultiline { range, sheet })),
+        None => None,
+    }
+}
+
+// Helper function that contains the common logic for IterRow and IterRowMut next() method
 fn iter_row_next_impl_mut<'a>(
     sheet: &'a mut Worksheet,
     current_row: &mut u32,
     max_row: u32,
     max_col: u32,
-) -> Option<range_types::RangeTypeMut<'a>>
+) -> Option<range_types::RangeTypeMut<'a>> 
 {
-    let mut ret: Option<range_types::RangeTypeMut<'a>> = None;
-
-    if max_row > *current_row
+    match iter_row_next_impl_shared(sheet, current_row, max_row, max_col, "iter_row_next_impl_mut") 
     {
-        let sheet_merged_cells = sheet.get_merge_cells();
-
-        if let Some(merged_cells) = sheet_merged_cells.iter().find(|range| { is_row_in_range(*current_row, range) }) 
-        {
-            let (_, merged_end_row, _, _, _, _) = range_bounds(merged_cells);
-            let cells_range = make_range_from_indexes(1, *current_row, 1 + max_col, merged_end_row);
-
-            let mut loop_on = true;
-            while loop_on //do I really need to loop here???
-            {
-                //handle rows with merged cells - return all rows which are part of the merged cell
-                let (brow, erow, bcol, ecol, range_rows, _) = range_bounds(&cells_range);
-
-                println!("[iter_row_next_impl_mut] Found merged cells range '{}'", range_to_string(&merged_cells));
-                println!("[iter_row_next_impl_mut] Found merged cells range '{}' for row {}! bcol:{} ecol:{} brow:{} erow:{}", range_to_string(&cells_range), *current_row, bcol, ecol, brow, erow);
-
-                if bcol == ecol && bcol == 1
-                {
-                    loop_on = false;
-                    println!("[iter_row_next_impl_mut] Range [{}]: from merged cells!", range_to_string(&cells_range));
-                }
-                *current_row += range_rows + 1;
-            }
-
-            ret = Some(range_types::RangeTypeMut::Merged(range_types::RangeMergedCellsMut {range: cells_range, sheet: sheet}));
-
-        } 
-        else if let Some(src_cell) = sheet.get_cell((1, *current_row)) 
-        {
-            //Handle rows without merged cells. If we have in colA numeric, followed by symbol '-', return all rows starting with '-'
-            let _first_cell_value = src_cell.get_value().clone();
-            let first_cell_data_type = src_cell.get_data_type().to_string();
-
-            if first_cell_data_type == "n"
-            {
-                let mut cells_range = make_range_from_indexes(1, *current_row, 1 + max_col, *current_row);
-                let mut range_rows    = {
-                    let (_, _, _, _, rows, _) = range_bounds(&cells_range);
-                    rows
-                };
-                let mut multiline = false;
-            
-                //check if the next row starts with numeric. I yes, process the current row. If not make range of all rows starting with '-'
-                let next_row = *current_row + 1;
-                for nrow in next_row..=max_row 
-                {
-                    if let Some(next_cell) = sheet.get_cell((1, nrow)) 
-                    {
-                        let _next_cell_value = next_cell.get_value().clone();
-                        let next_cell_data_type = next_cell.get_data_type().to_string();
-
-                                if next_cell_data_type == "n"
-                        {
-                            break;
-                        }
-                        else if next_cell_data_type == "s" && _next_cell_value == "-"
-                        {
-                            cells_range = make_range_from_indexes(1, *current_row, 1 + max_col, nrow);
-                            let (_, _, _, _, new_range_rows, _) = range_bounds(&cells_range);
-                            range_rows  = new_range_rows;
-                            multiline = true;
-                        }
-                    }
-                }
-
-                *current_row += range_rows + 1;
-
-                let rs = range_to_string(&cells_range);
-                if multiline
-                {
-                    println!("[iter_row_next_impl_mut] Range [{}]: from multiline cells!", rs);
-                    ret = Some(range_types::RangeTypeMut::Multiline(range_types::RangeMultilineMut {range: cells_range, sheet: sheet}));
-                }
-                else 
-                {
-                    println!("[iter_row_next_impl_mut] Range [{}]: from regular cells!", rs);
-                    ret = Some(range_types::RangeTypeMut::Basic(range_types::RangeBasicMut {range: cells_range, sheet: sheet}));
-                }
-            }
-            else 
-            {
-                println!("[iter_row_next_impl_mut] Current row {} starts with unexpected type:{}!", *current_row, first_cell_data_type );
-            }
-        }
-        else
-        {
-            println!("[iter_row_next_impl_mut] Processing unexpected row:{}!", *current_row);
-            *current_row += 1;
-        }
+        Some((range, range_types::IterRowNextKind::Basic)) => Some(range_types::RangeTypeMut::Basic(range_types::RangeBasicMut { range, sheet })),
+        Some((range, range_types::IterRowNextKind::Merged)) => Some(range_types::RangeTypeMut::Merged(range_types::RangeMergedCellsMut { range, sheet })),
+        Some((range, range_types::IterRowNextKind::Multiline)) => Some(range_types::RangeTypeMut::Multiline(range_types::RangeMultilineMut { range, sheet })),
+        None => None,
     }
-
-    ret
 }
 
 // =========================================================
