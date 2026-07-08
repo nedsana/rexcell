@@ -433,6 +433,8 @@ fn iter_row_next_impl_shared<'a>(
     label: &str,
 ) -> Option<(Range, range_types::IterRowNextKind)> 
 {
+    println!("[iter_row_next_impl_shared] BEGIN ...");
+
     let mut ret: Option<(Range, range_types::IterRowNextKind)> = None;
 
     if max_row > *current_row 
@@ -449,12 +451,12 @@ fn iter_row_next_impl_shared<'a>(
             {
                 let (brow, erow, bcol, ecol, range_rows, _) = range_bounds(&cells_range);
 
-                println!("[{label}] Found merged cells range '{}'", range_to_string(&merged_cells));
-                println!("[{label}] Found merged cells range '{}' for row {}! bcol:{} ecol:{} brow:{} erow:{}", range_to_string(&cells_range), *current_row, bcol, ecol, brow, erow);
+                println!("[iter_row_next_impl_shared] Found merged cells range '{}'", range_to_string(&merged_cells));
+                println!("[iter_row_next_impl_shared] Found merged cells range '{}' for row {}! bcol:{} ecol:{} brow:{} erow:{}", range_to_string(&cells_range), *current_row, bcol, ecol, brow, erow);
 
                 if bcol == ecol && bcol == 1 {
                     loop_on = false;
-                    println!("[{label}] Range [{}]: from merged cells!", range_to_string(&cells_range));
+                    println!("[iter_row_next_impl_shared] Range [{}]: from merged cells!", range_to_string(&cells_range));
                 }
                 *current_row += range_rows + 1;
             }
@@ -502,27 +504,28 @@ fn iter_row_next_impl_shared<'a>(
                 let rs = range_to_string(&cells_range);
                 if multiline 
                 {
-                    println!("[{label}] Range [{}]: from multiline cells!", rs);
+                    println!("[iter_row_next_impl_shared] Range [{}]: from multiline cells!", rs);
                     ret = Some((cells_range, range_types::IterRowNextKind::Multiline));
                 } 
                 else 
                 {
-                    println!("[{label}] Range [{}]: from regular cells!", rs);
+                    println!("[iter_row_next_impl_shared] Range [{}]: from regular cells!", rs);
                     ret = Some((cells_range, range_types::IterRowNextKind::Basic));
                 }
             } 
             else 
             {
-                println!("[{label}] Current row {} starts with unexpected type:{}!", *current_row, first_cell_data_type);
+                println!("[iter_row_next_impl_shared] Current row {} starts with unexpected type:'{}'!", *current_row, first_cell_data_type);
+                *current_row += 1;
             }
         } 
         else 
         {
-            println!("[{label}] Processing unexpected row:{}!", *current_row);
+            println!("[iter_row_next_impl_shared] Processing unexpected row:{}!", *current_row);
             *current_row += 1;
         }
     }
-
+    println!("[iter_row_next_impl_shared] END ...");
     ret
 }
 
@@ -534,13 +537,17 @@ fn iter_row_next_impl<'a>(
     max_col: u32,
 ) -> Option<range_types::RangeType<'a>> 
 {
+    println!("[iter_row_next_impl] BEGIN ...");
+    let mut ret: Option<range_types::RangeType<'a>> = None;
     match iter_row_next_impl_shared(sheet, current_row, max_row, max_col, "iter_row_next_impl") 
     {
-        Some((range, range_types::IterRowNextKind::Basic)) => Some(range_types::RangeType::Basic(range_types::RangeBasic { range, sheet })),
-        Some((range, range_types::IterRowNextKind::Merged)) => Some(range_types::RangeType::Merged(range_types::RangeMergedCells { range, sheet })),
-        Some((range, range_types::IterRowNextKind::Multiline)) => Some(range_types::RangeType::Multiline(range_types::RangeMultiline { range, sheet })),
-        None => None,
+        Some((range, range_types::IterRowNextKind::Basic)) => ret = Some(range_types::RangeType::Basic(range_types::RangeBasic { range, sheet })),
+        Some((range, range_types::IterRowNextKind::Merged)) => ret = Some(range_types::RangeType::Merged(range_types::RangeMergedCells { range, sheet })),
+        Some((range, range_types::IterRowNextKind::Multiline)) => ret = Some(range_types::RangeType::Multiline(range_types::RangeMultiline { range, sheet })),
+        None => (),
     }
+    println!("[iter_row_next_impl] END ...");
+    ret
 }
 
 // Helper function that contains the common logic for IterRow and IterRowMut next() method
@@ -551,13 +558,17 @@ fn iter_row_next_impl_mut<'a>(
     max_col: u32,
 ) -> Option<range_types::RangeTypeMut<'a>> 
 {
+    println!("[iter_row_next_impl_mut] BEGIN ...");
+    let mut ret: Option<range_types::RangeTypeMut<'a>> = None;
     match iter_row_next_impl_shared(sheet, current_row, max_row, max_col, "iter_row_next_impl_mut") 
     {
-        Some((range, range_types::IterRowNextKind::Basic)) => Some(range_types::RangeTypeMut::Basic(range_types::RangeBasicMut { range, sheet })),
-        Some((range, range_types::IterRowNextKind::Merged)) => Some(range_types::RangeTypeMut::Merged(range_types::RangeMergedCellsMut { range, sheet })),
-        Some((range, range_types::IterRowNextKind::Multiline)) => Some(range_types::RangeTypeMut::Multiline(range_types::RangeMultilineMut { range, sheet })),
-        None => None,
+        Some((range, range_types::IterRowNextKind::Basic)) => ret = Some(range_types::RangeTypeMut::Basic(range_types::RangeBasicMut { range, sheet })),
+        Some((range, range_types::IterRowNextKind::Merged)) => ret = Some(range_types::RangeTypeMut::Merged(range_types::RangeMergedCellsMut { range, sheet })),
+        Some((range, range_types::IterRowNextKind::Multiline)) => ret = Some(range_types::RangeTypeMut::Multiline(range_types::RangeMultilineMut { range, sheet })),
+        None => (),
     }
+    println!("[iter_row_next_impl_mut] END ...");
+    ret
 }
 
 // =========================================================
@@ -590,7 +601,14 @@ impl<'a> Iterator for IterRow<'a>
 
     fn next(&mut self) -> Option<Self::Item> 
     {
-        iter_row_next_impl(self.sheet, &mut self.current_row, self.max_row, self.max_col)
+        println!("[IterRow::next] BEGIN ...");
+        let mut ret: Option<Self::Item> = None;
+        match iter_row_next_impl(self.sheet, &mut self.current_row, self.max_row, self.max_col) {
+            Some(range) => ret = Some(range),
+            None => (),
+        }
+        println!("[IterRow::next] END ...");
+        ret
     }
 }
 
@@ -632,6 +650,13 @@ impl LendingIterator for IterRowMut<'_>
     
     fn next(&mut self) -> Option<Self::Item<'_>> 
     {
-        iter_row_next_impl_mut(self.sheet, &mut self.current_row, self.max_row, self.max_col)
+        println!("[IterRowMut::next] BEGIN ...");
+        let mut ret: Option<Self::Item<'_>> = None;
+        match iter_row_next_impl_mut(self.sheet, &mut self.current_row, self.max_row, self.max_col) {
+            Some(range) => ret = Some(range),
+            None => (),
+        }
+        println!("[IterRowMut::next] end ...");
+        ret
     }
 }

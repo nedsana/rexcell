@@ -267,27 +267,33 @@ pub fn filter_sheet_by_col_and_accum(
 
     let mut current_new_row = sheet_out.get_highest_row()+1;
 
-    let iter_sheet = range_ops::IterRow::new(sheet_in, max_row, max_col);
     let merged_cells = sheet_in.get_merge_cells();
+
+    let iter_sheet = range_ops::IterRow::new(sheet_in, max_row, max_col);
+    
+    println!("[filter_sheet_by_col_and_accum] Staring loop: for it in iter_sheet!");
+
     for it in iter_sheet 
     {
         let it_range = it.get_range();
+
+        println!("[filter_sheet_by_col_and_accum] Processing range '{}'!", range_ops::range_to_string(it_range));
 
         if let Some(found_range) = find_range_in_sheet(&it, sheet_out, &cmp_cols)
         { //accumulating
             let found_range_clone = found_range.get_range().clone();
             drop(found_range);
 
-            println!("[create_unique_entries_sheet] Range {} already exists in sheet {}! Accumulating data!", range_ops::range_to_string(it.get_range()), sheet_out.get_name());
+            println!("[filter_sheet_by_col_and_accum] Range {} already exists in sheet {}! Accumulating data!", range_ops::range_to_string(it.get_range()), sheet_out.get_name());
 
             if range_ops::accumulate_ranges(sheet_in, it_range, sheet_out, &found_range_clone, None, Some(acc_cols.clone()))
             {
-                println!("[create_unique_entries_sheet] Accumulated in-range '{}' to out-range '{}'!", range_ops::range_to_string(it_range), range_ops::range_to_string(&found_range_clone));
+                println!("[filter_sheet_by_col_and_accum] Accumulated in-range '{}' to out-range '{}'!", range_ops::range_to_string(it_range), range_ops::range_to_string(&found_range_clone));
             }
         }
         else
         { //appending
-            println!("[create_unique_entries_sheet] Range {} does not exist in sheet {}! Appending data!", range_ops::range_to_string(it.get_range()), sheet_out.get_name());
+            println!("[filter_sheet_by_col_and_accum] Range {} does not exist in sheet {}! Appending data!", range_ops::range_to_string(it.get_range()), sheet_out.get_name());
 
             let current_old_row = current_new_row;
 
@@ -380,13 +386,13 @@ pub fn filter_sheet_by_col_and_accum(
 
                 let mrange = range_ops::make_range_from_indexes(*mcbeg, current_old_row, *mcend, current_old_row+mrlen-1);
 
-                println!("[create_unique_entries_sheet] Range [{}] contains merged cells [{}]", 
+                println!("[filter_sheet_by_col_and_accum] Range [{}] contains merged cells [{}]", 
                         range_ops::range_to_string(&it_range), mrange.get_range());
                    
                 sheet_out.add_merge_cells(mrange.get_range());
             } 
         }
-        println!("[create_unique_entries_sheet]========================================================");
+        println!("[filter_sheet_by_col_and_accum]========================================================");
     }
     return res;
 }
@@ -447,12 +453,6 @@ pub fn execute(cfg: &common::Config) -> Result<(Vec<String>, Vec<String>), Strin
                         return Err(format!("{}:{}", common::ERROR_UPDATE_SHEET_NOT_FOUND, utbln));
                     }
                 };
-
-                // Just create new table with unique values
-                // let r = create_unique_entries_sheet(utbl, &mut fotbl, 
-                //     None::<fn(&Worksheet, u32, &mut Worksheet) -> bool>,
-                //     None::<fn(&Worksheet, u32, &mut Worksheet) -> bool>,
-                //     None::<fn(&Worksheet, u32, u32, &mut Worksheet) -> bool>);
 
                 // Create new table with unique values from cfg.tgt_src_col.When repetition is found, accumulate the values in cfg.tgt_dest_col.
                 let r = filter_sheet_by_col_and_accum(utbl, &mut fotbl, &cfg.tgt_src_col, &cfg.tgt_dest_col);
