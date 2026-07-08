@@ -394,6 +394,7 @@ pub fn filter_sheet_by_col_and_accum(
         }
         println!("[filter_sheet_by_col_and_accum]========================================================");
     }
+    println!("[filter_sheet_by_col_and_accum] Finisher loop, exiting");
     return res;
 }
 

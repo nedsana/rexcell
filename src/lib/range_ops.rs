@@ -430,7 +430,7 @@ fn iter_row_next_impl_shared<'a>(
     current_row: &mut u32,
     max_row: u32,
     max_col: u32,
-    label: &str,
+    _label: &str,
 ) -> Option<(Range, range_types::IterRowNextKind)> 
 {
     println!("[iter_row_next_impl_shared] BEGIN ...");
@@ -440,26 +440,34 @@ fn iter_row_next_impl_shared<'a>(
     if max_row > *current_row 
     {
         let sheet_merged_cells = sheet.get_merge_cells();
+        let mut cells_range: Range;
 
         if let Some(merged_cells) = sheet_merged_cells.iter().find(|range| is_row_in_range(*current_row, range)) 
         {
+            println!("[iter_row_next_impl_shared] Found merged cells range '{}'", range_to_string(&merged_cells));
+
             let (_, merged_end_row, _, _, _, _) = range_bounds(merged_cells);
-            let cells_range = make_range_from_indexes(1, *current_row, 1 + max_col, merged_end_row);
+            cells_range = make_range_from_indexes(1, *current_row, 1 + max_col, merged_end_row);
 
-            let mut loop_on = true;
-            while loop_on 
-            {
-                let (brow, erow, bcol, ecol, range_rows, _) = range_bounds(&cells_range);
+            // let mut loop_on = true;
+            // while loop_on 
+            // {
+            //     let (brow, erow, bcol, ecol, range_rows, _) = range_bounds(&cells_range);
 
-                println!("[iter_row_next_impl_shared] Found merged cells range '{}'", range_to_string(&merged_cells));
-                println!("[iter_row_next_impl_shared] Found merged cells range '{}' for row {}! bcol:{} ecol:{} brow:{} erow:{}", range_to_string(&cells_range), *current_row, bcol, ecol, brow, erow);
+            //     println!("[iter_row_next_impl_shared] Found merged cells range '{}'", range_to_string(&merged_cells));
+            //     println!("[iter_row_next_impl_shared] Found merged cells range '{}' for row {}! bcol:{} ecol:{} brow:{} erow:{}", 
+            //         range_to_string(&cells_range), *current_row, bcol, ecol, brow, erow);
 
-                if bcol == ecol && bcol == 1 {
-                    loop_on = false;
-                    println!("[iter_row_next_impl_shared] Range [{}]: from merged cells!", range_to_string(&cells_range));
-                }
-                *current_row += range_rows + 1;
-            }
+            //     if bcol == ecol && bcol == 1 {
+            //         loop_on = false;
+            //         println!("[iter_row_next_impl_shared] Range [{}]: from merged cells!", range_to_string(&cells_range));
+            //     }
+            //     *current_row += range_rows + 1;
+            // }
+
+            println!("[iter_row_next_impl_shared] Selected cells range '{}'", range_to_string(&cells_range));
+            let (_, _, _, _, range_rows, _) = range_bounds(&cells_range);
+            *current_row += range_rows + 1;
 
             ret = Some((cells_range, range_types::IterRowNextKind::Merged));
         } 
@@ -467,10 +475,11 @@ fn iter_row_next_impl_shared<'a>(
         {
             let _first_cell_value = src_cell.get_value().clone();
             let first_cell_data_type = src_cell.get_data_type().to_string();
+            
+            cells_range = make_range_from_indexes(1, *current_row, 1 + max_col, *current_row);
 
             if first_cell_data_type == "n" 
             {
-                let mut cells_range = make_range_from_indexes(1, *current_row, 1 + max_col, *current_row);
                 let mut range_rows = {
                     let (_, _, _, _, rows, _) = range_bounds(&cells_range);
                     rows
@@ -516,6 +525,7 @@ fn iter_row_next_impl_shared<'a>(
             else 
             {
                 println!("[iter_row_next_impl_shared] Current row {} starts with unexpected type:'{}'!", *current_row, first_cell_data_type);
+                ret = Some((cells_range, range_types::IterRowNextKind::Basic));
                 *current_row += 1;
             }
         } 
