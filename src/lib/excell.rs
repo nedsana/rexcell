@@ -275,9 +275,9 @@ pub fn filter_sheet_by_col_and_accum(
 
     for it in iter_sheet 
     {
-        let it_range = it.get_range();
+        let mut it_range = it.get_range().clone();
 
-        println!("[filter_sheet_by_col_and_accum] Processing range '{}'!", range_ops::range_to_string(it_range));
+        println!("[filter_sheet_by_col_and_accum] Processing range '{}'!", range_ops::range_to_string(it.get_range()));
 
         if let Some(found_range) = find_range_in_sheet(&it, sheet_out, &cmp_cols)
         { //accumulating
@@ -286,21 +286,62 @@ pub fn filter_sheet_by_col_and_accum(
 
             println!("[filter_sheet_by_col_and_accum] Range {} already exists in sheet {}! Accumulating data!", range_ops::range_to_string(it.get_range()), sheet_out.get_name());
 
-            if range_ops::accumulate_ranges(sheet_in, it_range, sheet_out, &found_range_clone, None, Some(acc_cols.clone()))
+            if range_ops::accumulate_ranges(sheet_in, it.get_range(), sheet_out, &found_range_clone, None, Some(acc_cols.clone()))
             {
-                println!("[filter_sheet_by_col_and_accum] Accumulated in-range '{}' to out-range '{}'!", range_ops::range_to_string(it_range), range_ops::range_to_string(&found_range_clone));
+                println!("[filter_sheet_by_col_and_accum] Accumulated in-range '{}' to out-range '{}'!", range_ops::range_to_string(it.get_range()), range_ops::range_to_string(&found_range_clone));
             }
         }
         else
         { //appending
-            println!("[filter_sheet_by_col_and_accum] Range {} does not exist in sheet {}! Appending data!", range_ops::range_to_string(it.get_range()), sheet_out.get_name());
+            if let RangeType::Multiline(_) = it 
+            {
+                println!("[filter_sheet_by_col_and_accum] >>>>>> Range {} does not exist in sheet {}! Find largest multiline section! <<<<<<<", range_ops::range_to_string(it.get_range()), sheet_out.get_name());
+                
+                let (brow_it, erow_it, bcol_it, ecol_it, rows_it, cols_it) = range_ops::range_bounds(it.get_range());
+
+                let multiline_iter_sheet = range_ops::IterRow::new(sheet_in, max_row, max_col);
+                for mlit in multiline_iter_sheet 
+                {
+                    if let RangeType::Multiline(_) = mlit
+                    {
+                        let (brow_mlit, erow_mlit, bcol_mlit, ecol_mlit, rows_mlit, cols_mlit) = range_ops::range_bounds(mlit.get_range());
+                        if (brow_it == brow_mlit) && (erow_it == erow_mlit) && (bcol_it == bcol_mlit) && (ecol_it == ecol_mlit) && (rows_it == rows_mlit) && (cols_it == cols_mlit)
+                        {
+                            println!("[filter_sheet_by_col_and_accum] Inspecting same multiline range {} in sheet {}! Skipping!", range_ops::range_to_string(mlit.get_range()), sheet_out.get_name());
+                        }
+                        else
+                        {
+                            let it_flr   = range_ops::make_range_from_indexes(bcol_it,   brow_it,     ecol_it, brow_it);
+                            let mlit_flr: Range = range_ops::make_range_from_indexes(bcol_mlit, brow_mlit, ecol_mlit, brow_mlit);
+                            
+                            println!("[filter_sheet_by_col_and_accum] Comparing first line range {} with multiline range {} in sheet {}!", 
+                                range_ops::range_to_string(&it_flr), 
+                                range_ops::range_to_string(&mlit_flr), 
+                                sheet_out.get_name());
+
+                            if range_ops::comapre_ranges(it.get_sheet(), &it_flr, mlit.get_sheet(), &mlit_flr, false, None, Some(cmp_cols.clone())) && 
+                                rows_it < rows_mlit
+                            {
+                                println!("[filter_sheet_by_col_and_accum] Found matching multiline range {} in sheet {} with more rows!", range_ops::range_to_string(mlit.get_range()), sheet_out.get_name());
+
+                                it_range = mlit.get_range().clone();
+                            }
+                        }
+                    }
+                }
+
+                println!("[filter_sheet_by_col_and_accum] >>>>>>> Done with multiline inspection! <<<<<");
+
+                TO DO: append the largest section and clear its data(set to empty/zero). Then accumulate "it" to it. Reorganize section ...
+            }
+            else 
+            {
+                println!("[filter_sheet_by_col_and_accum] Range {} does not exist in sheet {}! Appending data!", range_ops::range_to_string(it.get_range()), sheet_out.get_name());
+            }
 
             let current_old_row = current_new_row;
 
-            let rbeg = *it_range.get_coordinate_start_row().unwrap().get_num();
-            let rend = *it_range.get_coordinate_end_row().unwrap().get_num();
-            let cbeg = *it_range.get_coordinate_start_col().unwrap().get_num();
-            let cend = *it_range.get_coordinate_end_col().unwrap().get_num();
+            let (rbeg, rend, cbeg, cend, _, _) = range_ops::range_bounds(&it_range);
 
             let mut added_col = false;
 
