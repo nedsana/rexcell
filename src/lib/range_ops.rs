@@ -350,6 +350,109 @@ pub fn comapre_ranges(
     true
 }
 
+pub fn append_range(
+    sheet_in: &     Worksheet, range_in: &Range,
+    sheet_out: & mut Worksheet
+) -> bool
+{
+    let mut res = false;
+
+    let merged_cells = sheet_in.get_merge_cells();
+
+    let mut current_new_row = sheet_out.get_highest_row()+1;
+
+    let current_old_row = current_new_row;
+
+    let (rbeg, rend, cbeg, cend, _, _) = range_bounds(range_in);
+
+    let mut added_col = false;
+
+    for row in rbeg..=rend 
+    {
+        added_col = false;
+        for col in cbeg..=cend 
+        {
+            //copy to the output sheet all rows, which are defined by the range.
+            if let Some(src_cell) = sheet_in.get_cell((col, row)) 
+            {
+                let o_rich_text = src_cell.get_cell_value().get_raw_value().get_rich_text();
+                let cell_value = src_cell.get_value().clone();
+                let cell_style = src_cell.get_style().clone();
+                let cell_data_type = src_cell.get_data_type().to_string();
+                // let cell_value = src_cell.get_formatted_value().clone();
+
+                let dst_cell = sheet_out.get_cell_mut((col, current_new_row));
+                
+                // Preserve data types when copying cells
+                if cell_data_type == "n" && let Some(num) = src_cell.get_value_number() 
+                {
+                    // println!("[append_range] dst_cell({}{}).set_value_number({})", range_ops::index_to_column(col), current_new_row, num);
+                    dst_cell.set_value_number(num);
+                } 
+                else 
+                {
+                    if let Some(rich_text) = o_rich_text 
+                    {
+                        dst_cell.set_rich_text(rich_text.clone());
+                    } 
+                    else 
+                    {
+                        dst_cell.set_value(cell_value);
+                    }
+                    // println!("[append_range] dst_cell({}{}).set_value({})", range_ops::index_to_column(col), current_new_row, dst_cell.get_value());
+                }
+                
+                dst_cell.set_style(cell_style);
+
+                added_col = true;
+
+                // Copy column width if defined
+                let o_col_dim = sheet_in.get_column_dimension_by_number(&col);
+                if let Some(col_dim) = o_col_dim 
+                {
+                    let col_width = col_dim.get_width().clone();
+                    sheet_out.get_column_dimension_by_number_mut(&col).set_width(col_width);
+                }
+            }
+
+            if added_col
+            {
+                // Copy row height if defined
+                let o_row_dim = sheet_in.get_row_dimension(&row);
+                if let Some(row_dim) = o_row_dim 
+                {
+                    let row_height = row_dim.get_height().clone();
+                    sheet_out.get_row_dimension_mut(&current_new_row).set_height(row_height);
+                }
+            }
+        }
+
+        if added_col
+        {
+            current_new_row += 1;
+        }
+    }
+
+    if added_col
+    {
+        res = true;
+    }
+
+    //apply merged cells formatting to the output sheets. To do: extend if we have formated content of the merger cells!
+    if let Some(mrgcells) = merged_cells.iter().find(|range| { is_range_in_range(range, range_in) })
+    {
+        let (_, _, mcbeg, mcend, mrlen, _) = range_bounds(mrgcells);
+
+        let mrange = make_range_from_indexes(mcbeg, current_old_row, mcend, current_old_row+mrlen);
+
+        println!("[append_range] Range [{}] contains merged cells [{}]", range_to_string(range_in), mrange.get_range());
+            
+        sheet_out.add_merge_cells(mrange.get_range());
+    }
+
+    res
+}
+
 //return the cells in range_a and range_b, which are in the same position and have numeric values, accumulated (summed up)
 pub fn accumulate_ranges(
     sheet_a: &     Worksheet, range_a: &Range,

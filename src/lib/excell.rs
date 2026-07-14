@@ -265,9 +265,7 @@ pub fn filter_sheet_by_col_and_accum(
     let max_row = MAX_ROW; //sheet_in.get_highest_row();
     let max_col = MAX_COL; //sheet_in.get_highest_column();
 
-    let mut current_new_row = sheet_out.get_highest_row()+1;
-
-    let merged_cells = sheet_in.get_merge_cells();
+    // let merged_cells = sheet_in.get_merge_cells();
 
     let iter_sheet = range_ops::IterRow::new(sheet_in, max_row, max_col);
     
@@ -299,6 +297,7 @@ pub fn filter_sheet_by_col_and_accum(
                 
                 let (brow_it, erow_it, bcol_it, ecol_it, rows_it, cols_it) = range_ops::range_bounds(it.get_range());
 
+                // Find the largest multiline range in the sheet_in, which matches the first line of the current range.
                 let multiline_iter_sheet = range_ops::IterRow::new(sheet_in, max_row, max_col);
                 for mlit in multiline_iter_sheet 
                 {
@@ -330,109 +329,18 @@ pub fn filter_sheet_by_col_and_accum(
                     }
                 }
 
+                //append the largest multiline range to the output sheet
+                range_ops::append_range(sheet_in, &it_range, sheet_out);
+
+                //reset it_range to the original range for the next iteration
+                it_range = it.get_range().clone();
+
                 println!("[filter_sheet_by_col_and_accum] >>>>>>> Done with multiline inspection! <<<<<");
-
-                TO DO: append the largest section and clear its data(set to empty/zero). Then accumulate "it" to it. Reorganize section ...
-            }
-            else 
-            {
-                println!("[filter_sheet_by_col_and_accum] Range {} does not exist in sheet {}! Appending data!", range_ops::range_to_string(it.get_range()), sheet_out.get_name());
             }
 
-            let current_old_row = current_new_row;
+            res = range_ops::append_range(sheet_in, &it_range, sheet_out);
 
-            let (rbeg, rend, cbeg, cend, _, _) = range_ops::range_bounds(&it_range);
-
-            let mut added_col = false;
-
-            for row in rbeg..=rend 
-            {
-                added_col = false;
-                for col in cbeg..=cend 
-                {
-                    //copy to the output sheet all rows, which are defined by the range.
-                    if let Some(src_cell) = sheet_in.get_cell((col, row)) 
-                    {
-                        let o_rich_text = src_cell.get_cell_value().get_raw_value().get_rich_text();
-                        let cell_value = src_cell.get_value().clone();
-                        let cell_style = src_cell.get_style().clone();
-                        let cell_data_type = src_cell.get_data_type().to_string();
-                        // let cell_value = src_cell.get_formatted_value().clone();
-
-                        let dst_cell = sheet_out.get_cell_mut((col, current_new_row));
-                        
-                        // Preserve data types when copying cells
-                        if cell_data_type == "n" && let Some(num) = src_cell.get_value_number() 
-                        {
-                            // println!("dst_cell({}{}).set_value_number({})", range_ops::index_to_column(col), current_new_row, num);
-                            dst_cell.set_value_number(num);
-                        } 
-                        else 
-                        {
-                            if let Some(rich_text) = o_rich_text 
-                            {
-                                dst_cell.set_rich_text(rich_text.clone());
-                            } 
-                            else 
-                            {
-                                dst_cell.set_value(cell_value);
-                            }
-                            // println!("dst_cell({}{}).set_value({})", range_ops::index_to_column(col), current_new_row, dst_cell.get_value());
-                        }
-                        
-                        dst_cell.set_style(cell_style);
-
-                        added_col = true;
-
-                        // Copy column width if defined
-                        let o_col_dim = sheet_in.get_column_dimension_by_number(&col);
-                        if let Some(col_dim) = o_col_dim 
-                        {
-                            let col_width = col_dim.get_width().clone();
-                            sheet_out.get_column_dimension_by_number_mut(&col).set_width(col_width);
-                        }
-                    }
-
-                    if added_col
-                    {
-                        // Copy row height if defined
-                        let o_row_dim = sheet_in.get_row_dimension(&row);
-                        if let Some(row_dim) = o_row_dim 
-                        {
-                            let row_height = row_dim.get_height().clone();
-                            sheet_out.get_row_dimension_mut(&current_new_row).set_height(row_height);
-                        }
-                    }
-                }
-
-                if added_col
-                {
-                    current_new_row += 1;
-                }
-            }
-
-            if added_col
-            {
-                res = true;
-            }
-
-            //apply merged cells formatting to the output sheets. To do: extend if we have formated content of the merger cells!
-            if let Some(mrgcells) = merged_cells.iter().find(|range| { range_ops::is_range_in_range(range, &it_range) })
-            {
-                let mrbeg = mrgcells.get_coordinate_start_row().unwrap().get_num();
-                let mrend = mrgcells.get_coordinate_end_row().unwrap().get_num();
-                let mcbeg = mrgcells.get_coordinate_start_col().unwrap().get_num();
-                let mcend = mrgcells.get_coordinate_end_col().unwrap().get_num(); 
-                let mrlen = mrend - mrbeg + 1;
-
-                let mrange = range_ops::make_range_from_indexes(*mcbeg, current_old_row, *mcend, current_old_row+mrlen-1);
-
-                println!("[filter_sheet_by_col_and_accum] Range [{}] contains merged cells [{}]", 
-                        range_ops::range_to_string(&it_range), mrange.get_range());
-                   
-                sheet_out.add_merge_cells(mrange.get_range());
-            } 
-        }
+        } //appending
         println!("[filter_sheet_by_col_and_accum]========================================================");
     }
     println!("[filter_sheet_by_col_and_accum] Finisher loop, exiting");
