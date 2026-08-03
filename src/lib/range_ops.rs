@@ -255,12 +255,12 @@ pub fn comapre_cell(
     // If there is any mismatch, immediately stop and return false
     if cmp_strs(&val_a, &val_b) 
     {
-        println!("[comapre_cell] {}:{} equals {}:{}", coords_to_str(col_a, row_a), val_a, coords_to_str(col_b, row_b), val_b);
+        // println!("[comapre_cell] {}:{} equals {}:{}", coords_to_str(col_a, row_a), val_a, coords_to_str(col_b, row_b), val_b);
         r = true;
     }
     else 
     {
-        println!("[comapre_cell] {}:{} differs {}:{}", coords_to_str(col_a, row_a), val_a, coords_to_str(col_b, row_b), val_b); 
+        // println!("[comapre_cell] {}:{} differs {}:{}", coords_to_str(col_a, row_a), val_a, coords_to_str(col_b, row_b), val_b); 
         r = false;
     }
     r
@@ -347,6 +347,59 @@ pub fn comapre_ranges(
     {
         return false;
     }
+    true
+}
+
+pub fn range_contains_range(
+    sheet_in: &Worksheet, range_in: &Range,
+    sheet_out: &Worksheet, range_out: &Range,
+) -> bool 
+{
+    let (brow_in, erow_in, bcol_in, _, _, cols_in) = range_bounds(range_in);
+    let (brow_out, erow_out, bcol_out, _, _, cols_out) = range_bounds(range_out);
+
+    if cols_in != cols_out 
+    {
+        println!("[range_contains_range] Column count mismatch: range_in has {} cols, range_out has {} cols", cols_in + 1, cols_out + 1);
+        return false;
+    }
+
+    for row_out in brow_out..=erow_out 
+    {
+        let mut row_found = false;
+
+        for row_in in brow_in..=erow_in 
+        {
+            let mut all_cells_match = true;
+
+            for col_offset in 0..=cols_out 
+            {
+                let col_in = bcol_in + col_offset;
+                let col_out = bcol_out + col_offset;
+
+                let val_in = sheet_in.get_cell_value((col_in, row_in)).get_value();
+                let val_out = sheet_out.get_cell_value((col_out, row_out)).get_value();
+
+                if !cmp_strs(&val_in, &val_out) 
+                {
+                    all_cells_match = false;
+                    break;
+                }
+            }
+
+            if all_cells_match 
+            {
+                row_found = true;
+                break;
+            }
+        }
+
+        if !row_found 
+        {
+            return false;
+        }
+    }
+
     true
 }
 
@@ -536,8 +589,6 @@ fn iter_row_next_impl_shared<'a>(
     _label: &str,
 ) -> Option<(Range, range_types::IterRowNextKind)> 
 {
-    println!("[iter_row_next_impl_shared] BEGIN ...");
-
     let mut ret: Option<(Range, range_types::IterRowNextKind)> = None;
 
     if max_row > *current_row 
@@ -547,7 +598,7 @@ fn iter_row_next_impl_shared<'a>(
 
         if let Some(merged_cells) = sheet_merged_cells.iter().find(|range| is_row_in_range(*current_row, range)) 
         {
-            println!("[iter_row_next_impl_shared] Found merged cells range '{}'", range_to_string(&merged_cells));
+            // println!("[iter_row_next_impl_shared] Found merged cells range '{}'", range_to_string(&merged_cells));
 
             let (_, merged_end_row, _, _, _, _) = range_bounds(merged_cells);
             cells_range = make_range_from_indexes(1, *current_row, 1 + max_col, merged_end_row);
@@ -568,7 +619,7 @@ fn iter_row_next_impl_shared<'a>(
             //     *current_row += range_rows + 1;
             // }
 
-            println!("[iter_row_next_impl_shared] Selected cells range '{}'", range_to_string(&cells_range));
+            // println!("[iter_row_next_impl_shared] Selected cells range '{}'", range_to_string(&cells_range));
             let (_, _, _, _, range_rows, _) = range_bounds(&cells_range);
             *current_row += range_rows + 1;
 
@@ -613,32 +664,30 @@ fn iter_row_next_impl_shared<'a>(
 
                 *current_row += range_rows + 1;
 
-                let rs = range_to_string(&cells_range);
                 if multiline 
                 {
-                    println!("[iter_row_next_impl_shared] Range [{}]: from multiline cells!", rs);
+                    // println!("[iter_row_next_impl_shared] Range [{}]: from multiline cells!", range_to_string(&cells_range));
                     ret = Some((cells_range, range_types::IterRowNextKind::Multiline));
                 } 
                 else 
                 {
-                    println!("[iter_row_next_impl_shared] Range [{}]: from regular cells!", rs);
+                    // println!("[iter_row_next_impl_shared] Range [{}]: from regular cells!", range_to_string(&cells_range));
                     ret = Some((cells_range, range_types::IterRowNextKind::Basic));
                 }
             } 
             else 
             {
-                println!("[iter_row_next_impl_shared] Current row {} starts with unexpected type:'{}'!", *current_row, first_cell_data_type);
+                // println!("[iter_row_next_impl_shared] Current row {} starts with unexpected type:'{}'!", *current_row, first_cell_data_type);
                 ret = Some((cells_range, range_types::IterRowNextKind::Basic));
                 *current_row += 1;
             }
         } 
         else 
         {
-            println!("[iter_row_next_impl_shared] Processing unexpected row:{}!", *current_row);
+            // println!("[iter_row_next_impl_shared] Processing unexpected row:{}!", *current_row);
             *current_row += 1;
         }
     }
-    println!("[iter_row_next_impl_shared] END ...");
     ret
 }
 
@@ -650,7 +699,6 @@ fn iter_row_next_impl<'a>(
     max_col: u32,
 ) -> Option<range_types::RangeType<'a>> 
 {
-    println!("[iter_row_next_impl] BEGIN ...");
     let mut ret: Option<range_types::RangeType<'a>> = None;
     match iter_row_next_impl_shared(sheet, current_row, max_row, max_col, "iter_row_next_impl") 
     {
@@ -659,7 +707,6 @@ fn iter_row_next_impl<'a>(
         Some((range, range_types::IterRowNextKind::Multiline)) => ret = Some(range_types::RangeType::Multiline(range_types::RangeMultiline { range, sheet })),
         None => (),
     }
-    println!("[iter_row_next_impl] END ...");
     ret
 }
 
@@ -671,7 +718,6 @@ fn iter_row_next_impl_mut<'a>(
     max_col: u32,
 ) -> Option<range_types::RangeTypeMut<'a>> 
 {
-    println!("[iter_row_next_impl_mut] BEGIN ...");
     let mut ret: Option<range_types::RangeTypeMut<'a>> = None;
     match iter_row_next_impl_shared(sheet, current_row, max_row, max_col, "iter_row_next_impl_mut") 
     {
@@ -680,7 +726,6 @@ fn iter_row_next_impl_mut<'a>(
         Some((range, range_types::IterRowNextKind::Multiline)) => ret = Some(range_types::RangeTypeMut::Multiline(range_types::RangeMultilineMut { range, sheet })),
         None => (),
     }
-    println!("[iter_row_next_impl_mut] END ...");
     ret
 }
 
@@ -714,13 +759,11 @@ impl<'a> Iterator for IterRow<'a>
 
     fn next(&mut self) -> Option<Self::Item> 
     {
-        println!("[IterRow::next] BEGIN ...");
         let mut ret: Option<Self::Item> = None;
         match iter_row_next_impl(self.sheet, &mut self.current_row, self.max_row, self.max_col) {
             Some(range) => ret = Some(range),
             None => (),
         }
-        println!("[IterRow::next] END ...");
         ret
     }
 }
@@ -763,13 +806,11 @@ impl LendingIterator for IterRowMut<'_>
     
     fn next(&mut self) -> Option<Self::Item<'_>> 
     {
-        println!("[IterRowMut::next] BEGIN ...");
         let mut ret: Option<Self::Item<'_>> = None;
         match iter_row_next_impl_mut(self.sheet, &mut self.current_row, self.max_row, self.max_col) {
             Some(range) => ret = Some(range),
             None => (),
         }
-        println!("[IterRowMut::next] end ...");
         ret
     }
 }

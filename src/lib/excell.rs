@@ -1,3 +1,4 @@
+use std::process;
 // use clap::error;
 use umya_spreadsheet::*;
 use std::collections::HashMap;
@@ -297,7 +298,7 @@ pub fn filter_sheet_by_col_and_accum(
                 
                 let (brow_it, erow_it, bcol_it, ecol_it, rows_it, cols_it) = range_ops::range_bounds(it.get_range());
 
-                // Find the largest multiline range in the sheet_in, which matches the first line of the current range.
+                // Find the largest multiline range in 'sheet_in', which matches the first line of the current range.
                 let multiline_iter_sheet = range_ops::IterRow::new(sheet_in, max_row, max_col);
                 for mlit in multiline_iter_sheet 
                 {
@@ -330,18 +331,20 @@ pub fn filter_sheet_by_col_and_accum(
                 }
 
                 //append the largest multiline range to the output sheet
-                range_ops::append_range(sheet_in, &it_range, sheet_out);
+                res = range_ops::append_range(sheet_in, &it_range, sheet_out);
+
+                println!("[filter_sheet_by_col_and_accum] Appended range {}:[{}] to {}: {}", sheet_in.get_name(), range_ops::range_to_string(&it_range), sheet_out.get_name(), res);
 
                 //reset it_range to the original range for the next iteration
                 it_range = it.get_range().clone();
-
-                println!("[filter_sheet_by_col_and_accum] >>>>>>> Done with multiline inspection! <<<<<");
             }
-
-            res = range_ops::append_range(sheet_in, &it_range, sheet_out);
-
+            else
+            {
+                res = range_ops::append_range(sheet_in, &it_range, sheet_out);
+            }
         } //appending
         println!("[filter_sheet_by_col_and_accum]========================================================");
+        // process::exit(1);
     }
     println!("[filter_sheet_by_col_and_accum] Finisher loop, exiting");
     return res;
