@@ -26,24 +26,24 @@ where
 
     if rich_a != rich_b && strict 
     {
-        println!("[{}::compare_cell] Rich text mismatch: {}:{} and {}:{}", label, 
-            range_ops::coords_to_str(col_this, row_this), val_a,
-            range_ops::coords_to_str(col_other, row_other), val_b);
+        println!("[{}::compare_cell] Rich text mismatch: {}:[{}:'{}'] and {}:[{}:'{}']", label, 
+            sheet_this.get_name(), range_ops::coords_to_str(col_this, row_this), val_a,
+            sheet_other.get_name(), range_ops::coords_to_str(col_other, row_other), val_b);
         return r;
     }
 
     if range_ops::cmp_strs(&val_a, &val_b) 
     {
-        println!("[{}::compare_cell] {}:{} equals {}:{}", label,
-            range_ops::coords_to_str(col_this, row_this), val_a,
-            range_ops::coords_to_str(col_other, row_other), val_b);
+        println!("[{}::compare_cell] {}:[{}:'{}'] EQUALS {}:[{}:'{}']", label,
+            sheet_this.get_name(), range_ops::coords_to_str(col_this, row_this), val_a,
+            sheet_other.get_name(), range_ops::coords_to_str(col_other, row_other), val_b);
         r = true;
     } 
     else 
     {
-        println!("[{}::compare_cell] {}:{} differs {}:{}", label,
-            range_ops::coords_to_str(col_this, row_this), val_a,
-            range_ops::coords_to_str(col_other, row_other), val_b);
+        println!("[{}::compare_cell] {}:[{}:'{}'] DIFFERS {}:[{}:'{}']", label,
+            sheet_this.get_name(), range_ops::coords_to_str(col_this, row_this), val_a,
+            sheet_other.get_name(), range_ops::coords_to_str(col_other, row_other), val_b);
         r = false;
     }
     r
@@ -137,16 +137,17 @@ where
     let (brow_a, erow_a, bcol_a, _ecol_a, rows_a, cols_a) = range_ops::range_bounds(range_a);
     let (brow_b, erow_b, bcol_b, _ecol_b, rows_b, cols_b) = range_ops::range_bounds(range_b);
 
-    if strict && (rows_a != rows_b || cols_a != cols_b) 
+    if rows_a != rows_b || cols_a != cols_b
     {
-        println!("[{}::compare_range] Size missmatch! Range A:[{}, len:{}] != Range B:[{}, len:{}]", 
-            label, range_ops::range_to_string(range_a), rows_a, range_ops::range_to_string(range_b), rows_b);
+        println!("[{}::compare_range] Size missmatch! Range {}:[{}] != Range {}:[{}]", 
+            label, this.get_sheet().get_name(), range_ops::range_to_string(range_a),
+                  other.get_sheet().get_name(), range_ops::range_to_string(range_b));
 
         return false;
     }
 
-    let cols_a_offsets: Vec<u32> = (0..=cols_a).collect();
-    let cols_b_offsets: Vec<u32> = (0..=cols_b).collect();
+    let cols_a_offsets: Vec<u32> = (0..=(cols_a-1)).collect();
+    let cols_b_offsets: Vec<u32> = (0..=(cols_b-1)).collect();
     let allowed_rows: Vec<u32> = o_use_rows.unwrap_or_default();
     let allowed_cols: Vec<u32> = o_use_cols.unwrap_or_default();
 
@@ -154,6 +155,7 @@ where
     let _str_allowed_cols = allowed_cols.iter().map(|c| c.to_string()).collect::<Vec<String>>().join(",");
 
     let mut row_match = 0;
+    let mut col_match: u32;
 
     for row_num_a in brow_a..=erow_a {
         if allowed_rows.len() > 0 && !allowed_rows.contains(&row_num_a) {
@@ -165,8 +167,7 @@ where
                 continue;
             }
 
-            let mut col_match: u32 = 0;
-
+            col_match = 0;
             for (col_a_offset, col_b_offset) in cols_a_offsets.iter().zip(cols_b_offsets.iter()) 
             {
                 let col_num_a = bcol_a + col_a_offset;
@@ -182,7 +183,7 @@ where
                 }
             }
 
-            println!("[{}::compare_range] cols_a:{}, col_match:{}]", label, cols_a, col_match);
+            // println!("[{}::compare_range] cols_a:{}, col_match:{}]", label, cols_a, col_match);
 
             if col_match == cols_a {
                 row_match += 1;
@@ -190,9 +191,9 @@ where
         }
     }
 
-    println!("[{}::compare_range] rows_a:{}, row_match:{}]", label, rows_a, row_match);
+    // println!("[{}::compare_range] rows_a:{}, row_match:{}]", label, rows_a, row_match);
 
-    if !strict && row_match != rows_a 
+    if row_match != rows_a 
     {
         println!("[{}::compare_range] Range {}:[{}, len:{}] DIFFERS FROM Range {}:[{}, len:{}]", 
             label, this.get_sheet().get_name(), range_ops::range_to_string(range_a), rows_a, other.get_sheet().get_name(), range_ops::range_to_string(range_b), rows_b);

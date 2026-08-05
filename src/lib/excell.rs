@@ -276,7 +276,7 @@ pub fn filter_sheet_by_col_and_accum(
     {
         let mut it_range = it.get_range().clone();
 
-        println!("[filter_sheet_by_col_and_accum] Processing range '{}'!", range_ops::range_to_string(it.get_range()));
+        println!("[filter_sheet_by_col_and_accum] Processing range '{}:[{}]'!", it.get_sheet().get_name(), range_ops::range_to_string(it.get_range()));
 
         if let Some(found_range) = find_range_in_sheet(&it, sheet_out, &cmp_cols)
         { //accumulating
@@ -347,6 +347,7 @@ pub fn filter_sheet_by_col_and_accum(
         } //appending
         println!("[filter_sheet_by_col_and_accum]========================================================");
         // process::exit(1);
+        // return res;
     }
     println!("[filter_sheet_by_col_and_accum] Finisher loop, exiting");
     return res;

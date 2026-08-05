@@ -504,9 +504,10 @@ pub fn append_range(
     {
         let (_, _, mcbeg, mcend, mrlen, _) = range_bounds(mrgcells);
 
-        let mrange = make_range_from_indexes(mcbeg, current_old_row, mcend, current_old_row+mrlen);
+        let mrange = make_range_from_indexes(mcbeg, current_old_row, mcend, current_old_row + mrlen - 1);
 
-        println!("[append_range] Range [{}] contains merged cells [{}]", range_to_string(range_in), mrange.get_range());
+        println!("[append_range] {}:[{}] contains merged cells! Merge cells in {}:[{}]", sheet_in.get_name(), 
+            range_to_string(range_in), sheet_out.get_name(), range_to_string(&mrange));
             
         sheet_out.add_merge_cells(mrange.get_range());
     }
