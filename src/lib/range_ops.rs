@@ -76,8 +76,8 @@ pub fn range_bounds(range: &Range) -> (u32, u32, u32, u32, u32, u32) {
     let erow = *range.get_coordinate_end_row().unwrap().get_num();
     let bcol = *range.get_coordinate_start_col().unwrap().get_num();
     let ecol = *range.get_coordinate_end_col().unwrap().get_num();
-    let rows = erow - brow;
-    let cols = ecol - bcol;
+    let rows = 1 + erow - brow;
+    let cols = 1 + ecol - bcol;
     (brow, erow, bcol, ecol, rows, cols)
 }
 
@@ -159,10 +159,11 @@ pub fn limit_str(s: &str, max_chars: usize) -> String
 
 pub fn range_to_string(range: &Range) -> String
 {
-    let (rbeg, rend, cbeg, cend, _, _) = range_bounds(range);
+    let (rbeg, rend, cbeg, cend, rows, cols) = range_bounds(range);
 
-    format!("{}:{}", umya_spreadsheet::helper::coordinate::coordinate_from_index(&cbeg, &rbeg), // Returns "A1"
-                     umya_spreadsheet::helper::coordinate::coordinate_from_index(&cend, &rend)  // Returns "C10"
+    format!("{}:{} (rows:{} columns:{})", umya_spreadsheet::helper::coordinate::coordinate_from_index(&cbeg, &rbeg), // Returns "A1"
+                     umya_spreadsheet::helper::coordinate::coordinate_from_index(&cend, &rend),  // Returns "C10"
+                     rows, cols
     )
 }
 
@@ -345,8 +346,15 @@ pub fn comapre_ranges(
 
     if !strict && row_match != rows_a 
     {
+        println!("[comapre_ranges] Range {}:[{}, len:{}] DIFFERS FROM Range {}:[{}, len:{}]", 
+                sheet_a.get_name(), range_to_string(range_a), rows_a, sheet_b.get_name(), range_to_string(range_b), rows_b);
+
         return false;
     }
+
+    println!("[comapre_ranges] Range {}:[{}, len:{}] EQUALS TO Range {}:[{}, len:{}]", 
+            sheet_a.get_name(), range_to_string(range_a), rows_a, sheet_b.get_name(), range_to_string(range_b), rows_b);
+
     true
 }
 
@@ -603,25 +611,8 @@ fn iter_row_next_impl_shared<'a>(
             let (_, merged_end_row, _, _, _, _) = range_bounds(merged_cells);
             cells_range = make_range_from_indexes(1, *current_row, 1 + max_col, merged_end_row);
 
-            // let mut loop_on = true;
-            // while loop_on 
-            // {
-            //     let (brow, erow, bcol, ecol, range_rows, _) = range_bounds(&cells_range);
-
-            //     println!("[iter_row_next_impl_shared] Found merged cells range '{}'", range_to_string(&merged_cells));
-            //     println!("[iter_row_next_impl_shared] Found merged cells range '{}' for row {}! bcol:{} ecol:{} brow:{} erow:{}", 
-            //         range_to_string(&cells_range), *current_row, bcol, ecol, brow, erow);
-
-            //     if bcol == ecol && bcol == 1 {
-            //         loop_on = false;
-            //         println!("[iter_row_next_impl_shared] Range [{}]: from merged cells!", range_to_string(&cells_range));
-            //     }
-            //     *current_row += range_rows + 1;
-            // }
-
-            // println!("[iter_row_next_impl_shared] Selected cells range '{}'", range_to_string(&cells_range));
             let (_, _, _, _, range_rows, _) = range_bounds(&cells_range);
-            *current_row += range_rows + 1;
+            *current_row += range_rows;
 
             ret = Some((cells_range, range_types::IterRowNextKind::Merged));
         } 

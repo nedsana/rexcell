@@ -137,9 +137,11 @@ where
     let (brow_a, erow_a, bcol_a, _ecol_a, rows_a, cols_a) = range_ops::range_bounds(range_a);
     let (brow_b, erow_b, bcol_b, _ecol_b, rows_b, cols_b) = range_ops::range_bounds(range_b);
 
-    if strict && (rows_a != rows_b || cols_a != cols_b) {
+    if strict && (rows_a != rows_b || cols_a != cols_b) 
+    {
         println!("[{}::compare_range] Size missmatch! Range A:[{}, len:{}] != Range B:[{}, len:{}]", 
             label, range_ops::range_to_string(range_a), rows_a, range_ops::range_to_string(range_b), rows_b);
+
         return false;
     }
 
@@ -152,7 +154,6 @@ where
     let _str_allowed_cols = allowed_cols.iter().map(|c| c.to_string()).collect::<Vec<String>>().join(",");
 
     let mut row_match = 0;
-    let mut col_match: u32;
 
     for row_num_a in brow_a..=erow_a {
         if allowed_rows.len() > 0 && !allowed_rows.contains(&row_num_a) {
@@ -164,8 +165,10 @@ where
                 continue;
             }
 
-            col_match = 0;
-            for (col_a_offset, col_b_offset) in cols_a_offsets.iter().zip(cols_b_offsets.iter()) {
+            let mut col_match: u32 = 0;
+
+            for (col_a_offset, col_b_offset) in cols_a_offsets.iter().zip(cols_b_offsets.iter()) 
+            {
                 let col_num_a = bcol_a + col_a_offset;
                 let col_num_b = bcol_b + col_b_offset;
 
@@ -179,15 +182,27 @@ where
                 }
             }
 
+            println!("[{}::compare_range] cols_a:{}, col_match:{}]", label, cols_a, col_match);
+
             if col_match == cols_a {
                 row_match += 1;
             }
         }
     }
 
-    if !strict && row_match != rows_a {
+    println!("[{}::compare_range] rows_a:{}, row_match:{}]", label, rows_a, row_match);
+
+    if !strict && row_match != rows_a 
+    {
+        println!("[{}::compare_range] Range {}:[{}, len:{}] DIFFERS FROM Range {}:[{}, len:{}]", 
+            label, this.get_sheet().get_name(), range_ops::range_to_string(range_a), rows_a, other.get_sheet().get_name(), range_ops::range_to_string(range_b), rows_b);
+
         return false;
     }
+
+    println!("[{}::compare_range] Range {}:[{}, len:{}] EQUALS TO Range {}:[{}, len:{}]", 
+            label, this.get_sheet().get_name(), range_ops::range_to_string(range_a), rows_a, other.get_sheet().get_name(), range_ops::range_to_string(range_b), rows_b);
+
     true
 }
 

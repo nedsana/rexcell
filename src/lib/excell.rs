@@ -341,6 +341,8 @@ pub fn filter_sheet_by_col_and_accum(
             else
             {
                 res = range_ops::append_range(sheet_in, &it_range, sheet_out);
+
+                println!("[filter_sheet_by_col_and_accum] Appended range {}:[{}] to {}: {}", sheet_in.get_name(), range_ops::range_to_string(&it_range), sheet_out.get_name(), res);
             }
         } //appending
         println!("[filter_sheet_by_col_and_accum]========================================================");
