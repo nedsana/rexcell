@@ -285,7 +285,7 @@ pub fn filter_sheet_by_col_and_accum(
 
             println!("[filter_sheet_by_col_and_accum] Range {} already exists in sheet {}! Accumulating data!", range_ops::range_to_string(it.get_range()), sheet_out.get_name());
 
-            if range_ops::accumulate_ranges(sheet_in, it.get_range(), sheet_out, &found_range_clone, None, Some(acc_cols.clone()))
+            if range_ops::accumulate_ranges(sheet_in, it.get_range(), sheet_out, &found_range_clone, &cmp_cols, &acc_cols)
             {
                 println!("[filter_sheet_by_col_and_accum] Accumulated in-range '{}' to out-range '{}'!", range_ops::range_to_string(it.get_range()), range_ops::range_to_string(&found_range_clone));
             }

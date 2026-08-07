@@ -1,5 +1,5 @@
 use std::vec;
-use umya_spreadsheet::{Worksheet, Range};
+use umya_spreadsheet::{Worksheet, Range, Cell};
 use super::range_types;
 
 //compare strings, ignoring white spaces (' ',\t, \n, \r)
@@ -515,12 +515,11 @@ pub fn append_range(
     res
 }
 
-//return the cells in range_a and range_b, which are in the same position and have numeric values, accumulated (summed up)
 pub fn accumulate_ranges(
     sheet_a: &     Worksheet, range_a: &Range,
     sheet_b: & mut Worksheet, range_b: &Range,
-    o_allowed_rows: Option<vec::Vec<u32>>, 
-    o_allowed_cols: Option<vec::Vec<u32>>,
+    pivot_cols: &vec::Vec<u32>, 
+    accum_cols: &vec::Vec<u32>,
 ) -> bool
 {
     let mut accumulated: bool = false;
@@ -534,55 +533,143 @@ pub fn accumulate_ranges(
     //If the legths are different, the ranges cannot proceed with accumulation
     if rows_a != rows_b || cols_a != cols_b 
     {
+        println!("[accumulate_ranges] Range size missmatch! {}:[{}] to {}:[{}]!", sheet_a.get_name(), range_to_string(range_a), sheet_b.get_name(), range_to_string(range_b));
         return accumulated; 
     }
 
-    let rows_offsets: Vec<u32> = (0..=rows_a).collect();
-    let cols_offsets: Vec<u32> = (0..=cols_a).collect();
-    let allowed_rows: Vec<u32> = o_allowed_rows.unwrap_or_default();
-    let allowed_cols: Vec<u32> = o_allowed_cols.unwrap_or_default();
+    let rows_offsets_a: Vec<u32> = (0..=(rows_a-1)).collect();
+    let cols_offsets_a: Vec<u32> = (0..=(cols_a-1)).collect();
+
+    let rows_offsets_b: Vec<u32> = (0..=(rows_b-1)).collect();
+    let cols_offsets_b: Vec<u32> = (0..=(cols_b-1)).collect();
 
     //Loop using relative offsets to compare the cells in the two ranges
-    for row_offset in &rows_offsets 
+    for row_offset_a in &rows_offsets_a 
     {
-        let row_num_a = brow_a + row_offset;
-        let row_num_b = brow_b + row_offset;
-        
-        if allowed_rows.len() > 0 && !allowed_rows.contains(&row_num_a) && !allowed_rows.contains(&row_num_b) 
+        let mut cell_a: Option<&Cell> = None;
+        let mut cell_b: Option<&Cell> = None;
+
+        let row_num_a = brow_a + row_offset_a;
+
+        for col_offset_a in &cols_offsets_a
         {
-            continue; // skip this row if it's not in the allowed_rows list
+            let col_num_a = bcol_a + col_offset_a;
+            if pivot_cols.len() > 0 && !pivot_cols.contains(&col_num_a) && !pivot_cols.contains(&col_num_a) //why not just loop over the pivot_cols
+            {
+                continue; // skip this column if it's not in the pivot_cols list
+            }
+            cell_a = sheet_a.get_cell((col_num_a, row_num_a));
+            break;
         }
 
-        for col_offset in &cols_offsets 
-        {
-            let col_num_a = bcol_a + col_offset;
-            let col_num_b = bcol_b + col_offset;
+        let mut l_found_pivot = false;
+        let mut row_num_b = 0;
 
-            if allowed_cols.len() > 0 && !allowed_cols.contains(&col_num_a) && !allowed_cols.contains(&col_num_b) 
+        for row_offset_b in &rows_offsets_b
+        {
+            row_num_b = brow_b + row_offset_b;
+
+            for col_offset_b in &cols_offsets_b
             {
-                continue; // skip this column if it's not in the allowed_cols list
+                let col_num_b = bcol_b + col_offset_b;
+                if pivot_cols.len() > 0 && !pivot_cols.contains(&col_num_b) && !pivot_cols.contains(&col_num_b) //why not just loop over the pivot_cols
+                {
+                    continue; // skip this column if it's not in the pivot_cols list
+                }
+                cell_b = sheet_b.get_cell((col_num_b, row_num_b));
+                break;
             }
 
-            //Calculate the actual coordinates for sheet A and sheet B
-            let coord_a = (col_num_a, row_num_a);
-            let coord_b = (col_num_b, row_num_b);
-
-            let cell_a = sheet_a.get_cell(coord_a);
-            let cell_b = sheet_b.get_cell(coord_b);
-
-            if !cell_a.is_none() && !cell_b.is_none() 
+            if cell_b.is_some() && cell_a.is_some()
             {
-                if cell_a.as_ref().unwrap().get_data_type() == "n" && cell_b.as_ref().unwrap().get_data_type() == "n" 
+                // Compare the pivot cells to determine if they are the sames
+                let val_a = cell_a.as_ref().unwrap().get_value();
+                let val_b = cell_b.as_ref().unwrap().get_value();
+                if cmp_strs(&val_a, &val_b) 
                 {
-                    let val_a = cell_a.as_ref().unwrap().get_value().parse::<f64>().unwrap_or(0.0);
-                    let val_b = cell_b.as_ref().unwrap().get_value().parse::<f64>().unwrap_or(0.0);
-                    let sum: f64 = val_a + val_b;
-
-                    let q_cell_dst = sheet_b.get_cell_mut(coord_b);
-                    q_cell_dst.set_value_number(sum);
-
-                    accumulated = true;
+                    println!("[accumulate_ranges] Pivot {}:[{}:'{}'] EQUALS TO {}:[{}:'{}']!", sheet_a.get_name(), range_to_string(range_a), val_a, sheet_b.get_name(), range_to_string(range_b), val_b);
+                    l_found_pivot = true;
+                    break;
                 }
+            }
+        }
+        
+        if !l_found_pivot
+        {
+            if cell_a.is_none()
+            {
+                println!("[accumulate_ranges] Pivot from {}:[{}] is NONE! {}:[{}]!", sheet_a.get_name(), range_to_string(range_a), 
+                    sheet_b.get_name(), range_to_string(range_b));
+            }
+            else 
+            {
+                println!("[accumulate_ranges] Pivot {}:[{}:'{}'] NOT FOUND IN {}:[{}]!", sheet_a.get_name(), range_to_string(range_a), 
+                    cell_a.as_ref().unwrap().get_value(), sheet_b.get_name(), range_to_string(range_b));
+            }
+
+            break;
+        }
+
+        for col_offset_a in &cols_offsets_a
+        {
+            let col_num_a = bcol_a + col_offset_a;
+
+            if accum_cols.len() > 0 && !accum_cols.contains(&col_num_a) 
+            {
+                continue; // skip this column if it's not in the accum_cols list
+            }
+
+            cell_a = sheet_a.get_cell((col_num_a, row_num_a));
+            if cell_a.is_none()
+            {
+                println!("[accumulate_ranges] Cell {}:{} is None!", sheet_a.get_name(), coords_to_str(col_num_a, row_num_a));
+            }
+            break; // only need the first cell in the accum_cols for comparison
+        }
+
+        for col_offset_b in &cols_offsets_b
+        {
+            let col_num_b = bcol_b + col_offset_b;
+
+            if accum_cols.len() > 0 && !accum_cols.contains(&col_num_b) 
+            {
+                continue; // skip this column if it's not in the accum_cols list
+            }
+
+            cell_b = sheet_b.get_cell((col_num_b, row_num_b));
+            if cell_b.is_none()
+            {
+                println!("[accumulate_ranges] Cell {}:{} is None!", sheet_b.get_name(), coords_to_str(col_num_b, row_num_b));
+            }
+            break; // only need the first cell in the accum_cols for comparison
+        }
+
+        if !cell_a.is_none() && !cell_b.is_none() 
+        {
+            let cell_a_coord = cell_a.as_ref().unwrap().get_coordinate();
+            let coord_a = (cell_a_coord.get_col_num().clone(), cell_a_coord.get_row_num().clone());
+
+            let cell_b_coord = cell_b.as_ref().unwrap().get_coordinate();
+            let coord_b = (cell_b_coord.get_col_num().clone(), cell_b_coord.get_row_num().clone());
+
+            if cell_a.as_ref().unwrap().get_data_type() == "n" && cell_b.as_ref().unwrap().get_data_type() == "n" 
+            {
+                println!("[accumulate_ranges] Accumulating {}:{} to {}:{}", sheet_a.get_name(), coords_to_str(coord_a.0, coord_a.1), 
+                        sheet_b.get_name(), coords_to_str(coord_b.0, coord_b.1));
+
+                let val_a = cell_a.as_ref().unwrap().get_value().parse::<f64>().unwrap_or(0.0);
+                let val_b = cell_b.as_ref().unwrap().get_value().parse::<f64>().unwrap_or(0.0);
+                let sum: f64 = val_a + val_b;
+
+                let q_cell_dst = sheet_b.get_cell_mut(coord_b);
+                q_cell_dst.set_value_number(sum);
+
+                accumulated = true;
+            }
+            else
+            {
+                println!("[accumulate_ranges] Can't accumulate none-numeric values {}:{} to {}:{}", sheet_a.get_name(), coords_to_str(coord_a.0, coord_a.1), 
+                        sheet_b.get_name(), coords_to_str(coord_b.0, coord_b.1));
             }
         }
     }
