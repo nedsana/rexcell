@@ -369,6 +369,42 @@ pub struct RangeMultilineMut<'a> {
     pub sheet: &'a mut Worksheet,
 }
 
+impl<'a> RangeBasic<'a> {
+    pub fn new(range: Range, sheet: &'a Worksheet) -> Self {
+        Self { range, sheet }
+    }
+}
+
+impl<'a> RangeBasicMut<'a> {
+    pub fn new(range: Range, sheet: &'a mut Worksheet) -> Self {
+        Self { range, sheet }
+    }
+}
+
+impl<'a> RangeMergedCells<'a> {
+    pub fn new(range: Range, sheet: &'a Worksheet) -> Self {
+        Self { range, sheet }
+    }
+}
+
+impl<'a> RangeMergedCellsMut<'a> {
+    pub fn new(range: Range, sheet: &'a mut Worksheet) -> Self {
+        Self { range, sheet }
+    }
+}
+
+impl<'a> RangeMultiline<'a> {
+    pub fn new(range: Range, sheet: &'a Worksheet) -> Self {
+        Self { range, sheet }
+    }
+}
+
+impl<'a> RangeMultilineMut<'a> {
+    pub fn new(range: Range, sheet: &'a mut Worksheet) -> Self {
+        Self { range, sheet }
+    }
+}
+
 // ==========================================
 // STRUCT IMPLEMENTATION
 // ==========================================
@@ -603,6 +639,34 @@ pub enum RangeTypeMut<'a> {
     Basic(RangeBasicMut<'a>),
     Merged(RangeMergedCellsMut<'a>),
     Multiline(RangeMultilineMut<'a>),
+}
+
+impl<'a> RangeType<'a> {
+    pub fn basic(range: Range, sheet: &'a Worksheet) -> Self {
+        Self::Basic(RangeBasic::new(range, sheet))
+    }
+
+    pub fn merged(range: Range, sheet: &'a Worksheet) -> Self {
+        Self::Merged(RangeMergedCells::new(range, sheet))
+    }
+
+    pub fn multiline(range: Range, sheet: &'a Worksheet) -> Self {
+        Self::Multiline(RangeMultiline::new(range, sheet))
+    }
+}
+
+impl<'a> RangeTypeMut<'a> {
+    pub fn basic(range: Range, sheet: &'a mut Worksheet) -> Self {
+        Self::Basic(RangeBasicMut::new(range, sheet))
+    }
+
+    pub fn merged(range: Range, sheet: &'a mut Worksheet) -> Self {
+        Self::Merged(RangeMergedCellsMut::new(range, sheet))
+    }
+
+    pub fn multiline(range: Range, sheet: &'a mut Worksheet) -> Self {
+        Self::Multiline(RangeMultilineMut::new(range, sheet))
+    }
 }
 
 impl<'a> IRange for RangeType<'a> {
