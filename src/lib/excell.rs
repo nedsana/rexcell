@@ -370,12 +370,41 @@ pub fn make_largest_range<'a>(range_in: &'a dyn IRange, sheet_in: &'a Worksheet,
                         let missing_entries = find_missing_entries(&range_tmp, &it, cmp_cols);
                         for missing_entry in missing_entries 
                         {
-                            let (brow_e, _, _, _, _, _) = range_ops::range_bounds(&missing_entry);
+                            let (brow_me, _, _, _, _, _) = range_ops::range_bounds(&missing_entry);
 
                             if range_ops::append_range(it.get_sheet(), &missing_entry, &mut range_tmp.get_sheet_mut())
                             {
-                                println!("[make_largest_range] Appended missing range {}:[{}:'{}'] to {}", it.get_sheet().get_name(), range_ops::range_to_string(&missing_entry), 
-                                    it.get_sheet().get_cell_value((bcol_it, brow_e)).get_value(), range_tmp.get_sheet().get_name());
+                                let (br, er, bc, ec, _, _) = range_ops::range_bounds(range_tmp.get_range());
+                                //Overwrite with the new range size
+                                range_tmp = match range_in.get_type() {
+                                    IterRowNextKind::Basic => RangeTypeMut::basic(
+                                        range_ops::make_range_from_indexes(bc, br, ec, er+1),
+                                        &mut tmp_sheet,
+                                    ),
+                                    IterRowNextKind::Merged => RangeTypeMut::merged(
+                                        range_ops::make_range_from_indexes(bc, br, ec, er+1),
+                                        &mut tmp_sheet,
+                                    ),
+                                    IterRowNextKind::Multiline => RangeTypeMut::multiline(
+                                        range_ops::make_range_from_indexes(bc, br, ec, er+1),
+                                        &mut tmp_sheet,
+                                    ),
+                                };
+                               
+                                if range_in.get_type() == IterRowNextKind::Merged
+                                {
+                                    let mrange = range_ops::make_range_from_indexes(1, 1, 1, er+1);
+
+                                    println!("[make_largest_range] Appended missing range {}:[{}:'{}'] to {}. Merging {}!", it.get_sheet().get_name(), range_ops::range_to_string(&missing_entry), 
+                                        it.get_sheet().get_cell_value((bcol_it, brow_me)).get_value(), range_tmp.get_sheet().get_name(), range_ops::range_to_string(range_tmp.get_range()));
+
+                                    range_tmp.get_sheet_mut().add_merge_cells(mrange.get_range());
+                                }
+                                else
+                                {
+                                    println!("[make_largest_range] Appended missing range {}:[{}:'{}'] to {}", it.get_sheet().get_name(), range_ops::range_to_string(&missing_entry), 
+                                        it.get_sheet().get_cell_value((bcol_it, brow_me)).get_value(), range_tmp.get_sheet().get_name());
+                                }
                             }
                             else
                             {
@@ -409,6 +438,7 @@ pub fn make_largest_range<'a>(range_in: &'a dyn IRange, sheet_in: &'a Worksheet,
         // let mut tmp_ssheet = umya_spreadsheet::new_file(); //DELETE_ME
         // _ = tmp_ssheet.add_sheet(tmp_sheet); //DELETE_ME
         // _ = writer::xlsx::write(&tmp_ssheet, std::path::Path::new("TMP_SHEET.xlsx")); //DELETE_ME
+        // process::exit(1);
 
     }
     else
