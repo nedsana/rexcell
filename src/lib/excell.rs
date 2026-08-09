@@ -245,13 +245,29 @@ pub fn find_range_in_sheet<'a>(range: &'a dyn IRange, sheet: &'a Worksheet, cmp_
  */
 pub fn find_largest_range<'a>(range_in: &'a dyn IRange, sheet_in: &'a Worksheet, cmp_cols: &'a Vec<u32>) -> Option<RangeType<'a>> 
 {
+    let mut tmp_sheet = Worksheet::default();
+    tmp_sheet.set_name("find_largest_range");
+
     let mut res: Option<RangeType<'a>> = None;
+
+    let mut range_tmp = match range_in.get_type() {
+        IterRowNextKind::Basic => RangeType::basic(
+            range_ops::make_range_from_indexes(1, 1, 1, 1),
+            &tmp_sheet,
+        ),
+        IterRowNextKind::Merged => RangeType::merged(
+            range_ops::make_range_from_indexes(1, 1, 1, 1),
+            &tmp_sheet,
+        ),
+        IterRowNextKind::Multiline => RangeType::multiline(
+            range_ops::make_range_from_indexes(1, 1, 1, 1),
+            &tmp_sheet,
+        ),
+    };
 
     let iter_sheet = range_ops::IterRow::new(sheet_in, common::MAX_ROW, common::MAX_COL);
     for it in iter_sheet 
     {
-        println!("[find_largest_range] Looping over {}!", range_ops::range_to_string(it.get_range()));
-
         if range_ops::same_types(range_in, &it)
         {
             let (mut brow_in, mut erow_in, mut bcol_in, mut ecol_in, mut rows_in, mut cols_in) = range_ops::range_bounds(range_in.get_range());
@@ -279,29 +295,52 @@ pub fn find_largest_range<'a>(range_in: &'a dyn IRange, sheet_in: &'a Worksheet,
             {
                 if rows_it > rows_in 
                 {
-                    println!("[find_largest_range] {}:'{}' IS SMALLER THEN {}:'{}'. UPDATING!", 
-                            range_ops::range_to_string(it.get_range()), hdr_in, 
+                    if res.is_none()
+                    {
+                        println!("[find_largest_range] {}:'{}' VS {}:'{}'. UPDATING!", 
+                            range_ops::range_to_string(range_in.get_range()), hdr_in, 
                             range_ops::range_to_string(it.get_range()), hdr_it);
 
-                    res = Some(it);
+                        res = Some(it); //keep the largest range found so far
+                    }
+                    else
+                    {
+                        let old_res = res.as_ref().unwrap();
+                        let (_, _, _, _, rows_old_res,_) = range_ops::range_bounds(old_res.get_range());
+
+                        if rows_it > rows_old_res
+                        {
+                            println!("[find_largest_range] {}:'{}' VS {}:'{}'. UPDATING!", 
+                                range_ops::range_to_string(old_res.get_range()), hdr_in, 
+                                range_ops::range_to_string(it.get_range()), hdr_it);
+
+                            res = Some(it); //keep the largest range found so far
+                        }
+                        else
+                        {
+                            println!("[find_largest_range] {}:'{}' VS {}:'{}'. KEEPING!", 
+                                range_ops::range_to_string(range_in.get_range()), hdr_in, 
+                                range_ops::range_to_string(it.get_range()), hdr_it);
+                        }
+                    }
                 }
                 else 
                 {
-                    println!("[find_largest_range] {}:'{}' IS NOT SMALLER THEN {}:'{}'. KEEPING!", 
-                            range_ops::range_to_string(it.get_range()), hdr_in, 
+                    println!("[find_largest_range] {}:'{}' VS {}:'{}'. KEEPING!", 
+                            range_ops::range_to_string(range_in.get_range()), hdr_in, 
                             range_ops::range_to_string(it.get_range()), hdr_it);
                 }
             }
             else
             {
                 println!("[find_largest_range] {}:'{}' DEFFERENT FROM {}:'{}'.",
-                        range_ops::range_to_string(it.get_range()), hdr_in, 
+                        range_ops::range_to_string(range_in.get_range()), hdr_in, 
                         range_ops::range_to_string(it.get_range()), hdr_it);
             }
         }
         else
         {
-           println!("[find_largest_range] Types mismatch: {}:{} {}:{}", range_ops::range_to_string(it.get_range()), range_in.get_type_name(), 
+           println!("[find_largest_range] Types mismatch: {}:{} {}:{}", range_ops::range_to_string(range_in.get_range()), range_in.get_type_name(), 
                                                                         range_ops::range_to_string(it.get_range()), it.get_type_name()); 
         }
     }
@@ -339,18 +378,6 @@ pub fn filter_sheet_by_col_and_accum(
 
     for it in iter_sheet 
     {
-        let largest_range = find_largest_range(&it, sheet_in, &cmp_cols);
-        if largest_range.is_some() 
-        {
-            let largest_range = largest_range.unwrap();
-            println!("[filter_sheet_by_col_and_accum] Found larger range {} with more rows than current range {}!", 
-                range_ops::range_to_string(largest_range.get_range()), range_ops::range_to_string(it.get_range()));
-        }
-        else 
-        {
-            println!("[filter_sheet_by_col_and_accum] No larger range found for current range {}!", range_ops::range_to_string(it.get_range()));
-        }
-
         let mut it_range = it.get_range().clone();
 
         println!("[filter_sheet_by_col_and_accum] Processing range '{}:[{}]'!", it.get_sheet().get_name(), range_ops::range_to_string(it.get_range()));
@@ -369,8 +396,23 @@ pub fn filter_sheet_by_col_and_accum(
         }
         else
         { //appending
-            // let largest_range = find_largest_range(&it, sheet_in, &cmp_cols);
+            let largest_range = find_largest_range(&it, sheet_in, &cmp_cols);
+            if largest_range.is_some() 
+            {
+                let largest_range = largest_range.unwrap().get_range().clone();
 
+                res = range_ops::append_range(sheet_in, &largest_range, sheet_out);
+
+                println!("[filter_sheet_by_col_and_accum] Appended range {}:[{}] to {}: {}", sheet_in.get_name(), range_ops::range_to_string(&largest_range), sheet_out.get_name(), res);
+            }
+            else 
+            {
+                res = range_ops::append_range(sheet_in, &it_range, sheet_out);
+
+                println!("[filter_sheet_by_col_and_accum] Appended range {}:[{}] to {}: {}", sheet_in.get_name(), range_ops::range_to_string(&it_range), sheet_out.get_name(), res);
+            }
+
+/*
             if let RangeType::Multiline(_) = it 
             {
                 println!("[filter_sheet_by_col_and_accum] >>>>>> Range {} does not exist in sheet {}! Find largest multiline section! <<<<<<<", range_ops::range_to_string(it.get_range()), sheet_out.get_name());
@@ -423,6 +465,7 @@ pub fn filter_sheet_by_col_and_accum(
 
                 println!("[filter_sheet_by_col_and_accum] Appended range {}:[{}] to {}: {}", sheet_in.get_name(), range_ops::range_to_string(&it_range), sheet_out.get_name(), res);
             }
+*/
         } //appending
         println!("[filter_sheet_by_col_and_accum]========================================================");
         // process::exit(1);
