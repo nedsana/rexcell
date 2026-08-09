@@ -1,3 +1,4 @@
+use std::f32::consts::E;
 use std::process;
 // use clap::error;
 use umya_spreadsheet::*;
@@ -7,14 +8,10 @@ use crate::range_types::*;
 use super::common;
 use super::range_ops;
 
-//to do: make these constants configurable
-const MAX_COL: u32 = 8;
-const MAX_ROW: u32 = 1000;
-
 pub fn get_ref_map_by_indexes(sheet: &Worksheet, col_key: u32, col_value: u32) -> HashMap<String, String> {
     let mut ref_map: HashMap<String, String> = HashMap::new();
 
-    for row in 1..=MAX_ROW /*sheet.get_highest_row()*/ {
+    for row in 1..=common::MAX_ROW /*sheet.get_highest_row()*/ {
         let cell_key = sheet.get_value((col_key, row));
         let cell_value = sheet.get_value((col_value, row));
 
@@ -36,8 +33,8 @@ pub fn apply_formulas(
     col_key: u32,
 )
 {
-    let utbl_max_row = MAX_ROW; //utbl.get_highest_row();
-    let rtbl_max_row = MAX_ROW; //rtbl.get_highest_row();
+    let utbl_max_row = common::MAX_ROW; //utbl.get_highest_row();
+    let rtbl_max_row = common::MAX_ROW; //rtbl.get_highest_row();
 
     for rtbl_row in 1..=rtbl_max_row //loop over the reference table rows
     {
@@ -52,7 +49,7 @@ pub fn apply_formulas(
                 if !utbl_key_value.is_empty() && range_ops::cmp_strs(&utbl_key_value, &rtbl_key_value) 
                 {
                     // let utbl_name = utbl.get_name().to_string();
-                    let utbl_max_col = MAX_COL; //utbl.get_highest_column();
+                    let utbl_max_col = common::MAX_COL; //utbl.get_highest_column();
                     for utbl_col in 1..=utbl_max_col
                     {
                         let ucell = utbl.get_cell_mut((utbl_col, utbl_row));
@@ -74,8 +71,8 @@ pub fn reset_formulas(
     utbl: &mut Worksheet,
 )
 {
-    let utbl_max_row = MAX_ROW; //utbl.get_highest_row();
-    let utbl_max_col = MAX_COL; //utbl.get_highest_column();
+    let utbl_max_row = common::MAX_ROW; //utbl.get_highest_row();
+    let utbl_max_col = common::MAX_COL; //utbl.get_highest_column();
     for utbl_col in 1..=utbl_max_col //loop over the update table rows
     {
         for utbl_row in 1..=utbl_max_row //loop over the update table rows
@@ -103,8 +100,8 @@ pub fn apply_key_value_data_by_indexes(
 
     let mut res = (Vec::new(), Vec::new());
     
-    let utbl_max_row = MAX_ROW; //utbl.get_highest_row();
-    let rtbl_max_row = MAX_ROW; //rtbl.get_highest_row();
+    let utbl_max_row = common::MAX_ROW; //utbl.get_highest_row();
+    let rtbl_max_row = common::MAX_ROW; //rtbl.get_highest_row();
 
     for utbl_row in 1..=utbl_max_row //loop over the update table rows
     {
@@ -229,11 +226,9 @@ pub fn get_worksheet_names(path: &std::path::Path) -> Result<String, String> {
  * Find a matching range in the sheet.
  * Returns Some(range) when a matching range is found, otherwise None.
  */
-fn find_range_in_sheet<'a>(range: &'a dyn IRange, sheet: &'a Worksheet, cmp_cols: &'a Vec<u32>) -> Option<RangeType<'a>>
+pub fn find_range_in_sheet<'a>(range: &'a dyn IRange, sheet: &'a Worksheet, cmp_cols: &'a Vec<u32>) -> Option<RangeType<'a>>
 {
-    let max_row = MAX_ROW; //sheet.get_highest_row();
-    let max_col = MAX_COL; //sheet.get_highest_column();
-    let iter_sheet = range_ops::IterRow::new(sheet, max_row, max_col);
+    let iter_sheet = range_ops::IterRow::new(sheet, common::MAX_ROW, common::MAX_COL);
     for it in iter_sheet 
     {
         if it.compare_range(range, false, None, Some(cmp_cols.clone()))
@@ -242,6 +237,76 @@ fn find_range_in_sheet<'a>(range: &'a dyn IRange, sheet: &'a Worksheet, cmp_cols
         }
     }
     None
+}
+
+/**
+ * Scan the workseet to find if there are ranges (Multiline or Merged), with same header, but with more rows than the provided range_out.
+ * @return - return Option with the largest range found, or None, if the input range is not found at all
+ */
+pub fn find_largest_range<'a>(range_in: &'a dyn IRange, sheet_in: &'a Worksheet, cmp_cols: &'a Vec<u32>) -> Option<RangeType<'a>> 
+{
+    let mut res: Option<RangeType<'a>> = None;
+
+    let iter_sheet = range_ops::IterRow::new(sheet_in, common::MAX_ROW, common::MAX_COL);
+    for it in iter_sheet 
+    {
+        println!("[find_largest_range] Looping over {}!", range_ops::range_to_string(it.get_range()));
+
+        if range_ops::same_types(range_in, &it)
+        {
+            let (mut brow_in, mut erow_in, mut bcol_in, mut ecol_in, mut rows_in, mut cols_in) = range_ops::range_bounds(range_in.get_range());
+            let (mut brow_it, mut erow_it, mut bcol_it, mut ecol_it, mut rows_it, mut cols_it) = range_ops::range_bounds(it.get_range());
+
+            for col in cmp_cols {
+                if *col == bcol_in {
+                    break;
+                }
+                bcol_in += 1;
+            }
+
+            for col in cmp_cols {
+                if *col == bcol_it {
+                    break;
+                }
+                bcol_it += 1;
+            }
+
+            //check if the first line of the range_in matches the first line of the current range in the sheets
+            let hdr_in = sheet_in.get_cell_value((bcol_in, brow_in)).get_value();
+            let hdr_it = it.get_sheet().get_cell_value((bcol_it, brow_it)).get_value();
+
+            if range_ops::cmp_strs(&hdr_in, &hdr_it) 
+            {
+                if rows_it > rows_in 
+                {
+                    println!("[find_largest_range] {}:'{}' IS SMALLER THEN {}:'{}'. UPDATING!", 
+                            range_ops::range_to_string(it.get_range()), hdr_in, 
+                            range_ops::range_to_string(it.get_range()), hdr_it);
+
+                    res = Some(it);
+                }
+                else 
+                {
+                    println!("[find_largest_range] {}:'{}' IS NOT SMALLER THEN {}:'{}'. KEEPING!", 
+                            range_ops::range_to_string(it.get_range()), hdr_in, 
+                            range_ops::range_to_string(it.get_range()), hdr_it);
+                }
+            }
+            else
+            {
+                println!("[find_largest_range] {}:'{}' DEFFERENT FROM {}:'{}'.",
+                        range_ops::range_to_string(it.get_range()), hdr_in, 
+                        range_ops::range_to_string(it.get_range()), hdr_it);
+            }
+        }
+        else
+        {
+           println!("[find_largest_range] Types mismatch: {}:{} {}:{}", range_ops::range_to_string(it.get_range()), range_in.get_type_name(), 
+                                                                        range_ops::range_to_string(it.get_range()), it.get_type_name()); 
+        }
+    }
+
+    res
 }
 
 /**
@@ -263,8 +328,8 @@ pub fn filter_sheet_by_col_and_accum(
     let cmp_cols: Vec<u32> = col_filter.split(',').map(|s| range_ops::column_to_index(s.trim())).collect();
     let acc_cols: Vec<u32> = cols_accum.split(',').map(|s| range_ops::column_to_index(s.trim())).collect();
 
-    let max_row = MAX_ROW; //sheet_in.get_highest_row();
-    let max_col = MAX_COL; //sheet_in.get_highest_column();
+    let max_row = common::MAX_ROW; //sheet_in.get_highest_row();
+    let max_col = common::MAX_COL; //sheet_in.get_highest_column();
 
     // let merged_cells = sheet_in.get_merge_cells();
 
@@ -274,6 +339,18 @@ pub fn filter_sheet_by_col_and_accum(
 
     for it in iter_sheet 
     {
+        let largest_range = find_largest_range(&it, sheet_in, &cmp_cols);
+        if largest_range.is_some() 
+        {
+            let largest_range = largest_range.unwrap();
+            println!("[filter_sheet_by_col_and_accum] Found larger range {} with more rows than current range {}!", 
+                range_ops::range_to_string(largest_range.get_range()), range_ops::range_to_string(it.get_range()));
+        }
+        else 
+        {
+            println!("[filter_sheet_by_col_and_accum] No larger range found for current range {}!", range_ops::range_to_string(it.get_range()));
+        }
+
         let mut it_range = it.get_range().clone();
 
         println!("[filter_sheet_by_col_and_accum] Processing range '{}:[{}]'!", it.get_sheet().get_name(), range_ops::range_to_string(it.get_range()));
@@ -292,6 +369,8 @@ pub fn filter_sheet_by_col_and_accum(
         }
         else
         { //appending
+            // let largest_range = find_largest_range(&it, sheet_in, &cmp_cols);
+
             if let RangeType::Multiline(_) = it 
             {
                 println!("[filter_sheet_by_col_and_accum] >>>>>> Range {} does not exist in sheet {}! Find largest multiline section! <<<<<<<", range_ops::range_to_string(it.get_range()), sheet_out.get_name());

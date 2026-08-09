@@ -308,6 +308,12 @@ where
 // ==========================================
 // TRAIT
 // ==========================================
+#[derive(PartialEq)]
+pub enum IterRowNextKind {
+    Basic,
+    Merged,
+    Multiline,
+}
 
 pub trait IRange {
     fn get_range(&self) -> &Range;
@@ -315,16 +321,18 @@ pub trait IRange {
     fn contains(&self, other: &Range) -> bool;
     fn compare_range(&self, other: &dyn IRange, strict: bool, o_use_rows: Option<vec::Vec<u32>>, o_use_cols: Option<vec::Vec<u32>>) -> bool;
     fn compare_cell(&self, col_a: u32, row_a: u32, other: &dyn IRange, col_b: u32, row_b: u32, strict: bool) -> bool;
+    fn get_type(&self) -> IterRowNextKind;
+    fn get_type_name(&self) -> String {
+        match self.get_type() {
+            IterRowNextKind::Basic => "Basic".to_string(),
+            IterRowNextKind::Merged => "Merged".to_string(),
+            IterRowNextKind::Multiline => "Multiline".to_string(),
+        }
+    }
 }
 
 pub trait IRangeMut: IRange {
     fn get_sheet_mut(&mut self) -> &mut Worksheet;
-}
-
-pub enum IterRowNextKind {
-    Basic,
-    Merged,
-    Multiline,
 }
 
 // ==========================================
@@ -389,6 +397,8 @@ impl<'a> IRange for RangeBasic<'a> {
     {
         compare_cell_impl(self, col_this, row_this, other, col_other, row_other, strict, "RangeBasic")
     }
+
+    fn get_type(&self) -> IterRowNextKind { IterRowNextKind::Basic }
 }
 
 impl<'a> IRange for RangeBasicMut<'a> {
@@ -412,7 +422,9 @@ impl<'a> IRange for RangeBasicMut<'a> {
     fn compare_cell(&self, col_this: u32, row_this: u32, other: &dyn IRange, col_other: u32, row_other: u32, strict: bool) -> bool 
     {
         compare_cell_impl(self, col_this, row_this, other, col_other, row_other, strict, "RangeBasicMut")
-    }    
+    }
+
+    fn get_type(&self) -> IterRowNextKind { IterRowNextKind::Basic }
 }
 
 impl<'a> IRangeMut for RangeBasicMut<'a> {
@@ -457,6 +469,8 @@ impl<'a> IRange for RangeMergedCells<'a> {
     {
         compare_cell_impl(self, col_this, row_this, other, col_other, row_other, strict, "RangeMergedCells")
     }
+
+    fn get_type(&self) -> IterRowNextKind { IterRowNextKind::Merged }
 }
 
 impl<'a> IRange for RangeMergedCellsMut<'a> {
@@ -481,6 +495,8 @@ impl<'a> IRange for RangeMergedCellsMut<'a> {
     {
         compare_cell_impl(self, col_this, row_this, other, col_other, row_other, strict, "RangeMergedCellsMut")
     }
+
+    fn get_type(&self) -> IterRowNextKind { IterRowNextKind::Merged }
 }
 
 impl<'a> IRangeMut for RangeMergedCellsMut<'a> {
@@ -525,6 +541,8 @@ impl<'a> IRange for RangeMultiline<'a> {
     {
         compare_cell_impl(self, col_this, row_this, other, col_other, row_other, strict, "RangeMultiline")
     }
+
+    fn get_type(&self) -> IterRowNextKind { IterRowNextKind::Multiline }
 }
 
 impl<'a> IRange for RangeMultilineMut<'a> {
@@ -549,6 +567,8 @@ impl<'a> IRange for RangeMultilineMut<'a> {
     {
         compare_cell_impl(self, col_this, row_this, other, col_other, row_other, strict, "RangeMultilineMut")
     }
+
+    fn get_type(&self) -> IterRowNextKind { IterRowNextKind::Multiline }
 }
 
 impl<'a> IRangeMut for RangeMultilineMut<'a> {
@@ -625,6 +645,14 @@ impl<'a> IRange for RangeType<'a> {
             RangeType::Multiline(r) => r.compare_cell(col_this, row_this, other, col_other, row_other, strict),
         }
     }
+
+    fn get_type(&self) -> IterRowNextKind {
+        match self {
+            RangeType::Basic(r) => r.get_type(),
+            RangeType::Merged(r) => r.get_type(),
+            RangeType::Multiline(r) => r.get_type(),
+        }
+    }
 }
 
 impl<'a> IRange for RangeTypeMut<'a> {
@@ -665,6 +693,14 @@ impl<'a> IRange for RangeTypeMut<'a> {
             RangeTypeMut::Basic(r) => r.compare_cell(col_this, row_this, other, col_other, row_other, strict),
             RangeTypeMut::Merged(r) => r.compare_cell(col_this, row_this, other, col_other, row_other, strict),
             RangeTypeMut::Multiline(r) => r.compare_cell(col_this, row_this, other, col_other, row_other, strict),
+        }
+    }
+
+    fn get_type(&self) -> IterRowNextKind {
+        match self {
+            RangeTypeMut::Basic(r) => r.get_type(),
+            RangeTypeMut::Merged(r) => r.get_type(),
+            RangeTypeMut::Multiline(r) => r.get_type(),
         }
     }
 }

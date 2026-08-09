@@ -1,6 +1,7 @@
 use std::vec;
 use umya_spreadsheet::{Worksheet, Range, Cell};
 use super::range_types;
+use super::common;
 
 //compare strings, ignoring white spaces (' ',\t, \n, \r)
 pub fn cmp_strs(s1: &str, s2: &str) -> bool 
@@ -354,59 +355,6 @@ pub fn comapre_ranges(
 
     println!("[comapre_ranges] Range {}:[{}, len:{}] EQUALS TO Range {}:[{}, len:{}]", 
             sheet_a.get_name(), range_to_string(range_a), rows_a, sheet_b.get_name(), range_to_string(range_b), rows_b);
-
-    true
-}
-
-pub fn range_contains_range(
-    sheet_in: &Worksheet, range_in: &Range,
-    sheet_out: &Worksheet, range_out: &Range,
-) -> bool 
-{
-    let (brow_in, erow_in, bcol_in, _, _, cols_in) = range_bounds(range_in);
-    let (brow_out, erow_out, bcol_out, _, _, cols_out) = range_bounds(range_out);
-
-    if cols_in != cols_out 
-    {
-        println!("[range_contains_range] Column count mismatch: range_in has {} cols, range_out has {} cols", cols_in + 1, cols_out + 1);
-        return false;
-    }
-
-    for row_out in brow_out..=erow_out 
-    {
-        let mut row_found = false;
-
-        for row_in in brow_in..=erow_in 
-        {
-            let mut all_cells_match = true;
-
-            for col_offset in 0..=cols_out 
-            {
-                let col_in = bcol_in + col_offset;
-                let col_out = bcol_out + col_offset;
-
-                let val_in = sheet_in.get_cell_value((col_in, row_in)).get_value();
-                let val_out = sheet_out.get_cell_value((col_out, row_out)).get_value();
-
-                if !cmp_strs(&val_in, &val_out) 
-                {
-                    all_cells_match = false;
-                    break;
-                }
-            }
-
-            if all_cells_match 
-            {
-                row_found = true;
-                break;
-            }
-        }
-
-        if !row_found 
-        {
-            return false;
-        }
-    }
 
     true
 }
@@ -892,4 +840,10 @@ impl LendingIterator for IterRowMut<'_>
         }
         ret
     }
+}
+
+/* ---------------------------------------------------------------------------------------- */
+
+pub fn same_types(a: &dyn range_types::IRange, b: &dyn range_types::IRange) -> bool {
+    a.get_type() == b.get_type()
 }

@@ -115,6 +115,9 @@ pub const MESSAGE_DONE_SAVED: &str = "Done! The result is saved in '{}'";
 pub const NO_SHEETS_FOUND: &str = "No sheets found in the file";
 pub const ERROR_DEST_COL_NOT_DEFINED: &str = "Columns to update are not defined";
 
+//to do: make these constants configurable
+pub const MAX_COL: u32 = 8;
+pub const MAX_ROW: u32 = 1000;
 
 pub struct Config {
     pub command: Command,
