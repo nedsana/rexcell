@@ -398,6 +398,7 @@ pub fn make_largest_range<'a>(range_in: &'a dyn IRange, sheet_in: &'a Worksheet,
                                     println!("[make_largest_range] Appended missing range {}:[{}:'{}'] to {}. Merging {}!", it.get_sheet().get_name(), range_ops::range_to_string(&missing_entry), 
                                         it.get_sheet().get_cell_value((bcol_it, brow_me)).get_value(), range_tmp.get_sheet().get_name(), range_ops::range_to_string(range_tmp.get_range()));
 
+                                    range_tmp.get_sheet_mut().get_merge_cells_mut().clear();
                                     range_tmp.get_sheet_mut().add_merge_cells(mrange.get_range());
                                 }
                                 else
@@ -433,13 +434,6 @@ pub fn make_largest_range<'a>(range_in: &'a dyn IRange, sheet_in: &'a Worksheet,
             //                                                                 range_ops::range_to_string(it.get_range()), it.get_type_name()); 
             }
         }
-
-        // // temporary file for debugging
-        // let mut tmp_ssheet = umya_spreadsheet::new_file(); //DELETE_ME
-        // _ = tmp_ssheet.add_sheet(tmp_sheet); //DELETE_ME
-        // _ = writer::xlsx::write(&tmp_ssheet, std::path::Path::new("TMP_SHEET.xlsx")); //DELETE_ME
-        // process::exit(1);
-
     }
     else
     {
@@ -500,6 +494,12 @@ pub fn filter_sheet_by_col_and_accum(
             let sheet_largest_range = make_largest_range(&it, sheet_in, &cmp_cols);
 
             let iter_sheet_largest_range = range_ops::IterRow::new(&sheet_largest_range, max_row, max_col);
+
+            // // temporary file for debugging
+            // let mut tmp_ssheet = umya_spreadsheet::new_file(); //DELETE_ME
+            // _ = tmp_ssheet.add_sheet(sheet_largest_range); //DELETE_ME
+            // _ = writer::xlsx::write(&tmp_ssheet, std::path::Path::new("TMP_SHEET.xlsx")); //DELETE_ME
+            // process::exit(1);
 
             for it_slr in iter_sheet_largest_range
             {
