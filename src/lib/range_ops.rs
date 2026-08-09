@@ -559,8 +559,8 @@ pub fn accumulate_ranges(
                 continue; // skip this column if it's not in the pivot_cols list
             }
             cell_a = sheet_a.get_cell((col_num_a, row_num_a));
-            break;
-        }
+            break; //for col_offset_a in &cols_offsets_a
+        } //for col_offset_a in &cols_offsets_a
 
         let mut l_found_pivot = false;
         let mut row_num_b = 0;
@@ -577,7 +577,7 @@ pub fn accumulate_ranges(
                     continue; // skip this column if it's not in the pivot_cols list
                 }
                 cell_b = sheet_b.get_cell((col_num_b, row_num_b));
-                break;
+                break; //for row_offset_b in &rows_offsets_b
             }
 
             if cell_b.is_some() && cell_a.is_some()
@@ -589,10 +589,10 @@ pub fn accumulate_ranges(
                 {
                     println!("[accumulate_ranges] Pivot {}:[{}:'{}'] EQUALS TO {}:[{}:'{}']!", sheet_a.get_name(), range_to_string(range_a), val_a, sheet_b.get_name(), range_to_string(range_b), val_b);
                     l_found_pivot = true;
-                    break;
+                    break; //for row_offset_b in &rows_offsets_b
                 }
             }
-        }
+        } //for row_offset_b in &rows_offsets_b
         
         if !l_found_pivot
         {
@@ -607,7 +607,7 @@ pub fn accumulate_ranges(
                     cell_a.as_ref().unwrap().get_value(), sheet_b.get_name(), range_to_string(range_b));
             }
 
-            break;
+            break; //for row_offset_a in &rows_offsets_a 
         }
 
         for col_offset_a in &cols_offsets_a
@@ -624,8 +624,8 @@ pub fn accumulate_ranges(
             {
                 println!("[accumulate_ranges] Cell {}:{} is None!", sheet_a.get_name(), coords_to_str(col_num_a, row_num_a));
             }
-            break; // only need the first cell in the accum_cols for comparison
-        }
+            break; //for col_offset_a in &cols_offsets_a
+        } //for col_offset_a in &cols_offsets_a
 
         for col_offset_b in &cols_offsets_b
         {
@@ -641,8 +641,8 @@ pub fn accumulate_ranges(
             {
                 println!("[accumulate_ranges] Cell {}:{} is None!", sheet_b.get_name(), coords_to_str(col_num_b, row_num_b));
             }
-            break; // only need the first cell in the accum_cols for comparison
-        }
+            break; //for col_offset_b in &cols_offsets_b
+        } //for col_offset_b in &cols_offsets_b
 
         if !cell_a.is_none() && !cell_b.is_none() 
         {
@@ -672,7 +672,7 @@ pub fn accumulate_ranges(
                         sheet_b.get_name(), coords_to_str(coord_b.0, coord_b.1));
             }
         }
-    }
+    } //for row_offset_a in &rows_offsets_a 
 
     accumulated
 }
