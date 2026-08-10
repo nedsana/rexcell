@@ -698,29 +698,29 @@ fn iter_row_next_impl_shared<'a>(
                     }
                 }
 
-                *current_row += range_rows + 1;
+                *current_row += range_rows;
 
                 if multiline 
                 {
-                    // println!("[iter_row_next_impl_shared] Range [{}]: from multiline cells!", range_to_string(&cells_range));
+                    println!("[iter_row_next_impl_shared] Range [{}]: from multiline cells! current_row={}", range_to_string(&cells_range), current_row);
                     ret = Some((cells_range, range_types::IterRowNextKind::Multiline));
                 } 
                 else 
                 {
-                    // println!("[iter_row_next_impl_shared] Range [{}]: from regular cells!", range_to_string(&cells_range));
+                    println!("[iter_row_next_impl_shared] Range [{}]: from regular cells! current_row={}", range_to_string(&cells_range), current_row);
                     ret = Some((cells_range, range_types::IterRowNextKind::Basic));
                 }
             } 
             else 
             {
-                // println!("[iter_row_next_impl_shared] Current row {} starts with unexpected type:'{}'!", *current_row, first_cell_data_type);
+                println!("[iter_row_next_impl_shared] Current row {} starts with unexpected type:'{}'!", *current_row, first_cell_data_type);
                 ret = Some((cells_range, range_types::IterRowNextKind::Basic));
                 *current_row += 1;
             }
         } 
         else 
         {
-            // println!("[iter_row_next_impl_shared] Processing unexpected row:{}!", *current_row);
+            println!("[iter_row_next_impl_shared] Processing unexpected row:{}!", *current_row);
             *current_row += 1;
         }
     }
