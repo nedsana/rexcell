@@ -312,9 +312,7 @@ pub fn find_missing_entries(find_where: & dyn IRange, find_what: & dyn IRange, c
  */
 pub fn make_largest_range<'a>(range_in: &'a dyn IRange, sheet_in: &'a Worksheet, cmp_cols: &'a Vec<u32>) -> Worksheet
 {
-    let mut res: Option<RangeType<'a>> = None;
-
-    let (_, _, _, _, mut rows_in, mut cols_in) = range_ops::range_bounds(range_in.get_range());
+    let (_, _, _, _, rows_in, cols_in) = range_ops::range_bounds(range_in.get_range());
    
     let mut tmp_sheet = Worksheet::default();
     tmp_sheet.set_name("TMP_SHEET");
@@ -323,28 +321,16 @@ pub fn make_largest_range<'a>(range_in: &'a dyn IRange, sheet_in: &'a Worksheet,
     if range_ops::append_range(sheet_in, range_in.get_range(), &mut tmp_sheet) 
     {
         println!("[make_largest_range] Appended range {}:[{}] to {}", sheet_in.get_name(), range_ops::range_to_string(range_in.get_range()), tmp_sheet.get_name());
-        let mut range_tmp = match range_in.get_type() {
-            IterRowNextKind::Basic => RangeTypeMut::basic(
-                range_ops::make_range_from_indexes(1, 1, cols_in, rows_in),
-                &mut tmp_sheet,
-            ),
-            IterRowNextKind::Merged => RangeTypeMut::merged(
-                range_ops::make_range_from_indexes(1, 1, cols_in, rows_in),
-                &mut tmp_sheet,
-            ),
-            IterRowNextKind::Multiline => RangeTypeMut::multiline(
-                range_ops::make_range_from_indexes(1, 1, cols_in, rows_in),
-                &mut tmp_sheet,
-            ),
-        };
+
+        let mut range_tmp = make_range_inst_mut(range_in.get_type(), range_ops::make_range_from_indexes(1, 1, cols_in, rows_in), &mut tmp_sheet);
 
         let iter_sheet = range_ops::IterRow::new(sheet_in, common::MAX_ROW, common::MAX_COL);
         for it in iter_sheet 
         {
             if range_ops::same_types(&range_tmp, &it)
             {
-                let (mut brow_in, mut erow_in, mut bcol_in, mut ecol_in, mut rows_in, mut cols_in) = range_ops::range_bounds(range_tmp.get_range());
-                let (mut brow_it, mut erow_it, mut bcol_it, mut ecol_it, mut rows_it, mut cols_it) = range_ops::range_bounds(it.get_range());
+                let (brow_in, _, mut bcol_in, _, rows_in, _) = range_ops::range_bounds(range_tmp.get_range());
+                let (brow_it, _, mut bcol_it, _, rows_it, _) = range_ops::range_bounds(it.get_range());
 
                 for col in cmp_cols {
                     if *col == bcol_in {
@@ -376,21 +362,8 @@ pub fn make_largest_range<'a>(range_in: &'a dyn IRange, sheet_in: &'a Worksheet,
                             if range_ops::append_range(it.get_sheet(), &missing_entry, &mut range_tmp.get_sheet_mut())
                             {
                                 let (br, er, bc, ec, _, _) = range_ops::range_bounds(range_tmp.get_range());
-                                //Overwrite with the new range size
-                                range_tmp = match range_in.get_type() {
-                                    IterRowNextKind::Basic => RangeTypeMut::basic(
-                                        range_ops::make_range_from_indexes(bc, br, ec, er+1),
-                                        &mut tmp_sheet,
-                                    ),
-                                    IterRowNextKind::Merged => RangeTypeMut::merged(
-                                        range_ops::make_range_from_indexes(bc, br, ec, er+1),
-                                        &mut tmp_sheet,
-                                    ),
-                                    IterRowNextKind::Multiline => RangeTypeMut::multiline(
-                                        range_ops::make_range_from_indexes(bc, br, ec, er+1),
-                                        &mut tmp_sheet,
-                                    ),
-                                };
+
+                                range_tmp = make_range_inst_mut(range_in.get_type(), range_ops::make_range_from_indexes(bc, br, ec, er+1), &mut tmp_sheet);
                                
                                 if range_in.get_type() == IterRowNextKind::Merged
                                 {

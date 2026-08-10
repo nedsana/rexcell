@@ -867,3 +867,21 @@ impl<'a> IRangeMut for RangeTypeMut<'a> {
         }
     }
 }
+
+pub fn make_range_inst(instance_type: IterRowNextKind, range: Range, sheet: &Worksheet) -> RangeType
+{
+    match instance_type {
+        IterRowNextKind::Basic => RangeType::basic(range, sheet),
+        IterRowNextKind::Merged => RangeType::merged(range, sheet),
+        IterRowNextKind::Multiline => RangeType::multiline(range, sheet),
+    }
+}
+
+pub fn make_range_inst_mut(instance_type: IterRowNextKind, range: Range, sheet: &mut Worksheet) -> RangeTypeMut
+{
+    match instance_type {
+        IterRowNextKind::Basic => RangeTypeMut::basic(range, sheet),
+        IterRowNextKind::Merged => RangeTypeMut::merged(range, sheet),
+        IterRowNextKind::Multiline => RangeTypeMut::multiline(range, sheet),
+    }
+}
