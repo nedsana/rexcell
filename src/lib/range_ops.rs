@@ -360,8 +360,10 @@ pub fn comapre_ranges(
 }
 
 pub fn append_range(
-    sheet_in: &     Worksheet, range_in: &Range,
-    sheet_out: & mut Worksheet
+    sheet_in:   &Worksheet, 
+    range_in:   &Range,
+    sheet_out:  & mut Worksheet,
+    clear_numeric_fields: bool
 ) -> bool
 {
     let mut res = false;
@@ -396,7 +398,14 @@ pub fn append_range(
                 if cell_data_type == "n" && let Some(num) = src_cell.get_value_number() 
                 {
                     // println!("[append_range] dst_cell({}{}).set_value_number({})", range_ops::index_to_column(col), current_new_row, num);
-                    dst_cell.set_value_number(num);
+                    if clear_numeric_fields
+                    {
+                        dst_cell.set_value_number(0);
+                    }
+                    else
+                    {
+                        dst_cell.set_value_number(num);
+                    }
                 } 
                 else 
                 {

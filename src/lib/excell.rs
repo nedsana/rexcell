@@ -1,6 +1,4 @@
-use std::f32::consts::E;
-use std::process;
-// use clap::error;
+// use std::process;
 use umya_spreadsheet::*;
 use std::collections::HashMap;
 use crate::range_types::*;
@@ -255,8 +253,8 @@ pub fn find_missing_entries(find_where: & dyn IRange, find_what: & dyn IRange, c
     let mut res = Vec::new();
     if range_ops::same_types(find_what, find_where)
     {
-        let (mut brow_in, mut erow_in, mut bcol_in, mut ecol_in, mut rows_in, mut cols_in) = range_ops::range_bounds(find_what.get_range());
-        let (mut brow_it, mut erow_it, mut bcol_it, mut ecol_it, mut rows_it, mut cols_it) = range_ops::range_bounds(find_where.get_range());
+        let (brow_in, erow_in, mut bcol_in, ecol_in, _, _) = range_ops::range_bounds(find_what.get_range());
+        let (brow_it, erow_it, mut bcol_it, _, _, _) = range_ops::range_bounds(find_where.get_range());
 
         for col in cmp_cols {
             if *col == bcol_in {
@@ -318,7 +316,7 @@ pub fn make_largest_range<'a>(range_in: &'a dyn IRange, sheet_in: &'a Worksheet,
     tmp_sheet.set_name("TMP_SHEET");
 
     //Add the input range to the temporary sheet. Any rows, which belong to this group will be appened
-    if range_ops::append_range(sheet_in, range_in.get_range(), &mut tmp_sheet) 
+    if range_ops::append_range(sheet_in, range_in.get_range(), &mut tmp_sheet, true) 
     {
         println!("[make_largest_range] Appended range {}:[{}] to {}", sheet_in.get_name(), range_ops::range_to_string(range_in.get_range()), tmp_sheet.get_name());
 
@@ -359,7 +357,7 @@ pub fn make_largest_range<'a>(range_in: &'a dyn IRange, sheet_in: &'a Worksheet,
                         {
                             let (brow_me, _, _, _, _, _) = range_ops::range_bounds(&missing_entry);
 
-                            if range_ops::append_range(it.get_sheet(), &missing_entry, &mut range_tmp.get_sheet_mut())
+                            if range_ops::append_range(it.get_sheet(), &missing_entry, &mut range_tmp.get_sheet_mut(), true)
                             {
                                 let (br, er, bc, ec, _, _) = range_ops::range_bounds(range_tmp.get_range());
 
@@ -439,47 +437,60 @@ pub fn filter_sheet_by_col_and_accum(
     let max_row = common::MAX_ROW; //sheet_in.get_highest_row();
     let max_col = common::MAX_COL; //sheet_in.get_highest_column();
 
-    // let merged_cells = sheet_in.get_merge_cells();
-
     let iter_sheet = range_ops::IterRow::new(sheet_in, max_row, max_col);
-    
-    println!("[filter_sheet_by_col_and_accum] Staring loop: for it in iter_sheet!");
-
     for it in iter_sheet 
     {
         println!("[filter_sheet_by_col_and_accum] Processing range '{}:[{}]'!", it.get_sheet().get_name(), range_ops::range_to_string(it.get_range()));
 
-        if let Some(found_range) = find_range_in_sheet(&it, sheet_out, &cmp_cols)
-        { //accumulating
-            let found_range_clone = found_range.get_range().clone();
-            drop(found_range);
+        loop 
+        {
+            if let Some(found_range) = find_range_in_sheet(&it, sheet_out, &cmp_cols)
+            { //accumulating
+                let found_range_clone = found_range.get_range().clone();
+                drop(found_range);
 
-            println!("[filter_sheet_by_col_and_accum] Range {} already exists in sheet {}! Accumulating data!", range_ops::range_to_string(it.get_range()), sheet_out.get_name());
+                println!("[filter_sheet_by_col_and_accum] Range {} already exists in sheet {}! Accumulating data!", range_ops::range_to_string(it.get_range()), sheet_out.get_name());
 
-            if range_ops::accumulate_ranges(sheet_in, it.get_range(), sheet_out, &found_range_clone, &cmp_cols, &acc_cols)
-            {
-                println!("[filter_sheet_by_col_and_accum] Accumulated in-range '{}' to out-range '{}'!", range_ops::range_to_string(it.get_range()), range_ops::range_to_string(&found_range_clone));
+                if range_ops::accumulate_ranges(sheet_in, it.get_range(), sheet_out, &found_range_clone, &cmp_cols, &acc_cols)
+                {
+                    println!("[filter_sheet_by_col_and_accum] Accumulated in-range '{}' to out-range '{}'!", range_ops::range_to_string(it.get_range()), range_ops::range_to_string(&found_range_clone));
+                }
+
+                break; //exit the internal loop
             }
+            else
+            { //appending
+                let sheet_largest_range = make_largest_range(&it, sheet_in, &cmp_cols);
+
+                let iter_sheet_largest_range = range_ops::IterRow::new(&sheet_largest_range, max_row, max_col);
+
+                // // temporary file for debugging
+                // let mut tmp_ssheet = umya_spreadsheet::new_file(); //DELETE_ME
+                // _ = tmp_ssheet.add_sheet(sheet_largest_range); //DELETE_ME
+                // _ = writer::xlsx::write(&tmp_ssheet, std::path::Path::new("TMP_SHEET.xlsx")); //DELETE_ME
+                // process::exit(1);
+
+                let mut loop_cnt = 0;
+                for it_slr in iter_sheet_largest_range
+                {
+                    if 0 == loop_cnt
+                    {
+                        res = range_ops::append_range(it_slr.get_sheet(), &it_slr.get_range(), sheet_out, false);
+
+                        println!("[filter_sheet_by_col_and_accum] Appended range {}:[{}] to {}: {}", it_slr.get_sheet().get_name(), range_ops::range_to_string(it_slr.get_range()), sheet_out.get_name(), res);
+                    }
+                    loop_cnt += 1;
+                }
+                if 1 < loop_cnt
+                {
+                    println!("[filter_sheet_by_col_and_accum] [ERROR] Only one largest range expected! Found {}!", loop_cnt);
+                }
+
+                //NOTE: no 'beak' here, because we've appended a range with zeroed numeric cells. The next loop should find this appended range and should update its values properly!
+            } //appending            
         }
-        else
-        { //appending
-            let sheet_largest_range = make_largest_range(&it, sheet_in, &cmp_cols);
 
-            let iter_sheet_largest_range = range_ops::IterRow::new(&sheet_largest_range, max_row, max_col);
 
-            // // temporary file for debugging
-            // let mut tmp_ssheet = umya_spreadsheet::new_file(); //DELETE_ME
-            // _ = tmp_ssheet.add_sheet(sheet_largest_range); //DELETE_ME
-            // _ = writer::xlsx::write(&tmp_ssheet, std::path::Path::new("TMP_SHEET.xlsx")); //DELETE_ME
-            // process::exit(1);
-
-            for it_slr in iter_sheet_largest_range
-            {
-                res = range_ops::append_range(it_slr.get_sheet(), &it_slr.get_range(), sheet_out);
-
-                println!("[filter_sheet_by_col_and_accum] Appended range {}:[{}] to {}: {}", it_slr.get_sheet().get_name(), range_ops::range_to_string(it_slr.get_range()), sheet_out.get_name(), res);
-            }
-        } //appending
         println!("[filter_sheet_by_col_and_accum]========================================================");
         // process::exit(1);
         // return res;
