@@ -326,14 +326,14 @@ where
         let (brow_o, erow_o, mut bcol_o, _, rows_o, _) = range_ops::range_bounds(other.get_range());
 
         for col in &cmp_cols {
-            if *col != bcol_t {
+            if *col == bcol_t {
                 break;
             }
             bcol_t += 1;
         }
 
         for col in &cmp_cols {
-            if *col != bcol_o {
+            if *col == bcol_o {
                 break;
             }
             bcol_o += 1;

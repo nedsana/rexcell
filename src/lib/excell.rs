@@ -231,7 +231,8 @@ pub fn find_range_in_sheet<'a>(range: &'a dyn IRange, sheet: &'a Worksheet, cmp_
     let iter_sheet = range_ops::IterRow::new(sheet, common::MAX_ROW, common::MAX_COL);
     for it in iter_sheet 
     {
-        if it.compare_range(range, false, None, Some(cmp_cols.clone()))
+        // if it.compare_range(range, false, None, Some(cmp_cols.clone()))
+        if it.contains(range, None, Some(cmp_cols.clone()))
         {
             return Some(it);
         }
@@ -473,8 +474,6 @@ pub fn filter_sheet_by_col_and_accum(
 
     for it in iter_sheet 
     {
-        let mut it_range = it.get_range().clone();
-
         println!("[filter_sheet_by_col_and_accum] Processing range '{}:[{}]'!", it.get_sheet().get_name(), range_ops::range_to_string(it.get_range()));
 
         if let Some(found_range) = find_range_in_sheet(&it, sheet_out, &cmp_cols)
@@ -507,60 +506,6 @@ pub fn filter_sheet_by_col_and_accum(
 
                 println!("[filter_sheet_by_col_and_accum] Appended range {}:[{}] to {}: {}", it_slr.get_sheet().get_name(), range_ops::range_to_string(it_slr.get_range()), sheet_out.get_name(), res);
             }
-/*
-            if let RangeType::Multiline(_) = it 
-            {
-                println!("[filter_sheet_by_col_and_accum] >>>>>> Range {} does not exist in sheet {}! Find largest multiline section! <<<<<<<", range_ops::range_to_string(it.get_range()), sheet_out.get_name());
-                
-                let (brow_it, erow_it, bcol_it, ecol_it, rows_it, cols_it) = range_ops::range_bounds(it.get_range());
-
-                // Find the largest multiline range in 'sheet_in', which matches the first line of the current range.
-                let multiline_iter_sheet = range_ops::IterRow::new(sheet_in, max_row, max_col);
-                for mlit in multiline_iter_sheet 
-                {
-                    if let RangeType::Multiline(_) = mlit
-                    {
-                        let (brow_mlit, erow_mlit, bcol_mlit, ecol_mlit, rows_mlit, cols_mlit) = range_ops::range_bounds(mlit.get_range());
-                        if (brow_it == brow_mlit) && (erow_it == erow_mlit) && (bcol_it == bcol_mlit) && (ecol_it == ecol_mlit) && (rows_it == rows_mlit) && (cols_it == cols_mlit)
-                        {
-                            println!("[filter_sheet_by_col_and_accum] Inspecting same multiline range {} in sheet {}! Skipping!", range_ops::range_to_string(mlit.get_range()), sheet_out.get_name());
-                        }
-                        else
-                        {
-                            let it_flr   = range_ops::make_range_from_indexes(bcol_it,   brow_it,     ecol_it, brow_it);
-                            let mlit_flr: Range = range_ops::make_range_from_indexes(bcol_mlit, brow_mlit, ecol_mlit, brow_mlit);
-                            
-                            println!("[filter_sheet_by_col_and_accum] Comparing first line range {} with multiline range {} in sheet {}!", 
-                                range_ops::range_to_string(&it_flr), 
-                                range_ops::range_to_string(&mlit_flr), 
-                                sheet_out.get_name());
-
-                            if range_ops::comapre_ranges(it.get_sheet(), &it_flr, mlit.get_sheet(), &mlit_flr, false, None, Some(cmp_cols.clone())) && 
-                                rows_it < rows_mlit
-                            {
-                                println!("[filter_sheet_by_col_and_accum] Found matching multiline range {} in sheet {} with more rows!", range_ops::range_to_string(mlit.get_range()), sheet_out.get_name());
-
-                                it_range = mlit.get_range().clone();
-                            }
-                        }
-                    }
-                }
-
-                //append the largest multiline range to the output sheet
-                res = range_ops::append_range(sheet_in, &it_range, sheet_out);
-
-                println!("[filter_sheet_by_col_and_accum] Appended range {}:[{}] to {}: {}", sheet_in.get_name(), range_ops::range_to_string(&it_range), sheet_out.get_name(), res);
-
-                //reset it_range to the original range for the next iteration
-                it_range = it.get_range().clone();
-            }
-            else
-            {
-                res = range_ops::append_range(sheet_in, &it_range, sheet_out);
-
-                println!("[filter_sheet_by_col_and_accum] Appended range {}:[{}] to {}: {}", sheet_in.get_name(), range_ops::range_to_string(&it_range), sheet_out.get_name(), res);
-            }
-*/
         } //appending
         println!("[filter_sheet_by_col_and_accum]========================================================");
         // process::exit(1);

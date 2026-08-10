@@ -478,12 +478,12 @@ pub fn accumulate_ranges(
     //Get the range numeric boundaries for range_b
     let (brow_b, _, bcol_b, _, rows_b, cols_b) = range_bounds(range_b);
 
-    //If the legths are different, the ranges cannot proceed with accumulation
-    if rows_a != rows_b || cols_a != cols_b 
-    {
-        println!("[accumulate_ranges] Range size missmatch! {}:[{}] to {}:[{}]!", sheet_a.get_name(), range_to_string(range_a), sheet_b.get_name(), range_to_string(range_b));
-        return accumulated; 
-    }
+    // //If the legths are different, the ranges cannot proceed with accumulation
+    // if rows_a != rows_b || cols_a != cols_b 
+    // {
+    //     println!("[accumulate_ranges] Range size missmatch! {}:[{}] to {}:[{}]!", sheet_a.get_name(), range_to_string(range_a), sheet_b.get_name(), range_to_string(range_b));
+    //     return accumulated; 
+    // }
 
     let rows_offsets_a: Vec<u32> = (0..=(rows_a-1)).collect();
     let cols_offsets_a: Vec<u32> = (0..=(cols_a-1)).collect();
