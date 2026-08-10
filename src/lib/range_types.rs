@@ -305,6 +305,89 @@ where
     }
     true
 }
+
+fn contains_impl<T>(
+    this: &T,
+    other: &dyn IRange,
+    o_use_rows: Option<vec::Vec<u32>>, 
+    o_use_cols: Option<vec::Vec<u32>>,
+    label: &str,
+) -> bool
+where
+    T: IRange,
+{
+    let mut res = false;
+    if range_ops::same_types(this, other)
+    {
+        let _cmp_rows: Vec<u32> = o_use_rows.unwrap_or_default(); //not used for now
+        let cmp_cols: Vec<u32> = o_use_cols.unwrap_or_default();
+
+        let (brow_t, erow_t, mut bcol_t, _, _, _) = range_ops::range_bounds(this.get_range());
+        let (brow_o, erow_o, mut bcol_o, _, rows_o, _) = range_ops::range_bounds(other.get_range());
+
+        for col in &cmp_cols {
+            if *col != bcol_t {
+                break;
+            }
+            bcol_t += 1;
+        }
+
+        for col in &cmp_cols {
+            if *col != bcol_o {
+                break;
+            }
+            bcol_o += 1;
+        }
+
+        //check if the first line of the range_in matches the first line of the current range in the sheets
+        let hdr_t = this.get_sheet().get_cell_value((bcol_t, brow_t)).get_value();
+        let hdr_o = other.get_sheet().get_cell_value((bcol_o, brow_o)).get_value();
+
+        if range_ops::cmp_strs(&hdr_t, &hdr_o)
+        {
+            let mut found_cnt = 1; //the header is already the same, so start form 1
+
+            //check if the rest of the items in 'other' are present in 'this'
+            for row_o in (brow_o+1)..=erow_o
+            {
+                let entry_o = other.get_sheet().get_cell_value((bcol_o, row_o)).get_value();
+
+                for row_t in (brow_t+1)..=erow_t
+                {
+                    let entry_t = this.get_sheet().get_cell_value((bcol_t, row_t)).get_value();
+
+                    println!("[{}::contains] COMPARE {}:[{}:row{} '{}'] to {}:[{}:row{} '{}']!", label,
+                        other.get_sheet().get_name(), range_ops::range_to_string(other.get_range()), row_o, entry_o,
+                        this.get_sheet().get_name(), range_ops::range_to_string(this.get_range()), row_t, entry_t);
+
+                    if range_ops::cmp_strs(&entry_t, &entry_o) 
+                    {
+                        found_cnt += 1;
+                        break;
+                    }
+                }
+            }
+
+            println!("[{}::contains] Found {}/{} entries!", label, found_cnt, rows_o);
+            res = found_cnt == rows_o
+        }
+        else 
+        {
+            println!("[{}::contains] {}[{}:'{}'] DEFFERENT FROM {}[{}:'{}'].", label,
+                    this.get_sheet().get_name(), range_ops::range_to_string(this.get_range()), hdr_t, 
+                    other.get_sheet().get_name() ,range_ops::range_to_string(other.get_range()), hdr_o);
+        }
+        
+    }
+    else
+    {
+        println!("[{}::contains] Types mismatch: {}:{} {}:{}", label, 
+                range_ops::range_to_string(this.get_range()), this.get_type_name(), 
+                range_ops::range_to_string(other.get_range()), other.get_type_name()); 
+    }
+    res
+}
+
 // ==========================================
 // TRAIT
 // ==========================================
@@ -318,7 +401,7 @@ pub enum IterRowNextKind {
 pub trait IRange {
     fn get_range(&self) -> &Range;
     fn get_sheet(&self) -> &Worksheet;
-    fn contains(&self, other: &Range) -> bool;
+    fn contains(&self, other: &dyn IRange, o_use_rows: Option<vec::Vec<u32>>, o_use_cols: Option<vec::Vec<u32>>) -> bool;
     fn compare_range(&self, other: &dyn IRange, strict: bool, o_use_rows: Option<vec::Vec<u32>>, o_use_cols: Option<vec::Vec<u32>>) -> bool;
     fn compare_cell(&self, col_a: u32, row_a: u32, other: &dyn IRange, col_b: u32, row_b: u32, strict: bool) -> bool;
     fn get_type(&self) -> IterRowNextKind;
@@ -420,8 +503,9 @@ impl<'a> IRange for RangeBasic<'a> {
         &self.sheet
     }
 
-    fn contains(&self, _other: &Range) -> bool {
-        false
+    fn contains(&self, other: &dyn IRange, o_use_rows: Option<vec::Vec<u32>>, o_use_cols: Option<vec::Vec<u32>>) -> bool 
+    {
+        contains_impl(self, other, o_use_rows, o_use_cols, "RangeBasic")
     }
 
     fn compare_range(&self, other: &dyn IRange, strict: bool, o_use_rows: Option<vec::Vec<u32>>, o_use_cols: Option<vec::Vec<u32>>) -> bool 
@@ -446,8 +530,9 @@ impl<'a> IRange for RangeBasicMut<'a> {
         &self.sheet
     }
 
-    fn contains(&self, _other: &Range) -> bool {
-        false
+    fn contains(&self, other: &dyn IRange, o_use_rows: Option<vec::Vec<u32>>, o_use_cols: Option<vec::Vec<u32>>) -> bool 
+    {
+        contains_impl(self, other, o_use_rows, o_use_cols, "RangeBasicMut")
     }
 
     fn compare_range(&self, other: &dyn IRange, strict: bool, o_use_rows: Option<vec::Vec<u32>>, o_use_cols: Option<vec::Vec<u32>>) -> bool 
@@ -492,8 +577,9 @@ impl<'a> IRange for RangeMergedCells<'a> {
         &self.sheet
     }
 
-    fn contains(&self, _other: &Range) -> bool {
-        false
+    fn contains(&self, other: &dyn IRange, o_use_rows: Option<vec::Vec<u32>>, o_use_cols: Option<vec::Vec<u32>>) -> bool 
+    {
+        contains_impl(self, other, o_use_rows, o_use_cols, "RangeMergedCells")
     }
 
     fn compare_range(&self, other: &dyn IRange, strict: bool, o_use_rows: Option<vec::Vec<u32>>, o_use_cols: Option<vec::Vec<u32>>) -> bool 
@@ -518,8 +604,9 @@ impl<'a> IRange for RangeMergedCellsMut<'a> {
         &self.sheet
     }
 
-    fn contains(&self, _other: &Range) -> bool {
-        false
+    fn contains(&self, other: &dyn IRange, o_use_rows: Option<vec::Vec<u32>>, o_use_cols: Option<vec::Vec<u32>>) -> bool 
+    {
+        contains_impl(self, other, o_use_rows, o_use_cols, "RangeMergedCellsMut")
     }
     
     fn compare_range(&self, other: &dyn IRange, strict: bool, o_use_rows: Option<vec::Vec<u32>>, o_use_cols: Option<vec::Vec<u32>>) -> bool 
@@ -564,8 +651,9 @@ impl<'a> IRange for RangeMultiline<'a> {
         &self.sheet
     }
 
-    fn contains(&self, _other: &Range) -> bool {
-        false
+    fn contains(&self, other: &dyn IRange, o_use_rows: Option<vec::Vec<u32>>, o_use_cols: Option<vec::Vec<u32>>) -> bool 
+    {
+        contains_impl(self, other, o_use_rows, o_use_cols, "RangeMultiline")
     }
 
     fn compare_range(&self, other: &dyn IRange, strict: bool, o_use_rows: Option<vec::Vec<u32>>, o_use_cols: Option<vec::Vec<u32>>) -> bool 
@@ -590,8 +678,9 @@ impl<'a> IRange for RangeMultilineMut<'a> {
         &self.sheet
     }
 
-    fn contains(&self, _other: &Range) -> bool {
-        false
+    fn contains(&self, other: &dyn IRange, o_use_rows: Option<vec::Vec<u32>>, o_use_cols: Option<vec::Vec<u32>>) -> bool 
+    {
+        contains_impl(self, other, o_use_rows, o_use_cols, "RangeMultilineMut")
     }
 
     fn compare_range(&self, other: &dyn IRange, strict: bool, o_use_rows: Option<vec::Vec<u32>>, o_use_cols: Option<vec::Vec<u32>>) -> bool 
@@ -686,11 +775,11 @@ impl<'a> IRange for RangeType<'a> {
         }
     }
 
-    fn contains(&self, other: &Range) -> bool {
+    fn contains(&self, other: &dyn IRange, o_use_rows: Option<vec::Vec<u32>>, o_use_cols: Option<vec::Vec<u32>>) -> bool {
         match self {
-            RangeType::Basic(r) => r.contains(other),
-            RangeType::Merged(r) => r.contains(other),
-            RangeType::Multiline(r) => r.contains(other),
+            RangeType::Basic(r) => r.contains(other, o_use_rows, o_use_cols),
+            RangeType::Merged(r) => r.contains(other, o_use_rows, o_use_cols),
+            RangeType::Multiline(r) => r.contains(other, o_use_rows, o_use_cols),
         }
     }
 
@@ -736,11 +825,11 @@ impl<'a> IRange for RangeTypeMut<'a> {
         }
     }
 
-    fn contains(&self, other: &Range) -> bool {
+    fn contains(&self, other: &dyn IRange, o_use_rows: Option<vec::Vec<u32>>, o_use_cols: Option<vec::Vec<u32>>) -> bool {
         match self {
-            RangeTypeMut::Basic(r) => r.contains(other),
-            RangeTypeMut::Merged(r) => r.contains(other),
-            RangeTypeMut::Multiline(r) => r.contains(other),
+            RangeTypeMut::Basic(r) => r.contains(other, o_use_rows, o_use_cols),
+            RangeTypeMut::Merged(r) => r.contains(other, o_use_rows, o_use_cols),
+            RangeTypeMut::Multiline(r) => r.contains(other, o_use_rows, o_use_cols),
         }
     }
 
