@@ -657,11 +657,12 @@ fn iter_row_next_impl_shared<'a>(
             cells_range = make_range_from_indexes(1, *current_row, 1 + max_col, merged_end_row);
 
             let (_, _, _, _, range_rows, _) = range_bounds(&cells_range);
+
             *current_row += range_rows;
 
             ret = Some((cells_range, range_types::IterRowNextKind::Merged));
         } 
-        else if let Some(src_cell) = sheet.get_cell((1, *current_row)) 
+        else if let Some(src_cell) = sheet.get_cell((1, *current_row)) //will return None if the cell is empty!
         {
             let _first_cell_value = src_cell.get_value().clone();
             let first_cell_data_type = src_cell.get_data_type().to_string();
@@ -720,9 +721,35 @@ fn iter_row_next_impl_shared<'a>(
         } 
         else 
         {
-            println!("[iter_row_next_impl_shared] Processing unexpected row:{}!", *current_row);
+            //either row with empty cells was found or we've reached the end of the document. To destingwish:
+            let mut is_last_row = true;
+            let bridx = *current_row;
+            let eridx = bridx+20;
+            for ridx in bridx..eridx
+            {
+                if let Some(_cell) = sheet.get_cell((1, ridx))
+                {
+                    is_last_row = false;
+                    break;
+                }
+            }
+
+            if is_last_row
+            {
+                println!("[iter_row_next_impl_shared] Processing unexpected row:{}!", *current_row);
+            }
+            else
+            {
+                cells_range = make_range_from_indexes(1, *current_row, 1 + max_col, *current_row);
+                // println!("[iter_row_next_impl_shared] Range [{}]: from regular empty cells! current_row={}", range_to_string(&cells_range), current_row);
+                ret = Some((cells_range, range_types::IterRowNextKind::Basic));
+            }
             *current_row += 1;
         }
+    }
+    else
+    {
+        println!("[iter_row_next_impl_shared] Reached maximum lines to process:{}!", max_row);
     }
     ret
 }

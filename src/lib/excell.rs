@@ -649,6 +649,7 @@ pub fn execute(cfg: &common::Config) -> Result<(Vec<String>, Vec<String>), Strin
                 }
             }
         }
+        println!("[execute] SAVED FILE!");
         Ok(res_success)
     }
     else 
