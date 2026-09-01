@@ -307,7 +307,7 @@ pub fn make_largest_range<'a>(range_in: &'a dyn IRange, sheet_in: &'a Worksheet,
     tmp_sheet.set_name("TMP_SHEET");
 
     //Add the input range to the temporary sheet. Any rows, which belong to this group will be appened
-    if range_ops::append_range(sheet_in, range_in.get_range(), &mut tmp_sheet, true) 
+    if range_ops::append_range(sheet_in, range_in.get_range(), &mut tmp_sheet, false) 
     {
         println!("[make_largest_range] Appended range {}:[{}] to {}", sheet_in.get_name(), range_ops::range_to_string(range_in.get_range()), tmp_sheet.get_name());
 
@@ -423,7 +423,16 @@ pub fn filter_sheet_by_col_and_accum(
     let iter_sheet = range_ops::IterRow::new(sheet_in, max_row, max_col);
     for it in iter_sheet 
     {
-        println!("[filter_sheet_by_col_and_accum] Processing range '{}:[{}]'!", it.get_sheet().get_name(), range_ops::range_to_string(it.get_range()));
+        let (brow_it, _, _, _, _, _) = range_ops::range_bounds(it.get_range());
+        if "n" != it.get_sheet().get_cell_value((1, brow_it)).get_data_type().to_string()
+        {
+            println!("[filter_sheet_by_col_and_accum] Range {}:[{}] skipping none numeric leading data type!", it.get_sheet().get_name(), range_ops::range_to_string(it.get_range()));
+            continue;
+        }
+        else
+        {
+            println!("[filter_sheet_by_col_and_accum] Processing range '{}:[{}]'!", it.get_sheet().get_name(), range_ops::range_to_string(it.get_range()));
+        }
 
         loop 
         {
@@ -478,7 +487,7 @@ pub fn filter_sheet_by_col_and_accum(
         // process::exit(1);
         // return res;
     }
-    println!("[filter_sheet_by_col_and_accum] Finisher loop, exiting");
+    println!("[filter_sheet_by_col_and_accum] Finished loop, exiting");
     return res;
 }
 

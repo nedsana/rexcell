@@ -702,18 +702,18 @@ fn iter_row_next_impl_shared<'a>(
 
                 if multiline 
                 {
-                    println!("[iter_row_next_impl_shared] Range [{}]: from multiline cells! current_row={}", range_to_string(&cells_range), current_row);
+                    // println!("[iter_row_next_impl_shared] Range [{}]: from multiline cells! current_row={}", range_to_string(&cells_range), current_row);
                     ret = Some((cells_range, range_types::IterRowNextKind::Multiline));
                 } 
                 else 
                 {
-                    println!("[iter_row_next_impl_shared] Range [{}]: from regular cells! current_row={}", range_to_string(&cells_range), current_row);
+                    // println!("[iter_row_next_impl_shared] Range [{}]: from regular cells! current_row={}", range_to_string(&cells_range), current_row);
                     ret = Some((cells_range, range_types::IterRowNextKind::Basic));
                 }
             } 
             else 
             {
-                println!("[iter_row_next_impl_shared] Current row {} starts with unexpected type:'{}'!", *current_row, first_cell_data_type);
+                // println!("[iter_row_next_impl_shared] Current row {} starts with unexpected type:'{}'!", *current_row, first_cell_data_type);
                 ret = Some((cells_range, range_types::IterRowNextKind::Basic));
                 *current_row += 1;
             }
