@@ -429,5 +429,5 @@ fn main() {
         Box::new(|_cc| Box::new(GuiApp::default()))).expect(common::ERROR_FAILED_TO_START_GUI);
 }
 
-// cargo run --bin gui
-// cargo run --bin rexcell -- -t ../../Test_Twins.xlsx -e "Ед. Цени" -u "Ф200" -k B -v C -s C -d B -i
+// RUST_BACKTRACE=1 cargo run --bin gui >OUT
+// RUST_BACKTRACE=1 cargo run --bin rexcell -- -t ../../Test_Twins.xlsx -e "Ед. Цени" -u "Ф200" -k B -v C -s C -d B -i
