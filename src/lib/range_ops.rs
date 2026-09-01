@@ -162,7 +162,7 @@ pub fn range_to_string(range: &Range) -> String
 {
     let (rbeg, rend, cbeg, cend, rows, cols) = range_bounds(range);
 
-    format!("{}:{} (rows:{} columns:{})", umya_spreadsheet::helper::coordinate::coordinate_from_index(&cbeg, &rbeg), // Returns "A1"
+    format!("{}:{} (rows:{} cols:{})", umya_spreadsheet::helper::coordinate::coordinate_from_index(&cbeg, &rbeg), // Returns "A1"
                      umya_spreadsheet::helper::coordinate::coordinate_from_index(&cend, &rend),  // Returns "C10"
                      rows, cols
     )

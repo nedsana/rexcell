@@ -322,68 +322,60 @@ where
         let _cmp_rows: Vec<u32> = o_use_rows.unwrap_or_default(); //not used for now
         let cmp_cols: Vec<u32> = o_use_cols.unwrap_or_default();
 
-        let (brow_t, erow_t, mut bcol_t, _, _, _) = range_ops::range_bounds(this.get_range());
-        let (brow_o, erow_o, mut bcol_o, _, rows_o, _) = range_ops::range_bounds(other.get_range());
+        let (brow_t, erow_t, _, _, _, _) = range_ops::range_bounds(this.get_range());
+        let (brow_o, erow_o, _, _, rows_o, _) = range_ops::range_bounds(other.get_range());
 
-        for col in &cmp_cols {
-            if *col == bcol_t {
-                break;
-            }
-            bcol_t += 1;
-        }
-
-        for col in &cmp_cols {
-            if *col == bcol_o {
-                break;
-            }
-            bcol_o += 1;
-        }
-
-        //check if the first line of the range_in matches the first line of the current range in the sheets
-        let hdr_t = this.get_sheet().get_cell_value((bcol_t, brow_t)).get_value();
-        let hdr_o = other.get_sheet().get_cell_value((bcol_o, brow_o)).get_value();
-
-        if range_ops::cmp_strs(&hdr_t, &hdr_o)
+        for cmp_col in cmp_cols.iter() 
         {
-            let mut found_cnt = 1; //the header is already the same, so start form 1
+            let bcol_t = *cmp_col;
+            let bcol_o = *cmp_col;
 
-            //check if the rest of the items in 'other' are present in 'this'
-            for row_o in (brow_o+1)..=erow_o
+            //check if the first line of the range_in matches the first line of the current range in the sheets
+            let hdr_t = this.get_sheet().get_cell_value((bcol_t, brow_t)).get_value();
+            let hdr_o = other.get_sheet().get_cell_value((bcol_o, brow_o)).get_value();
+
+            if range_ops::cmp_strs(&hdr_t, &hdr_o)
             {
-                let entry_o = other.get_sheet().get_cell_value((bcol_o, row_o)).get_value();
+                let mut found_cnt = 1; //the header is already the same, so start form 1
 
-                for row_t in (brow_t+1)..=erow_t
+                //check if the rest of the items in 'other' are present in 'this'
+                for row_o in (brow_o+1)..=erow_o
                 {
-                    let entry_t = this.get_sheet().get_cell_value((bcol_t, row_t)).get_value();
+                    let entry_o = other.get_sheet().get_cell_value((bcol_o, row_o)).get_value();
 
-                    println!("[{}::contains] COMPARE {}:[{}:row{} '{}'] to {}:[{}:row{} '{}']!", label,
-                        other.get_sheet().get_name(), range_ops::range_to_string(other.get_range()), row_o, entry_o,
-                        this.get_sheet().get_name(), range_ops::range_to_string(this.get_range()), row_t, entry_t);
-
-                    if range_ops::cmp_strs(&entry_t, &entry_o) 
+                    for row_t in (brow_t+1)..=erow_t
                     {
-                        found_cnt += 1;
-                        break;
+                        let entry_t = this.get_sheet().get_cell_value((bcol_t, row_t)).get_value();
+
+                        println!("[{}::contains] COMPARE \"{}:[{} {}{}='{}']\" to \"{}:[{} {}{}='{}']\"", label,
+                            other.get_sheet().get_name(), range_ops::range_to_string(other.get_range()), range_ops::index_to_column(bcol_o), row_o, entry_o,
+                            this.get_sheet().get_name(),  range_ops::range_to_string(this.get_range()),  range_ops::index_to_column(bcol_t), row_t, entry_t);
+
+                        if range_ops::cmp_strs(&entry_t, &entry_o) 
+                        {
+                            found_cnt += 1;
+                            break;
+                        }
                     }
                 }
-            }
 
-            println!("[{}::contains] Found {}/{} entries!", label, found_cnt, rows_o);
-            res = found_cnt == rows_o
+                println!("[{}::contains] Found {}/{} entries!", label, found_cnt, rows_o);
+                res = found_cnt == rows_o
+            }
+            else 
+            {
+                println!("[{}::contains] \"{}[{} {}{}='{}']\" DEFFERS FROM \"{}[{} {}{}='{}']\"", label,
+                        other.get_sheet().get_name(), range_ops::range_to_string(other.get_range()), range_ops::index_to_column(bcol_o), brow_o, hdr_o,
+                        this.get_sheet().get_name(),  range_ops::range_to_string(this.get_range()),  range_ops::index_to_column(bcol_t), brow_t, hdr_t);
+                break;
+            }
         }
-        else 
-        {
-            println!("[{}::contains] {}[{}:'{}'] DEFFERENT FROM {}[{}:'{}'].", label,
-                    this.get_sheet().get_name(), range_ops::range_to_string(this.get_range()), hdr_t, 
-                    other.get_sheet().get_name() ,range_ops::range_to_string(other.get_range()), hdr_o);
-        }
-        
     }
     else
     {
-        println!("[{}::contains] Types mismatch: {}:{} {}:{}", label, 
-                range_ops::range_to_string(this.get_range()), this.get_type_name(), 
-                range_ops::range_to_string(other.get_range()), other.get_type_name()); 
+        println!("[{}::contains] Types mismatch: {}:[{} {}] vs {}:[{} {}]", label, 
+                other.get_sheet().get_name(), range_ops::range_to_string(other.get_range()), other.get_type_name(),
+                other.get_sheet().get_name(), range_ops::range_to_string(this.get_range()),  this.get_type_name()); 
     }
     res
 }
