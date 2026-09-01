@@ -630,6 +630,8 @@ pub fn execute(cfg: &common::Config) -> Result<(Vec<String>, Vec<String>), Strin
     {
         if cfg.command == common::Command::CmdFilterSheets || cfg.command == common::Command::CmdUpdateSheets
         {
+            let mut outfile = target_path.to_str().unwrap().to_string();
+
             // Save changes
             if cfg.inplace 
             {
@@ -647,9 +649,10 @@ pub fn execute(cfg: &common::Config) -> Result<(Vec<String>, Vec<String>), Strin
                 {
                     return Err(format!("{}:{} {}", common::ERROR_UNABLE_TO_WRITE_FILE, new_file, err));
                 }
+                outfile = new_file;
             }
+            println!("[execute] SAVED FILE {}!", outfile);
         }
-        println!("[execute] SAVED FILE!");
         Ok(res_success)
     }
     else 
