@@ -3,6 +3,12 @@ use rfd::FileDialog;
 // use std::process::Command;
 use rexcell::common;
 use rexcell::excell;
+use std::sync::mpsc;
+use std::thread;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+
+use log::{debug, info, warn, error};
 
 #[derive(Debug, Clone)]
 struct TargetData {
@@ -85,12 +91,18 @@ struct GuiApp
     error: String,
 
     active_tab: Tab,
+
+    log_buffer: String, // Buffer to hold the logs for the GUI field
+    is_working: Arc<AtomicBool>,   // Flag to indicate if processing is on
+    log_rx: mpsc::Receiver<String>, // Channel to receive logs
 }
 
 impl Default for GuiApp 
 {
     fn default() -> Self 
     {
+        let (_, log_rx_tmp) = mpsc::channel::<String>();
+
         Self 
         {
             cfg_filter: TargetData::new( common::TGT_DEFAULT_EXCEL_FILE.to_string(), 
@@ -111,16 +123,53 @@ impl Default for GuiApp
                                     common::REF_DEFAULT_DST_COL.to_string()),
 
             output_text: String::new(),
+
             error: String::new(),
 
             active_tab: Tab::Filter,
+
+            log_buffer: String::default(),
+
+            is_working: Arc::new(AtomicBool::new(false)),
+          
+            log_rx: log_rx_tmp,
         }
     }
 }
 
-
 impl GuiApp 
 {
+    fn new(_cc: &eframe::CreationContext<'_>) -> Self 
+    {
+        //Create the actual channel to connect to fern
+        let (log_tx, log_rx) = mpsc::channel::<String>();
+        // let ctx_clone = _cc.egui_ctx.clone();
+
+        //Init the fern logger
+        fern::Dispatch::new()
+            .format(|out, message, record| 
+                {
+                out.finish(format_args!("[{}] {}", record.level(), message))
+            })
+            .level(log::LevelFilter::Debug)
+            .chain(std::io::stdout())
+            .chain(fern::Output::call(move |record| 
+            {
+                let _ = log_tx.send(format!("{}\n", record.args()));
+                // ctx_clone.request_repaint(); // Should Wake-up GUI, but actually blocks GUI
+            }))
+            .apply()
+            .unwrap();
+
+        info!("Logging setup complete!");
+
+        //Use the default constructor for all fields, just update log_rx
+        Self {
+            log_rx,
+            ..Self::default()
+        }
+    }
+
     fn get_sheets_list(file_path: &str) -> Result<String, String> 
     {
         let result = excell::get_worksheet_names(std::path::Path::new(&file_path));
@@ -213,37 +262,55 @@ impl GuiApp
 
                 if ui.button(headers[7]).clicked()
                 {
-                    // cargo run --bin rexcell -- -c cmd-filter-sheets -t ../Test_Excell.xlsx -u "Лист1,Лист2,Лист3" -s C -d E -n "Test"
-                    let cfg: common::Config = common::Config {
-                        command: common::Command::CmdFilterSheets,
-                        tgt_file: tgt_data.path.clone(), 
-                        tgt_upd_table: tgt_data.update_sheets.clone(),
-                        tgt_src_col: tgt_data.src_col.clone(),
-                        tgt_dest_col: tgt_data.dest_col.clone(),
-                        ref_file: "".to_string(),
-                        ref_table: "".to_string(),
-                        ref_col_key: "".to_string(),
-                        ref_col_value: "".to_string(),
-                        new_sheet_name: tgt_data.new_sheet_name.clone(),
-                        inplace: true,
-                    };
-
-                    let res = excell::execute(&cfg);
-
-                    let out = self.handle_result(&res);
-
-                    if 0 < out.1.len() //error found
+                    if false == self.is_working.load(Ordering::SeqCst)
                     {
-                        self.output_text.clear();
-                        self.error = format!("Failed to filter file {}!\n{}\n", cfg.tgt_file, out.1);
+                        // cargo run --bin rexcell -- -c cmd-filter-sheets -t ../Test_Excell.xlsx -u "Лист1,Лист2,Лист3" -s C -d E -n "Test"
+                        let cfg: common::Config = common::Config {
+                            command: common::Command::CmdFilterSheets,
+                            tgt_file: tgt_data.path.clone(), 
+                            tgt_upd_table: tgt_data.update_sheets.clone(),
+                            tgt_src_col: tgt_data.src_col.clone(),
+                            tgt_dest_col: tgt_data.dest_col.clone(),
+                            ref_file: "".to_string(),
+                            ref_table: "".to_string(),
+                            ref_col_key: "".to_string(),
+                            ref_col_value: "".to_string(),
+                            new_sheet_name: tgt_data.new_sheet_name.clone(),
+                            inplace: true,
+                        };
+                        
+                        debug!("Start filtering!");
+
+                        self.is_working.store(true, Ordering::SeqCst);
+                        let is_working_clone = self.is_working.clone();
+
+                        thread::spawn(move || 
+                        {
+                            let _res = excell::execute(&cfg);
+/*
+                            let out = self.handle_result(&res);
+
+                            if 0 < out.1.len() //error found
+                            {
+                                self.output_text.clear();
+                                self.error = format!("Failed to filter file {}!\n{}\n", cfg.tgt_file, out.1);
+                            }
+                            else //ok
+                            {
+                                self.error.clear();
+                                self.output_text = if cfg.inplace { format!("Filtered file {}!\n{}\n", cfg.tgt_file, out.0) } 
+                                        else { 
+                                                let new_file = format!("{}{}", cfg.tgt_file.trim_end_matches(common::XLSX_EXTENSION), common::NEW_FILE_SUFFIX);
+                                                format!("Filtered to file {}! {}\n", new_file, out.0) };
+                            }
+*/
+                            is_working_clone.store(false, Ordering::SeqCst);
+                            log::info!("Filtering complete!");
+                        });
                     }
-                    else //ok
+                    else 
                     {
-                        self.error.clear();
-                        self.output_text = if cfg.inplace { format!("Filtered file {}!\n{}\n", cfg.tgt_file, out.0) } 
-                                   else { 
-                                        let new_file = format!("{}{}", cfg.tgt_file.trim_end_matches(common::XLSX_EXTENSION), common::NEW_FILE_SUFFIX);
-                                        format!("Filtered to file {}! {}\n", new_file, out.0) };
+                        debug!("Filtering is running!");
                     }
                 }
             }
@@ -287,49 +354,67 @@ impl GuiApp
             ui.add_space(4.0);
             if ui.button(headers[6]).clicked()
             {
-                println!(" Input ref: {:?}", self.cfg_update_ref);
-                println!("Output tgt: {:?}", self.cfg_update_tgt);
-
-                let ref_sheets: Vec<String> = self.cfg_update_ref.reference_sheet.split(',').map(str::trim).map(String::from).collect();
-                
-                if 1 == ref_sheets.len() 
+                if false == self.is_working.load(Ordering::SeqCst)
                 {
-                    // cargo run --bin rexcell -- -c cmd-update-sheets -t ../Test_Excell_new.xlsx -s C -d B -u "Лист1,Лист2,Лист3" -r ../Test_Excell_new.xlsx -e "Test" -k B -v C -i
-                    let cfg: common::Config = common::Config {
-                        command: common::Command::CmdUpdateSheets,
-                        tgt_file: self.cfg_update_tgt.path.clone(), 
-                        tgt_upd_table: self.cfg_update_tgt.update_sheets.clone(),
-                        tgt_src_col: self.cfg_update_tgt.src_col.clone(),
-                        tgt_dest_col: self.cfg_update_tgt.dest_col.clone(),
-                        ref_file: self.cfg_update_ref.path.clone(),
-                        ref_table: self.cfg_update_ref.reference_sheet.clone(),
-                        ref_col_key: self.cfg_update_ref.col_key.clone(),
-                        ref_col_value: self.cfg_update_ref.col_value.clone(),
-                        new_sheet_name: self.cfg_update_tgt.new_sheet_name.clone(),
-                        inplace: true,
-                    };
+                    println!(" Input ref: {:?}", self.cfg_update_ref);
+                    println!("Output tgt: {:?}", self.cfg_update_tgt);
 
-                    let res = excell::execute(&cfg);
-
-                    let out = self.handle_result(&res);
-
-                    if 0 < out.1.len() //error found
+                    let ref_sheets: Vec<String> = self.cfg_update_ref.reference_sheet.split(',').map(str::trim).map(String::from).collect();
+                    
+                    if 1 == ref_sheets.len() 
                     {
-                        self.output_text.clear();
-                        self.error = format!("Failed to update file {}! {}\n", cfg.tgt_file, out.1);
+                        // cargo run --bin rexcell -- -c cmd-update-sheets -t ../Test_Excell_new.xlsx -s C -d B -u "Лист1,Лист2,Лист3" -r ../Test_Excell_new.xlsx -e "Test" -k B -v C -i
+                        let cfg: common::Config = common::Config {
+                            command: common::Command::CmdUpdateSheets,
+                            tgt_file: self.cfg_update_tgt.path.clone(), 
+                            tgt_upd_table: self.cfg_update_tgt.update_sheets.clone(),
+                            tgt_src_col: self.cfg_update_tgt.src_col.clone(),
+                            tgt_dest_col: self.cfg_update_tgt.dest_col.clone(),
+                            ref_file: self.cfg_update_ref.path.clone(),
+                            ref_table: self.cfg_update_ref.reference_sheet.clone(),
+                            ref_col_key: self.cfg_update_ref.col_key.clone(),
+                            ref_col_value: self.cfg_update_ref.col_value.clone(),
+                            new_sheet_name: self.cfg_update_tgt.new_sheet_name.clone(),
+                            inplace: true,
+                        };
+
+                        debug!("Start updating!");
+
+                        self.is_working.store(true, Ordering::SeqCst);
+                        let is_working_clone = self.is_working.clone();
+
+                        thread::spawn(move || 
+                        {
+                            let _res = excell::execute(&cfg);
+    /*
+                            let out = self.handle_result(&res);
+
+                            if 0 < out.1.len() //error found
+                            {
+                                self.output_text.clear();
+                                self.error = format!("Failed to update file {}! {}\n", cfg.tgt_file, out.1);
+                            }
+                            else //ok
+                            {
+                                self.error.clear();
+                                self.output_text = if cfg.inplace { format!("Updated file {}! {}\n", cfg.tgt_file, out.0) } 
+                                        else { 
+                                                let new_file = format!("{}{}", cfg.tgt_file.trim_end_matches(common::XLSX_EXTENSION), common::NEW_FILE_SUFFIX);
+                                                format!("Updated to file {}! {}\n", new_file, out.0) };
+                            }
+    */
+                            is_working_clone.store(false, Ordering::SeqCst);
+                            log::info!("Updating complete!");
+                        });
                     }
-                    else //ok
+                    else
                     {
-                        self.error.clear();
-                        self.output_text = if cfg.inplace { format!("Updated file {}! {}\n", cfg.tgt_file, out.0) } 
-                                   else { 
-                                        let new_file = format!("{}{}", cfg.tgt_file.trim_end_matches(common::XLSX_EXTENSION), common::NEW_FILE_SUFFIX);
-                                        format!("Updated to file {}! {}\n", new_file, out.0) };
+                        self.error = String::from(common::ERROR_MULTIPLE_REF_SHEETS);
                     }
                 }
                 else
                 {
-                    self.error = String::from(common::ERROR_MULTIPLE_REF_SHEETS);
+                    log::info!("Updating is running!");
                 }
             }
         });
@@ -354,6 +439,17 @@ impl eframe::App for GuiApp
         const MAX_HEIGHT: f32 = 400.0;
         const SCALE_FACTOR: f32 = 1.0;
         ctx.set_pixels_per_point(SCALE_FACTOR);
+
+        //Get current logs and copy them to buffer
+        while let Ok(new_log) = self.log_rx.try_recv() 
+        {
+            self.log_buffer.push_str(&new_log);
+            
+            // // Optional: limit the log buffer size, as this can delay the gui
+            // if self.log_buffer.len() > 10_000 {
+            //     self.log_buffer = self.log_buffer.chars().skip(2000).collect();
+            // }
+        }
 
         egui::CentralPanel::default().show(ctx, |ui| 
         {
@@ -407,13 +503,15 @@ impl eframe::App for GuiApp
                         .id_source("execution_result_scroll") 
                         .max_height(MAX_HEIGHT * SCALE_FACTOR) 
                         .auto_shrink([false; 2]) 
+                        .stick_to_bottom(true)
                         .show(ui, |ui| {
                             ui.add(
-                                egui::TextEdit::multiline(&mut self.output_text)
+                                // egui::TextEdit::multiline(&mut self.output_text)
+                                egui::TextEdit::multiline(&mut self.log_buffer)
                                     .desired_rows(16)
                                     .desired_width(f32::INFINITY)
-                                    .interactive(false) 
-                                    .lock_focus(true),
+                                    .lock_focus(true)
+                                    .interactive(true),
                             );
                         });
                 });
@@ -431,7 +529,7 @@ impl eframe::App for GuiApp
 fn main() {
     let options = NativeOptions::default();
     eframe::run_native(common::WINDOW_TITLE, options, 
-        Box::new(|_cc| Box::new(GuiApp::default()))).expect(common::ERROR_FAILED_TO_START_GUI);
+        Box::new(|cc| Box::new(GuiApp::new(cc)))).expect(common::ERROR_FAILED_TO_START_GUI);
 }
 
 // RUST_BACKTRACE=1 cargo run --bin gui >OUT
