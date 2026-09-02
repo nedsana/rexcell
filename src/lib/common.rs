@@ -119,6 +119,7 @@ pub const ERROR_DEST_COL_NOT_DEFINED: &str = "Columns to update are not defined"
 pub const MAX_COL: u32 = 8;
 pub const MAX_ROW: u32 = 1000;
 
+#[derive(Debug, Clone)]
 pub struct Config {
     pub command: Command,
 
