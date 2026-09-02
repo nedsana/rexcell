@@ -1,7 +1,8 @@
-use std::process;
+// use std::process;
 use umya_spreadsheet::*;
 use std::collections::HashMap;
 use crate::range_types::*;
+use log::{debug, info, warn, error};
 
 use super::common;
 use super::range_ops;
@@ -54,7 +55,7 @@ pub fn apply_formulas(
                         if ucell.is_formula()
                         {
                             let formula: String = ucell.get_formula().to_string();
-                            // println!("Found formula({}) in '{} {}{}'", formula, utbl_name, index_to_column(utbl_col), utbl_row);
+                            // info!("Found formula({}) in '{} {}{}'", formula, utbl_name, index_to_column(utbl_col), utbl_row);
                             ucell.set_value("");
                             ucell.set_formula(formula);
                         }
@@ -79,7 +80,7 @@ pub fn reset_formulas(
             if ucell.is_formula()
             {
                 let formula: String = ucell.get_formula().to_string();
-                // println!("Found formula({}) in '{} {}{}'", formula, utbl_name, index_to_column(utbl_col), utbl_row);
+                // info!("Found formula({}) in '{} {}{}'", formula, utbl_name, index_to_column(utbl_col), utbl_row);
                 ucell.set_value("");
                 ucell.set_formula(formula);
             }
@@ -94,7 +95,7 @@ pub fn apply_key_value_data_by_indexes(
     col_upd: u32,
 ) -> Result<(Vec<String>, Vec<String>), String> 
 {
-    // println!("apply_key_value_data_by_indexes(rtbl:{} utbl:{} col_key:{} col_upd:{})", rtbl.get_name(), utbl.get_name(), col_key, col_upd);
+    // info!("apply_key_value_data_by_indexes(rtbl:{} utbl:{} col_key:{} col_upd:{})", rtbl.get_name(), utbl.get_name(), col_key, col_upd);
 
     let mut res = (Vec::new(), Vec::new());
     
@@ -122,16 +123,16 @@ pub fn apply_key_value_data_by_indexes(
                     {
                         let dst_cell = utbl.get_cell_mut((col_upd, utbl_row));
 
-                        // println!("dst_cell({}{}).get_data_type()={}", index_to_column(col_upd), utbl_row, upd_cell.get_data_type());
+                        // info!("dst_cell({}{}).get_data_type()={}", index_to_column(col_upd), utbl_row, upd_cell.get_data_type());
 
                         if upd_cell.get_data_type() == "n" && let Some(num) = upd_cell.get_value_number()
                         {
-                            // println!("dst_cell({}{}).set_value_number({})", index_to_column(col_upd), utbl_row, num);
+                            // info!("dst_cell({}{}).set_value_number({})", index_to_column(col_upd), utbl_row, num);
                             dst_cell.set_value_number(num);
                         } 
                         else 
                         {
-                            // println!("dst_cell({}{}).set_value({})", index_to_column(col_upd), utbl_row, rtbl_upd_value);
+                            // info!("dst_cell({}{}).set_value({})", index_to_column(col_upd), utbl_row, rtbl_upd_value);
                             dst_cell.set_value(rtbl_upd_value.clone());
                         }
                     } 
@@ -270,7 +271,7 @@ pub fn find_missing_entries(find_where: & dyn IRange, find_what: & dyn IRange, c
                 {
                     let entry_it = find_where.get_sheet().get_cell_value((bcol_it, row_it)).get_value();
 
-                    // println!("[find_missing_entries] COMPARE {}:[{}:row{} '{}'] to {}:[{}:row{} '{}']!", 
+                    // info!("[find_missing_entries] COMPARE {}:[{}:row{} '{}'] to {}:[{}:row{} '{}']!", 
                     //     find_where.get_sheet().get_name(), range_ops::range_to_string(find_where.get_range()), row_it, entry_it,
                     //     find_what.get_sheet().get_name(), range_ops::range_to_string(find_what.get_range()), row_in, entry_in);
 
@@ -290,7 +291,7 @@ pub fn find_missing_entries(find_where: & dyn IRange, find_what: & dyn IRange, c
     }
     else
     {
-        println!("[find_missing_entries] Types mismatch!"); 
+        info!("[find_missing_entries] Types mismatch!"); 
     }
     res
 }
@@ -309,7 +310,7 @@ pub fn make_largest_range<'a>(range_in: &'a dyn IRange, sheet_in: &'a Worksheet,
     //Add the input range to the temporary sheet. Any rows, which belong to this group will be appened
     if range_ops::append_range(sheet_in, range_in.get_range(), &mut tmp_sheet, false) 
     {
-        println!("[make_largest_range] Appended range {}:[{}] to {}", sheet_in.get_name(), range_ops::range_to_string(range_in.get_range()), tmp_sheet.get_name());
+        info!("[make_largest_range] Appended range {}:[{}] to {}", sheet_in.get_name(), range_ops::range_to_string(range_in.get_range()), tmp_sheet.get_name());
 
         let mut range_tmp = make_range_inst_mut(range_in.get_type(), range_ops::make_range_from_indexes(1, 1, cols_in, rows_in), &mut tmp_sheet);
 
@@ -349,7 +350,7 @@ pub fn make_largest_range<'a>(range_in: &'a dyn IRange, sheet_in: &'a Worksheet,
                                     {
                                         let mrange = range_ops::make_range_from_indexes(1, 1, 1, er+1);
 
-                                        println!("[make_largest_range] Appended missing range {}:[{}:'{}'] to {}. Merging {}!", it.get_sheet().get_name(), range_ops::range_to_string(&missing_entry), 
+                                        info!("[make_largest_range] Appended missing range {}:[{}:'{}'] to {}. Merging {}!", it.get_sheet().get_name(), range_ops::range_to_string(&missing_entry), 
                                             it.get_sheet().get_cell_value((bcol_it, brow_me)).get_value(), range_tmp.get_sheet().get_name(), range_ops::range_to_string(range_tmp.get_range()));
 
                                         range_tmp.get_sheet_mut().get_merge_cells_mut().clear();
@@ -357,27 +358,27 @@ pub fn make_largest_range<'a>(range_in: &'a dyn IRange, sheet_in: &'a Worksheet,
                                     }
                                     else
                                     {
-                                        println!("[make_largest_range] Appended missing range {}:[{}:'{}'] to {}", it.get_sheet().get_name(), range_ops::range_to_string(&missing_entry), 
+                                        info!("[make_largest_range] Appended missing range {}:[{}:'{}'] to {}", it.get_sheet().get_name(), range_ops::range_to_string(&missing_entry), 
                                             it.get_sheet().get_cell_value((bcol_it, brow_me)).get_value(), range_tmp.get_sheet().get_name());
                                     }
                                 }
                                 else
                                 {
-                                    println!("[make_largest_range] Failed to append missing range {}:[{}] to {}!", it.get_sheet().get_name(), 
+                                    info!("[make_largest_range] Failed to append missing range {}:[{}] to {}!", it.get_sheet().get_name(), 
                                         range_ops::range_to_string(&missing_entry), range_tmp.get_sheet().get_name());
                                 }
                             }
                         }
                         else 
                         {
-                            // println!("[make_largest_range] {}[{}:'{}'] VS {}[{}:'{}']. KEEPING!", 
+                            // info!("[make_largest_range] {}[{}:'{}'] VS {}[{}:'{}']. KEEPING!", 
                             //         range_tmp.get_sheet().get_name(), range_ops::range_to_string(range_tmp.get_range()), hdr_in, 
                             //         it.get_sheet().get_name() ,range_ops::range_to_string(it.get_range()), hdr_it);
                         }
                     }
                     else
                     {
-                        // println!("[make_largest_range] {}[{}:'{}'] DEFFERENT FROM {}[{}:'{}'].",
+                        // info!("[make_largest_range] {}[{}:'{}'] DEFFERENT FROM {}[{}:'{}'].",
                         //         range_tmp.get_sheet().get_name(), range_ops::range_to_string(range_tmp.get_range()), hdr_in, 
                         //         it.get_sheet().get_name() ,range_ops::range_to_string(it.get_range()), hdr_it);
                     }
@@ -385,14 +386,14 @@ pub fn make_largest_range<'a>(range_in: &'a dyn IRange, sheet_in: &'a Worksheet,
             }
             else
             {
-            //    println!("[make_largest_range] Types mismatch: {}:{} {}:{}", range_ops::range_to_string(range_tmp.get_range()), range_tmp.get_type_name(), 
+            //    info!("[make_largest_range] Types mismatch: {}:{} {}:{}", range_ops::range_to_string(range_tmp.get_range()), range_tmp.get_type_name(), 
             //                                                                 range_ops::range_to_string(it.get_range()), it.get_type_name()); 
             }
         }
     }
     else
     {
-        println!("[make_largest_range] Failed to append range {}:[{}] to {}!", sheet_in.get_name(), range_ops::range_to_string(range_in.get_range()), tmp_sheet.get_name());
+        info!("[make_largest_range] Failed to append range {}:[{}] to {}!", sheet_in.get_name(), range_ops::range_to_string(range_in.get_range()), tmp_sheet.get_name());
     }
 
     tmp_sheet
@@ -426,12 +427,12 @@ pub fn filter_sheet_by_col_and_accum(
         let (brow_it, _, _, _, _, _) = range_ops::range_bounds(it.get_range());
         if "n" != it.get_sheet().get_cell_value((1, brow_it)).get_data_type().to_string()
         {
-            println!("[filter_sheet_by_col_and_accum] Range {}:[{}] skipping none numeric leading data type!", it.get_sheet().get_name(), range_ops::range_to_string(it.get_range()));
+            info!("[filter_sheet_by_col_and_accum] Range {}:[{}] skipping none numeric leading data type!", it.get_sheet().get_name(), range_ops::range_to_string(it.get_range()));
             continue;
         }
         else
         {
-            println!("[filter_sheet_by_col_and_accum] Processing range '{}:[{}]'!", it.get_sheet().get_name(), range_ops::range_to_string(it.get_range()));
+            info!("[filter_sheet_by_col_and_accum] Processing range '{}:[{}]'!", it.get_sheet().get_name(), range_ops::range_to_string(it.get_range()));
         }
 
         loop 
@@ -441,11 +442,11 @@ pub fn filter_sheet_by_col_and_accum(
                 let found_range_clone = found_range.get_range().clone();
                 drop(found_range);
 
-                println!("[filter_sheet_by_col_and_accum] Range {} already exists in sheet {}! Accumulating data!", range_ops::range_to_string(it.get_range()), sheet_out.get_name());
+                info!("[filter_sheet_by_col_and_accum] Range {} already exists in sheet {}! Accumulating data!", range_ops::range_to_string(it.get_range()), sheet_out.get_name());
 
                 if range_ops::accumulate_ranges(sheet_in, it.get_range(), sheet_out, &found_range_clone, &cmp_cols, &acc_cols)
                 {
-                    println!("[filter_sheet_by_col_and_accum] Accumulated in-range '{}' to out-range '{}'!", range_ops::range_to_string(it.get_range()), range_ops::range_to_string(&found_range_clone));
+                    info!("[filter_sheet_by_col_and_accum] Accumulated in-range '{}' to out-range '{}'!", range_ops::range_to_string(it.get_range()), range_ops::range_to_string(&found_range_clone));
                 }
 
                 break; //exit the internal loop
@@ -470,24 +471,24 @@ pub fn filter_sheet_by_col_and_accum(
                     {
                         res = range_ops::append_range(it_slr.get_sheet(), &it_slr.get_range(), sheet_out, false);
 
-                        println!("[filter_sheet_by_col_and_accum] Appended range {}:[{}] to {}: {}", it_slr.get_sheet().get_name(), range_ops::range_to_string(it_slr.get_range()), sheet_out.get_name(), res);
+                        info!("[filter_sheet_by_col_and_accum] Appended range {}:[{}] to {}: {}", it_slr.get_sheet().get_name(), range_ops::range_to_string(it_slr.get_range()), sheet_out.get_name(), res);
                     }
                     loop_cnt += 1;
                 }
                 if 1 < loop_cnt
                 {
-                    println!("[filter_sheet_by_col_and_accum] [ERROR] Only one largest range expected! Found {}!", loop_cnt);
+                    info!("[filter_sheet_by_col_and_accum] [ERROR] Only one largest range expected! Found {}!", loop_cnt);
                 }
 
                 //NOTE: no 'beak' here, because we've appended a range with zeroed numeric cells. The next loop should find this appended range and should update its values properly!
             } //appending            
         }
 
-        println!("[filter_sheet_by_col_and_accum]========================================================");
+        info!("[filter_sheet_by_col_and_accum]========================================================");
         // process::exit(1);
         // return res;
     }
-    println!("[filter_sheet_by_col_and_accum] Finished loop, exiting");
+    info!("[filter_sheet_by_col_and_accum] Finished loop, exiting");
     return res;
 }
 
@@ -651,7 +652,7 @@ pub fn execute(cfg: &common::Config) -> Result<(Vec<String>, Vec<String>), Strin
                 }
                 outfile = new_file;
             }
-            println!("[execute] SAVED FILE {}!", outfile);
+            info!("[execute] SAVED FILE {}!", outfile);
         }
         Ok(res_success)
     }
