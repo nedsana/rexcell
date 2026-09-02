@@ -121,7 +121,7 @@ impl Default for GuiApp
 
 impl GuiApp 
 {
-    fn get_sheets_list(&mut self, file_path: &str) -> Result<String, String> 
+    fn get_sheets_list(file_path: &str) -> Result<String, String> 
     {
         let result = excell::get_worksheet_names(std::path::Path::new(&file_path));
         match result 
@@ -168,10 +168,10 @@ impl GuiApp
     {
         egui::Frame::group(ui.style()).show(ui, |ui| 
         {
-            let mut tgt_data: TargetData = if filtering {
-                self.cfg_filter.clone()
+            let tgt_data: &mut TargetData = if filtering {
+                &mut self.cfg_filter
             } else {
-                self.cfg_update_tgt.clone()
+                &mut self.cfg_update_tgt
             };
 
             ui.label(headers[0]);
@@ -183,7 +183,7 @@ impl GuiApp
                     if let Some(path_buf) = FileDialog::new().pick_file() {
                         if let Some(path_str) = path_buf.to_str() {
                             tgt_data.path = path_str.to_string();
-                            self.get_sheets_list(path_str)
+                            Self::get_sheets_list(path_str)
                                 .map(|sheets| tgt_data.update_sheets = sheets)
                                 .map_err(|err| self.error = err)
                                 .ok();
@@ -247,12 +247,6 @@ impl GuiApp
                     }
                 }
             }
-
-            if filtering {
-                self.cfg_filter = tgt_data.clone();
-            } else {
-                self.cfg_update_tgt = tgt_data.clone();
-            };
         });
     }
 
@@ -269,7 +263,7 @@ impl GuiApp
                     if let Some(path_buf) = FileDialog::new().pick_file() {
                         if let Some(path_str) = path_buf.to_str() {
                             self.cfg_update_ref.path = path_str.to_string();
-                            self.get_sheets_list(path_str)
+                            Self::get_sheets_list(path_str)
                                 .map(|sheets| self.cfg_update_ref.reference_sheet = sheets)
                                 .map_err(|err| self.error = err)
                                 .ok();
