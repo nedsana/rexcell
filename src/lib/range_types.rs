@@ -1,12 +1,12 @@
 use umya_spreadsheet::{Range, Worksheet};
 use super::range_ops;
 use std::vec;
-use log::{debug, info, warn, error};
+use log::{info, error};
 
 fn compare_cell_impl<T>(
     this: &T,           col_this: u32,  row_this: u32,
     other: &dyn IRange, col_other: u32, row_other: u32,
-    strict: bool,   label: &str,
+    strict: bool,   _label: &str,
 ) -> bool
 where
     T: IRange,
@@ -27,7 +27,7 @@ where
 
     if rich_a != rich_b && strict 
     {
-        info!("[{}::compare_cell] Rich text mismatch: {}:[{}:'{}'] and {}:[{}:'{}']", label, 
+        error!("Rich text mismatch: {}:[{}:'{}'] and {}:[{}:'{}']", //label, 
             sheet_this.get_name(), range_ops::coords_to_str(col_this, row_this), val_a,
             sheet_other.get_name(), range_ops::coords_to_str(col_other, row_other), val_b);
         return r;
@@ -35,14 +35,14 @@ where
 
     if range_ops::cmp_strs(&val_a, &val_b) 
     {
-        info!("[{}::compare_cell] {}:[{}:'{}'] EQUALS {}:[{}:'{}']", label,
+        info!("[{}:[{}:'{}'] EQUALS {}:[{}:'{}']", //label,
             sheet_this.get_name(), range_ops::coords_to_str(col_this, row_this), val_a,
             sheet_other.get_name(), range_ops::coords_to_str(col_other, row_other), val_b);
         r = true;
     } 
     else 
     {
-        info!("[{}::compare_cell] {}:[{}:'{}'] DIFFERS {}:[{}:'{}']", label,
+        info!("{}:[{}:'{}'] DIFFERS {}:[{}:'{}']", //label,
             sheet_this.get_name(), range_ops::coords_to_str(col_this, row_this), val_a,
             sheet_other.get_name(), range_ops::coords_to_str(col_other, row_other), val_b);
         r = false;
@@ -56,7 +56,7 @@ fn compare_simple_range_impl<T>(
     strict: bool,
     o_use_rows: Option<vec::Vec<u32>>,
     o_use_cols: Option<vec::Vec<u32>>,
-    label: &str,
+    _label: &str,
 ) -> bool
 where
     T: IRange,
@@ -68,8 +68,8 @@ where
     let (brow_b, erow_b, bcol_b, _ecol_b, rows_b, cols_b) = range_ops::range_bounds(range_b);
 
     if strict && (rows_a != rows_b || cols_a != cols_b) {
-        info!("[{}::compare_range] Size missmatch! Range A:[{}, len:{}] != Range B:[{}, len:{}]", 
-            label, range_ops::range_to_string(range_a), rows_a, range_ops::range_to_string(range_b), rows_b);
+        error!("Size missmatch! Range A:[{}, len:{}] != Range B:[{}, len:{}]", //label, 
+            range_ops::range_to_string(range_a), rows_a, range_ops::range_to_string(range_b), rows_b);
         return false;
     }
 
@@ -127,7 +127,7 @@ fn compare_merged_range_impl<T>(
     strict: bool,
     o_use_rows: Option<vec::Vec<u32>>,
     o_use_cols: Option<vec::Vec<u32>>,
-    label: &str,
+    _label: &str,
 ) -> bool
 where
     T: IRange,
@@ -140,9 +140,9 @@ where
 
     if rows_a != rows_b || cols_a != cols_b
     {
-        info!("[{}::compare_range] Size missmatch! Range {}:[{}] != Range {}:[{}]", 
-            label, this.get_sheet().get_name(), range_ops::range_to_string(range_a),
-                  other.get_sheet().get_name(), range_ops::range_to_string(range_b));
+        error!("Size missmatch! Range {}:[{}] != Range {}:[{}]", //label, 
+                this.get_sheet().get_name(), range_ops::range_to_string(range_a),
+                other.get_sheet().get_name(), range_ops::range_to_string(range_b));
 
         return false;
     }
@@ -184,7 +184,8 @@ where
                 }
             }
 
-            // info!("[{}::compare_range] cols_a:{}, col_match:{}]", label, cols_a, col_match);
+            // info!("cols_a:{}, col_match:{}]", //label, 
+            //     cols_a, col_match);
 
             if col_match == cols_a {
                 row_match += 1;
@@ -192,18 +193,19 @@ where
         }
     }
 
-    // info!("[{}::compare_range] rows_a:{}, row_match:{}]", label, rows_a, row_match);
+    // info!("rows_a:{}, row_match:{}]", //label, 
+    //         rows_a, row_match);
 
     if row_match != rows_a 
     {
-        info!("[{}::compare_range] Range {}:[{}, len:{}] DIFFERS FROM Range {}:[{}, len:{}]", 
-            label, this.get_sheet().get_name(), range_ops::range_to_string(range_a), rows_a, other.get_sheet().get_name(), range_ops::range_to_string(range_b), rows_b);
+        // info!("Range {}:[{}, len:{}] DIFFERS FROM Range {}:[{}, len:{}]", //label, 
+        //     this.get_sheet().get_name(), range_ops::range_to_string(range_a), rows_a, other.get_sheet().get_name(), range_ops::range_to_string(range_b), rows_b);
 
         return false;
     }
 
-    info!("[{}::compare_range] Range {}:[{}, len:{}] EQUALS TO Range {}:[{}, len:{}]", 
-            label, this.get_sheet().get_name(), range_ops::range_to_string(range_a), rows_a, other.get_sheet().get_name(), range_ops::range_to_string(range_b), rows_b);
+    // info!("Range {}:[{}, len:{}] EQUALS TO Range {}:[{}, len:{}]", //label, 
+    //     this.get_sheet().get_name(), range_ops::range_to_string(range_a), rows_a, other.get_sheet().get_name(), range_ops::range_to_string(range_b), rows_b);
 
     true
 }
@@ -214,7 +216,7 @@ fn compare_multiline_range_impl<T>(
     strict: bool,
     o_use_rows: Option<vec::Vec<u32>>,
     o_use_cols: Option<vec::Vec<u32>>,
-    label: &str,
+    _label: &str,
 ) -> bool
 where
     T: IRange,
@@ -231,13 +233,13 @@ where
     let rows_cnt_other = rows_other + 1;
     let cols_cnt_other = cols_other + 1;
 
-    info!( "[{}::compare_range] Range A:[{} Rows:{} Cols:{}] vs Range B:[{} Rows:{} Cols:{}]", label,
-        range_ops::range_to_string(range_this), rows_cnt_this, cols_cnt_this,
-        range_ops::range_to_string(range_other), rows_cnt_other, cols_cnt_other);
+    // info!( "Range A:[{} Rows:{} Cols:{}] vs Range B:[{} Rows:{} Cols:{}]", //label,
+    //     range_ops::range_to_string(range_this), rows_cnt_this, cols_cnt_this,
+    //     range_ops::range_to_string(range_other), rows_cnt_other, cols_cnt_other);
 
     if strict && (rows_cnt_this != rows_cnt_other || cols_cnt_this != cols_cnt_other) 
     {
-        info!("[{}::compare_range] Size missmatch! Range A:[{}, len:{}] != Range B:[{}, len:{}]", label,
+        error!("Size missmatch! Range A:[{}, len:{}] != Range B:[{}, len:{}]", //label,
             range_ops::range_to_string(range_this), rows_cnt_this,
             range_ops::range_to_string(range_other), rows_cnt_other);
         return false;
@@ -256,7 +258,8 @@ where
     {
         if allowed_rows.len() > 0 && !allowed_rows.contains(&row_num_a) 
         {
-            info!("[{}::compare_range] A{} is not in the allowed row list: {}!", label, row_num_a, _str_allowed_rows);
+            info!("A{} is not in the allowed row list: {}!", //label, 
+                row_num_a, _str_allowed_rows);
             continue;
         }
 
@@ -264,7 +267,8 @@ where
         {
             if allowed_rows.len() > 0 && !allowed_rows.contains(&row_num_b) 
             {
-                info!("[{}::compare_range] B{} is not in the allowed row list: {}!", label, row_num_b, _str_allowed_rows);
+                info!("B{} is not in the allowed row list: {}!", //label, 
+                    row_num_b, _str_allowed_rows);
                 continue;
             }
 
@@ -276,7 +280,7 @@ where
 
                 if allowed_cols.len() > 0 && !allowed_cols.contains(&col_num_a) && !allowed_cols.contains(&col_num_b) 
                 {
-                    // info!("[{}::compare_range] {}{} or {}{} is not in the allowed column list: {}!", label,
+                    // info!("{}{} or {}{} is not in the allowed column list: {}!", //label,
                     //     range_ops::index_to_column(col_num_a), row_num_a,
                     //     range_ops::index_to_column(col_num_b), row_num_b, _str_allowed_cols);
                     col_match += 1;
@@ -289,7 +293,8 @@ where
                 }
             }
 
-            info!("[{}::compare_range] Matching columns: {}/{} ! Returning {}", label, col_match, cols_cnt_this, col_match == cols_cnt_this);
+            info!("Matching columns: {}/{} ! Returning {}", //label, 
+                col_match, cols_cnt_this, col_match == cols_cnt_this);
 
             if col_match == cols_cnt_this 
             {
@@ -298,7 +303,8 @@ where
         }
     }
 
-    info!("[{}::compare_range] Matching rows: {}/{} ! Returning {}", label, row_match, rows_cnt_this, row_match == rows_cnt_this);
+    info!("Matching rows: {}/{} ! Returning {}", //label, 
+        row_match, rows_cnt_this, row_match == rows_cnt_this);
 
     if !strict && row_match != rows_cnt_this 
     {
@@ -312,7 +318,7 @@ fn contains_impl<T>(
     other: &dyn IRange,
     o_use_rows: Option<vec::Vec<u32>>, 
     o_use_cols: Option<vec::Vec<u32>>,
-    label: &str,
+    _label: &str,
 ) -> bool
 where
     T: IRange,
@@ -348,7 +354,7 @@ where
                     {
                         let entry_t = this.get_sheet().get_cell_value((bcol_t, row_t)).get_value();
 
-                        info!("[{}::contains] COMPARE \"{}:[{} {}{}='{}']\" to \"{}:[{} {}{}='{}']\"", label,
+                        info!("COMPARE \"{}:[{} {}{}='{}']\" to \"{}:[{} {}{}='{}']\"", //label,
                             other.get_sheet().get_name(), range_ops::range_to_string(other.get_range()), range_ops::index_to_column(bcol_o), row_o, entry_o,
                             this.get_sheet().get_name(),  range_ops::range_to_string(this.get_range()),  range_ops::index_to_column(bcol_t), row_t, entry_t);
 
@@ -360,12 +366,13 @@ where
                     }
                 }
 
-                info!("[{}::contains] Found {}/{} entries!", label, found_cnt, rows_o);
+                info!("Found {}/{} entries!", //label, 
+                    found_cnt, rows_o);
                 res = found_cnt == rows_o
             }
             else 
             {
-                info!("[{}::contains] \"{}[{} {}{}='{}']\" DEFFERS FROM \"{}[{} {}{}='{}']\"", label,
+                info!("\"{}[{} {}{}='{}']\" DEFFERS FROM \"{}[{} {}{}='{}']\"", //label,
                         other.get_sheet().get_name(), range_ops::range_to_string(other.get_range()), range_ops::index_to_column(bcol_o), brow_o, hdr_o,
                         this.get_sheet().get_name(),  range_ops::range_to_string(this.get_range()),  range_ops::index_to_column(bcol_t), brow_t, hdr_t);
                 break;
@@ -374,7 +381,7 @@ where
     }
     else
     {
-        info!("[{}::contains] Types mismatch: {}:[{} {}] vs {}:[{} {}]", label, 
+        info!("Types mismatch: {}:[{} {}] vs {}:[{} {}]", //label, 
                 other.get_sheet().get_name(), range_ops::range_to_string(other.get_range()), other.get_type_name(),
                 other.get_sheet().get_name(), range_ops::range_to_string(this.get_range()),  this.get_type_name()); 
     }

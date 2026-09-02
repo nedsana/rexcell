@@ -2,7 +2,7 @@ use std::vec;
 use umya_spreadsheet::{Worksheet, Range, Cell};
 use super::range_types;
 // use super::common;
-use log::{debug, info, warn, error};
+use log::{info, warn, error};
 
 //compare strings, ignoring white spaces (' ',\t, \n, \r)
 pub fn cmp_strs(s1: &str, s2: &str) -> bool 
@@ -235,7 +235,6 @@ pub fn comapre_cell(
     strict: bool
 ) -> bool 
 {
-    let mut r = false;
     //Calculate the actual coordinates for sheet A and sheet B and get the text values of the two cells
     let cell_a_coord = (col_a, row_a);
     let cell_b_coord = (col_b, row_b);
@@ -251,22 +250,10 @@ pub fn comapre_cell(
 
     if rich_a != rich_b && strict
     {
-        info!("[comapre_cell] Rich text mismatch: {}:{} and {}:{}", coords_to_str(col_a, row_a), val_a, coords_to_str(col_b, row_b), val_b);
-        return r;
+        error!("Rich text mismatch: {}:{} and {}:{}", coords_to_str(col_a, row_a), val_a, coords_to_str(col_b, row_b), val_b);
+        return false;
     }
-
-    // If there is any mismatch, immediately stop and return false
-    if cmp_strs(&val_a, &val_b) 
-    {
-        // info!("[comapre_cell] {}:{} equals {}:{}", coords_to_str(col_a, row_a), val_a, coords_to_str(col_b, row_b), val_b);
-        r = true;
-    }
-    else 
-    {
-        // info!("[comapre_cell] {}:{} differs {}:{}", coords_to_str(col_a, row_a), val_a, coords_to_str(col_b, row_b), val_b); 
-        r = false;
-    }
-    r
+    cmp_strs(&val_a, &val_b)
 }
 
 pub fn comapre_ranges(
@@ -286,7 +273,7 @@ pub fn comapre_ranges(
     //If the legths are different, the ranges cannot be the same
     if strict && (rows_a != rows_b || cols_a != cols_b) 
     {
-        info!("[comapre_ranges] Size missmatch! Range A:[{}, len:{}] != Range B:[{}, len:{}]", 
+        error!("Size missmatch! Range A:[{}, len:{}] != Range B:[{}, len:{}]", 
                 range_to_string(range_a), rows_a, range_to_string(range_b), rows_b);
         return false;
     }
@@ -308,7 +295,7 @@ pub fn comapre_ranges(
     {
         if allowed_rows.len() > 0 && !allowed_rows.contains(&row_num_a)
         {
-            // info!("[comapre_ranges], Row A:{} is not in the allowed list {}!", row_num_a, _str_allowed_rows);
+            // info!("Row A:{} is not in the allowed list {}!", row_num_a, _str_allowed_rows);
             continue; // skip this row if it's not in the allowed_rows list
         }
 
@@ -316,7 +303,7 @@ pub fn comapre_ranges(
         {
             if allowed_rows.len() > 0 && !allowed_rows.contains(&row_num_b)
             {
-                // info!("[comapre_ranges], Row B:{} is not in the allowed list {}!", row_num_b, _str_allowed_rows);
+                // info!("Row B:{} is not in the allowed list {}!", row_num_b, _str_allowed_rows);
                 continue; // skip this row if it's not in the allowed_rows list
             }
 
@@ -328,7 +315,7 @@ pub fn comapre_ranges(
 
                 if allowed_cols.len() > 0 && !allowed_cols.contains(&col_num_a) && !allowed_cols.contains(&col_num_b) 
                 {
-                    // info!("[comapre_ranges], Column A:{} or Column B:{} is not in the allowed list {}!", col_num_a, col_num_b, _str_allowed_cols);
+                    // info!("Column A:{} or Column B:{} is not in the allowed list {}!", col_num_a, col_num_b, _str_allowed_cols);
                     col_match += 1;
                     continue; // skip this column if it's not in the allowed_cols list
                 }
@@ -348,13 +335,13 @@ pub fn comapre_ranges(
 
     if !strict && row_match != rows_a 
     {
-        info!("[comapre_ranges] Range {}:[{}, len:{}] DIFFERS FROM Range {}:[{}, len:{}]", 
+        info!("Range {}:[{}, len:{}] DIFFERS FROM Range {}:[{}, len:{}]", 
                 sheet_a.get_name(), range_to_string(range_a), rows_a, sheet_b.get_name(), range_to_string(range_b), rows_b);
 
         return false;
     }
 
-    info!("[comapre_ranges] Range {}:[{}, len:{}] EQUALS TO Range {}:[{}, len:{}]", 
+    info!("Range {}:[{}, len:{}] EQUALS TO Range {}:[{}, len:{}]", 
             sheet_a.get_name(), range_to_string(range_a), rows_a, sheet_b.get_name(), range_to_string(range_b), rows_b);
 
     true
@@ -398,7 +385,7 @@ pub fn append_range(
                 // Preserve data types when copying cells
                 if cell_data_type == "n" && let Some(num) = src_cell.get_value_number() 
                 {
-                    // info!("[append_range] dst_cell({}{}).set_value_number({})", range_ops::index_to_column(col), current_new_row, num);
+                    // info!("dst_cell({}{}).set_value_number({})", range_ops::index_to_column(col), current_new_row, num);
                     if clear_numeric_fields
                     {
                         dst_cell.set_value_number(0);
@@ -418,7 +405,7 @@ pub fn append_range(
                     {
                         dst_cell.set_value(cell_value);
                     }
-                    // info!("[append_range] dst_cell({}{}).set_value({})", range_ops::index_to_column(col), current_new_row, dst_cell.get_value());
+                    // info!("dst_cell({}{}).set_value({})", range_ops::index_to_column(col), current_new_row, dst_cell.get_value());
                 }
                 
                 dst_cell.set_style(cell_style);
@@ -464,7 +451,7 @@ pub fn append_range(
 
         let mrange = make_range_from_indexes(mcbeg, current_old_row, mcend, current_old_row + mrlen - 1);
 
-        info!("[append_range] {}:[{}] contains merged cells! Merge cells in {}:[{}]", sheet_in.get_name(), 
+        info!("{}:[{}] contains merged cells! Merge cells in {}:[{}]", sheet_in.get_name(), 
             range_to_string(range_in), sheet_out.get_name(), range_to_string(&mrange));
             
         sheet_out.add_merge_cells(mrange.get_range());
@@ -491,7 +478,7 @@ pub fn accumulate_ranges(
     // //If the legths are different, the ranges cannot proceed with accumulation
     // if rows_a != rows_b || cols_a != cols_b 
     // {
-    //     info!("[accumulate_ranges] Range size missmatch! {}:[{}] to {}:[{}]!", sheet_a.get_name(), range_to_string(range_a), sheet_b.get_name(), range_to_string(range_b));
+    //     error!("Range size missmatch! {}:[{}] to {}:[{}]!", sheet_a.get_name(), range_to_string(range_a), sheet_b.get_name(), range_to_string(range_b));
     //     return accumulated; 
     // }
 
@@ -545,7 +532,7 @@ pub fn accumulate_ranges(
                 let val_b = cell_b.as_ref().unwrap().get_value();
                 if cmp_strs(&val_a, &val_b) 
                 {
-                    info!("[accumulate_ranges] Pivot {}:[{}:'{}'] EQUALS TO {}:[{}:'{}']!", sheet_a.get_name(), range_to_string(range_a), val_a, sheet_b.get_name(), range_to_string(range_b), val_b);
+                    info!("Pivot {}:[{}:'{}'] EQUALS TO {}:[{}:'{}']!", sheet_a.get_name(), range_to_string(range_a), val_a, sheet_b.get_name(), range_to_string(range_b), val_b);
                     l_found_pivot = true;
                     break; //for row_offset_b in &rows_offsets_b
                 }
@@ -556,12 +543,12 @@ pub fn accumulate_ranges(
         {
             if cell_a.is_none()
             {
-                info!("[accumulate_ranges] Pivot from {}:[{}] is NONE! {}:[{}]!", sheet_a.get_name(), range_to_string(range_a), 
+                info!("Pivot from {}:[{}] is NONE! {}:[{}]!", sheet_a.get_name(), range_to_string(range_a), 
                     sheet_b.get_name(), range_to_string(range_b));
             }
             else 
             {
-                info!("[accumulate_ranges] Pivot {}:[{}:'{}'] NOT FOUND IN {}:[{}]!", sheet_a.get_name(), range_to_string(range_a), 
+                info!("Pivot {}:[{}:'{}'] NOT FOUND IN {}:[{}]!", sheet_a.get_name(), range_to_string(range_a), 
                     cell_a.as_ref().unwrap().get_value(), sheet_b.get_name(), range_to_string(range_b));
             }
 
@@ -580,7 +567,7 @@ pub fn accumulate_ranges(
             cell_a = sheet_a.get_cell((col_num_a, row_num_a));
             if cell_a.is_none()
             {
-                info!("[accumulate_ranges] Cell {}:{} is None!", sheet_a.get_name(), coords_to_str(col_num_a, row_num_a));
+                warn!("Cell {}:{} is None!", sheet_a.get_name(), coords_to_str(col_num_a, row_num_a));
             }
             break; //for col_offset_a in &cols_offsets_a
         } //for col_offset_a in &cols_offsets_a
@@ -597,7 +584,7 @@ pub fn accumulate_ranges(
             cell_b = sheet_b.get_cell((col_num_b, row_num_b));
             if cell_b.is_none()
             {
-                info!("[accumulate_ranges] Cell {}:{} is None!", sheet_b.get_name(), coords_to_str(col_num_b, row_num_b));
+                warn!("Cell {}:{} is None!", sheet_b.get_name(), coords_to_str(col_num_b, row_num_b));
             }
             break; //for col_offset_b in &cols_offsets_b
         } //for col_offset_b in &cols_offsets_b
@@ -612,7 +599,7 @@ pub fn accumulate_ranges(
 
             if cell_a.as_ref().unwrap().get_data_type() == "n" && cell_b.as_ref().unwrap().get_data_type() == "n" 
             {
-                info!("[accumulate_ranges] Accumulating {}:{} to {}:{}", sheet_a.get_name(), coords_to_str(coord_a.0, coord_a.1), 
+                info!("Accumulating {}:{} to {}:{}", sheet_a.get_name(), coords_to_str(coord_a.0, coord_a.1), 
                         sheet_b.get_name(), coords_to_str(coord_b.0, coord_b.1));
 
                 let val_a = cell_a.as_ref().unwrap().get_value().parse::<f64>().unwrap_or(0.0);
@@ -626,7 +613,7 @@ pub fn accumulate_ranges(
             }
             else
             {
-                info!("[accumulate_ranges] Can't accumulate none-numeric values {}:{} to {}:{}", sheet_a.get_name(), coords_to_str(coord_a.0, coord_a.1), 
+                error!("Can't accumulate none-numeric values {}:{} to {}:{}", sheet_a.get_name(), coords_to_str(coord_a.0, coord_a.1), 
                         sheet_b.get_name(), coords_to_str(coord_b.0, coord_b.1));
             }
         }
@@ -652,7 +639,7 @@ fn iter_row_next_impl_shared<'a>(
 
         if let Some(merged_cells) = sheet_merged_cells.iter().find(|range| is_row_in_range(*current_row, range)) 
         {
-            // info!("[iter_row_next_impl_shared] Found merged cells range '{}'", range_to_string(&merged_cells));
+            // info!("Found merged cells range '{}'", range_to_string(&merged_cells));
 
             let (_, merged_end_row, _, _, _, _) = range_bounds(merged_cells);
             cells_range = make_range_from_indexes(1, *current_row, 1 + max_col, merged_end_row);
@@ -704,18 +691,18 @@ fn iter_row_next_impl_shared<'a>(
 
                 if multiline 
                 {
-                    // info!("[iter_row_next_impl_shared] Range [{}]: from multiline cells! current_row={}", range_to_string(&cells_range), current_row);
+                    // info!("Range [{}]: from multiline cells! current_row={}", range_to_string(&cells_range), current_row);
                     ret = Some((cells_range, range_types::IterRowNextKind::Multiline));
                 } 
                 else 
                 {
-                    // info!("[iter_row_next_impl_shared] Range [{}]: from regular cells! current_row={}", range_to_string(&cells_range), current_row);
+                    // info!("Range [{}]: from regular cells! current_row={}", range_to_string(&cells_range), current_row);
                     ret = Some((cells_range, range_types::IterRowNextKind::Basic));
                 }
             } 
             else 
             {
-                // info!("[iter_row_next_impl_shared] Current row {} starts with unexpected type:'{}'!", *current_row, first_cell_data_type);
+                // info!("Current row {} starts with unexpected type:'{}'!", *current_row, first_cell_data_type);
                 ret = Some((cells_range, range_types::IterRowNextKind::Basic));
                 *current_row += 1;
             }
@@ -737,12 +724,12 @@ fn iter_row_next_impl_shared<'a>(
 
             if is_last_row
             {
-                info!("[iter_row_next_impl_shared] Processing unexpected row:{}!", *current_row);
+                warn!("Processing unexpected row:{}!", *current_row);
             }
             else
             {
                 cells_range = make_range_from_indexes(1, *current_row, 1 + max_col, *current_row);
-                // info!("[iter_row_next_impl_shared] Range [{}]: from regular empty cells! current_row={}", range_to_string(&cells_range), current_row);
+                // info!("Range [{}]: from regular empty cells! current_row={}", range_to_string(&cells_range), current_row);
                 ret = Some((cells_range, range_types::IterRowNextKind::Basic));
             }
             *current_row += 1;
@@ -750,7 +737,7 @@ fn iter_row_next_impl_shared<'a>(
     }
     else
     {
-        info!("[iter_row_next_impl_shared] Reached maximum lines to process:{}!", max_row);
+        warn!("Reached maximum lines to process:{}!", max_row);
     }
     ret
 }

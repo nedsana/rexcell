@@ -148,11 +148,17 @@ impl GuiApp
         //Init the fern logger
         fern::Dispatch::new()
             .format(|out, message, record| 
-                {
-                out.finish(format_args!("[{}] {}", record.level(), message))
+            {
+                let level_str = format!("{:<5}", record.level().to_string());
+
+                let file_line = format!("{}:{}", record.file().unwrap_or("unknown"), record.line().unwrap_or(0));
+
+                let file_line_padded = format!("{:<32}", file_line);
+
+                out.finish(format_args!("[{}] [{}] {}", level_str, file_line_padded, message))
             })
             .level(log::LevelFilter::Debug)
-            .chain(std::io::stdout())
+            // .chain(std::io::stdout())
             .chain(fern::Output::call(move |record| 
             {
                 let _ = log_tx.send(format!("{}\n", record.args()));
@@ -356,9 +362,6 @@ impl GuiApp
             {
                 if false == self.is_working.load(Ordering::SeqCst)
                 {
-                    println!(" Input ref: {:?}", self.cfg_update_ref);
-                    println!("Output tgt: {:?}", self.cfg_update_tgt);
-
                     let ref_sheets: Vec<String> = self.cfg_update_ref.reference_sheet.split(',').map(str::trim).map(String::from).collect();
                     
                     if 1 == ref_sheets.len() 

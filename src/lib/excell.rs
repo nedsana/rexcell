@@ -95,7 +95,7 @@ pub fn apply_key_value_data_by_indexes(
     col_upd: u32,
 ) -> Result<(Vec<String>, Vec<String>), String> 
 {
-    // info!("apply_key_value_data_by_indexes(rtbl:{} utbl:{} col_key:{} col_upd:{})", rtbl.get_name(), utbl.get_name(), col_key, col_upd);
+    // info!("rtbl:{} utbl:{} col_key:{} col_upd:{}", rtbl.get_name(), utbl.get_name(), col_key, col_upd);
 
     let mut res = (Vec::new(), Vec::new());
     
@@ -161,6 +161,7 @@ pub fn apply_key_value_data_by_indexes(
 
     if res.0.is_empty()
     {
+        error!("{}", common::MESSAGE_NO_KEY_VALUE_MAPPING.to_string());
         Err(common::MESSAGE_NO_KEY_VALUE_MAPPING.to_string())
     } 
     else 
@@ -179,6 +180,7 @@ pub fn apply_key_value_data_by_strings(
 {
     if cols_upd.len() == 0 
     {
+        error!("{}", common::ERROR_DEST_COL_NOT_DEFINED.to_string());
         return Err(common::ERROR_DEST_COL_NOT_DEFINED.to_string());
     }
 
@@ -197,6 +199,7 @@ pub fn apply_key_value_data_by_strings(
             }
             Err(err) => 
             {
+                error!("{}", err);
                 return Err(format!("{}", err));
             }
         }  
@@ -271,7 +274,7 @@ pub fn find_missing_entries(find_where: & dyn IRange, find_what: & dyn IRange, c
                 {
                     let entry_it = find_where.get_sheet().get_cell_value((bcol_it, row_it)).get_value();
 
-                    // info!("[find_missing_entries] COMPARE {}:[{}:row{} '{}'] to {}:[{}:row{} '{}']!", 
+                    // info!("COMPARE {}:[{}:row{} '{}'] to {}:[{}:row{} '{}']!", 
                     //     find_where.get_sheet().get_name(), range_ops::range_to_string(find_where.get_range()), row_it, entry_it,
                     //     find_what.get_sheet().get_name(), range_ops::range_to_string(find_what.get_range()), row_in, entry_in);
 
@@ -291,7 +294,7 @@ pub fn find_missing_entries(find_where: & dyn IRange, find_what: & dyn IRange, c
     }
     else
     {
-        info!("[find_missing_entries] Types mismatch!"); 
+        warn!("Types mismatch!"); 
     }
     res
 }
@@ -310,7 +313,7 @@ pub fn make_largest_range<'a>(range_in: &'a dyn IRange, sheet_in: &'a Worksheet,
     //Add the input range to the temporary sheet. Any rows, which belong to this group will be appened
     if range_ops::append_range(sheet_in, range_in.get_range(), &mut tmp_sheet, false) 
     {
-        info!("[make_largest_range] Appended range {}:[{}] to {}", sheet_in.get_name(), range_ops::range_to_string(range_in.get_range()), tmp_sheet.get_name());
+        info!("Appended range {}:[{}] to {}", sheet_in.get_name(), range_ops::range_to_string(range_in.get_range()), tmp_sheet.get_name());
 
         let mut range_tmp = make_range_inst_mut(range_in.get_type(), range_ops::make_range_from_indexes(1, 1, cols_in, rows_in), &mut tmp_sheet);
 
@@ -350,7 +353,7 @@ pub fn make_largest_range<'a>(range_in: &'a dyn IRange, sheet_in: &'a Worksheet,
                                     {
                                         let mrange = range_ops::make_range_from_indexes(1, 1, 1, er+1);
 
-                                        info!("[make_largest_range] Appended missing range {}:[{}:'{}'] to {}. Merging {}!", it.get_sheet().get_name(), range_ops::range_to_string(&missing_entry), 
+                                        info!("Appended missing range {}:[{}:'{}'] to {}. Merging {}!", it.get_sheet().get_name(), range_ops::range_to_string(&missing_entry), 
                                             it.get_sheet().get_cell_value((bcol_it, brow_me)).get_value(), range_tmp.get_sheet().get_name(), range_ops::range_to_string(range_tmp.get_range()));
 
                                         range_tmp.get_sheet_mut().get_merge_cells_mut().clear();
@@ -358,27 +361,27 @@ pub fn make_largest_range<'a>(range_in: &'a dyn IRange, sheet_in: &'a Worksheet,
                                     }
                                     else
                                     {
-                                        info!("[make_largest_range] Appended missing range {}:[{}:'{}'] to {}", it.get_sheet().get_name(), range_ops::range_to_string(&missing_entry), 
+                                        info!("Appended missing range {}:[{}:'{}'] to {}", it.get_sheet().get_name(), range_ops::range_to_string(&missing_entry), 
                                             it.get_sheet().get_cell_value((bcol_it, brow_me)).get_value(), range_tmp.get_sheet().get_name());
                                     }
                                 }
                                 else
                                 {
-                                    info!("[make_largest_range] Failed to append missing range {}:[{}] to {}!", it.get_sheet().get_name(), 
+                                    error!("Failed to append missing range {}:[{}] to {}!", it.get_sheet().get_name(), 
                                         range_ops::range_to_string(&missing_entry), range_tmp.get_sheet().get_name());
                                 }
                             }
                         }
                         else 
                         {
-                            // info!("[make_largest_range] {}[{}:'{}'] VS {}[{}:'{}']. KEEPING!", 
+                            // info!("{}[{}:'{}'] VS {}[{}:'{}']. KEEPING!", 
                             //         range_tmp.get_sheet().get_name(), range_ops::range_to_string(range_tmp.get_range()), hdr_in, 
                             //         it.get_sheet().get_name() ,range_ops::range_to_string(it.get_range()), hdr_it);
                         }
                     }
                     else
                     {
-                        // info!("[make_largest_range] {}[{}:'{}'] DEFFERENT FROM {}[{}:'{}'].",
+                        // info!("{}[{}:'{}'] DEFFERENT FROM {}[{}:'{}'].",
                         //         range_tmp.get_sheet().get_name(), range_ops::range_to_string(range_tmp.get_range()), hdr_in, 
                         //         it.get_sheet().get_name() ,range_ops::range_to_string(it.get_range()), hdr_it);
                     }
@@ -386,14 +389,14 @@ pub fn make_largest_range<'a>(range_in: &'a dyn IRange, sheet_in: &'a Worksheet,
             }
             else
             {
-            //    info!("[make_largest_range] Types mismatch: {}:{} {}:{}", range_ops::range_to_string(range_tmp.get_range()), range_tmp.get_type_name(), 
+            //    error!("Types mismatch: {}:{} {}:{}", range_ops::range_to_string(range_tmp.get_range()), range_tmp.get_type_name(), 
             //                                                                 range_ops::range_to_string(it.get_range()), it.get_type_name()); 
             }
         }
     }
     else
     {
-        info!("[make_largest_range] Failed to append range {}:[{}] to {}!", sheet_in.get_name(), range_ops::range_to_string(range_in.get_range()), tmp_sheet.get_name());
+        error!("Failed to append range {}:[{}] to {}!", sheet_in.get_name(), range_ops::range_to_string(range_in.get_range()), tmp_sheet.get_name());
     }
 
     tmp_sheet
@@ -427,12 +430,12 @@ pub fn filter_sheet_by_col_and_accum(
         let (brow_it, _, _, _, _, _) = range_ops::range_bounds(it.get_range());
         if "n" != it.get_sheet().get_cell_value((1, brow_it)).get_data_type().to_string()
         {
-            info!("[filter_sheet_by_col_and_accum] Range {}:[{}] skipping none numeric leading data type!", it.get_sheet().get_name(), range_ops::range_to_string(it.get_range()));
+            info!("Range {}:[{}] skipping none numeric leading data type!", it.get_sheet().get_name(), range_ops::range_to_string(it.get_range()));
             continue;
         }
         else
         {
-            info!("[filter_sheet_by_col_and_accum] Processing range '{}:[{}]'!", it.get_sheet().get_name(), range_ops::range_to_string(it.get_range()));
+            info!("Processing range '{}:[{}]'!", it.get_sheet().get_name(), range_ops::range_to_string(it.get_range()));
         }
 
         loop 
@@ -442,11 +445,11 @@ pub fn filter_sheet_by_col_and_accum(
                 let found_range_clone = found_range.get_range().clone();
                 drop(found_range);
 
-                info!("[filter_sheet_by_col_and_accum] Range {} already exists in sheet {}! Accumulating data!", range_ops::range_to_string(it.get_range()), sheet_out.get_name());
+                info!("Range {} already exists in sheet {}! Accumulating data!", range_ops::range_to_string(it.get_range()), sheet_out.get_name());
 
                 if range_ops::accumulate_ranges(sheet_in, it.get_range(), sheet_out, &found_range_clone, &cmp_cols, &acc_cols)
                 {
-                    info!("[filter_sheet_by_col_and_accum] Accumulated in-range '{}' to out-range '{}'!", range_ops::range_to_string(it.get_range()), range_ops::range_to_string(&found_range_clone));
+                    info!("Accumulated in-range '{}' to out-range '{}'!", range_ops::range_to_string(it.get_range()), range_ops::range_to_string(&found_range_clone));
                 }
 
                 break; //exit the internal loop
@@ -471,24 +474,24 @@ pub fn filter_sheet_by_col_and_accum(
                     {
                         res = range_ops::append_range(it_slr.get_sheet(), &it_slr.get_range(), sheet_out, false);
 
-                        info!("[filter_sheet_by_col_and_accum] Appended range {}:[{}] to {}: {}", it_slr.get_sheet().get_name(), range_ops::range_to_string(it_slr.get_range()), sheet_out.get_name(), res);
+                        info!("Appended range {}:[{}] to {}: {}", it_slr.get_sheet().get_name(), range_ops::range_to_string(it_slr.get_range()), sheet_out.get_name(), res);
                     }
                     loop_cnt += 1;
                 }
                 if 1 < loop_cnt
                 {
-                    info!("[filter_sheet_by_col_and_accum] [ERROR] Only one largest range expected! Found {}!", loop_cnt);
+                    error!("Only one largest range expected! Found {}!", loop_cnt);
                 }
 
                 //NOTE: no 'beak' here, because we've appended a range with zeroed numeric cells. The next loop should find this appended range and should update its values properly!
             } //appending            
         }
 
-        info!("[filter_sheet_by_col_and_accum]========================================================");
+        debug!("========================================================");
         // process::exit(1);
         // return res;
     }
-    info!("[filter_sheet_by_col_and_accum] Finished loop, exiting");
+    info!("Finished loop, exiting");
     return res;
 }
 
@@ -504,6 +507,7 @@ pub fn execute(cfg: &common::Config) -> Result<(Vec<String>, Vec<String>), Strin
     {
         Ok(bk) => bk,
         Err(err) => {
+            error!("{}:'{}' {}", common::ERROR_CANT_READ_TGT_FILE, target_path.display(), err);
             return Err(format!("{}:'{}' {}", common::ERROR_CANT_READ_TGT_FILE, target_path.display(), err));
         }
     };
@@ -523,10 +527,13 @@ pub fn execute(cfg: &common::Config) -> Result<(Vec<String>, Vec<String>), Strin
                     } 
                     else 
                     {
+                        error!("{} {}", common::NO_SHEETS_FOUND, cfg.tgt_file);
                         return Err(format!("{} {}", common::NO_SHEETS_FOUND, cfg.tgt_file));
                     }
                 }
-                Err(err) => {
+                Err(err) => 
+                {
+                    error!("{}:'{}' {}", common::ERROR_CANT_READ_TGT_FILE, cfg.tgt_file, err);
                     return Err(format!("{}:'{}' {}", common::ERROR_CANT_READ_TGT_FILE, cfg.tgt_file, err));
                 }
             }
@@ -544,7 +551,9 @@ pub fn execute(cfg: &common::Config) -> Result<(Vec<String>, Vec<String>), Strin
                 let utbl = match result
                 {
                     Some(tbl) => tbl,
-                    None => {
+                    None => 
+                    {
+                        error!("{}:{}", common::ERROR_UPDATE_SHEET_NOT_FOUND, utbln);
                         return Err(format!("{}:{}", common::ERROR_UPDATE_SHEET_NOT_FOUND, utbln));
                     }
                 };
@@ -553,6 +562,7 @@ pub fn execute(cfg: &common::Config) -> Result<(Vec<String>, Vec<String>), Strin
                 let r = filter_sheet_by_col_and_accum(utbl, &mut fotbl, &cfg.tgt_src_col, &cfg.tgt_dest_col);
                 if !r 
                 {
+                    error!("{}:{}", common::ERROR_FAILED_FILTER_SHEET, utbln);
                     res_error = format!("{}:{}", common::ERROR_FAILED_FILTER_SHEET, utbln);
                     break;
                 }
@@ -566,6 +576,7 @@ pub fn execute(cfg: &common::Config) -> Result<(Vec<String>, Vec<String>), Strin
             let result = ubook.add_sheet(fotbl);
             if let Err(err) = result
             {
+                error!("{}:{}", common::ERROR_FAILED_TO_ADD_SHEET, err);
                 return Err(format!("{}:{}", common::ERROR_FAILED_TO_ADD_SHEET, err));
             }; 
         },
@@ -578,7 +589,9 @@ pub fn execute(cfg: &common::Config) -> Result<(Vec<String>, Vec<String>), Strin
             let mut rbook = match result
             {
                 Ok(bk) => bk,
-                Err(err) => {
+                Err(err) => 
+                {
+                    error!("{}:'{}' {}", common::ERROR_CANT_READ_REF_FILE, ref_path.display(), err);
                     return Err(format!("{}:'{}' {}", common::ERROR_CANT_READ_REF_FILE, ref_path.display(), err));
                 }
             };        
@@ -588,7 +601,9 @@ pub fn execute(cfg: &common::Config) -> Result<(Vec<String>, Vec<String>), Strin
             let rtbl = match result
             {
                 Some(tbl) => tbl,
-                None => {
+                None => 
+                {
+                    error!("{}:{}", common::ERROR_REFERENCE_SHEET_NOT_FOUND, cfg.ref_table);
                     return Err(format!("{}:{}", common::ERROR_REFERENCE_SHEET_NOT_FOUND, cfg.ref_table));
                 }
             };
@@ -601,7 +616,9 @@ pub fn execute(cfg: &common::Config) -> Result<(Vec<String>, Vec<String>), Strin
                 let utbl = match result
                 {
                     Some(tbl) => tbl,
-                    None => {
+                    None => 
+                    {
+                        error!("{}:{}", common::ERROR_UPDATE_SHEET_NOT_FOUND, utbln);
                         return Err(format!("{}:{}", common::ERROR_UPDATE_SHEET_NOT_FOUND, utbln));
                     }
                 };
@@ -610,7 +627,9 @@ pub fn execute(cfg: &common::Config) -> Result<(Vec<String>, Vec<String>), Strin
 
                 let r = match result {
                     Ok(r) => r,
-                    Err(e) => {
+                    Err(e) => 
+                    {
+                        error!("{}:{}", common::MESSAGE_NO_KEY_VALUE_MAPPING, e);
                         return Err(format!("{}:{}", common::MESSAGE_NO_KEY_VALUE_MAPPING, e));
                     }
                 };
@@ -622,6 +641,7 @@ pub fn execute(cfg: &common::Config) -> Result<(Vec<String>, Vec<String>), Strin
 
         _ => 
         {
+            error!("{}:{:?}", common::ERROR_INVALID_COMMAND, cfg.command);
             res_error = format!("{}:{:?}", common::ERROR_INVALID_COMMAND, cfg.command);
         },
     }
@@ -639,6 +659,7 @@ pub fn execute(cfg: &common::Config) -> Result<(Vec<String>, Vec<String>), Strin
                 let result = writer::xlsx::write(&ubook, target_path);
                 if let Err(err) = result 
                 {
+                    error!("{}:{} {}", common::ERROR_UNABLE_TO_WRITE_FILE, target_path.display(), err);
                     return Err(format!("{}:{} {}", common::ERROR_UNABLE_TO_WRITE_FILE, target_path.display(), err));
                 }
             } 
@@ -648,16 +669,18 @@ pub fn execute(cfg: &common::Config) -> Result<(Vec<String>, Vec<String>), Strin
                 let result = writer::xlsx::write(&ubook, std::path::Path::new(&new_file));
                 if let Err(err) = result 
                 {
+                    error!("{}:{} {}", common::ERROR_UNABLE_TO_WRITE_FILE, new_file, err);
                     return Err(format!("{}:{} {}", common::ERROR_UNABLE_TO_WRITE_FILE, new_file, err));
                 }
                 outfile = new_file;
             }
-            info!("[execute] SAVED FILE {}!", outfile);
+            info!("Saved file {}!", outfile);
         }
         Ok(res_success)
     }
     else 
     {
+        error!("{} {}", common::ERROR_NO_ROWS_UPDATED.to_string(), res_error);
         Err(format!("{} {}", common::ERROR_NO_ROWS_UPDATED.to_string(), res_error))
     }
 }
