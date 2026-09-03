@@ -93,11 +93,11 @@ pub fn apply_key_value_data_by_indexes(
     utbl: &mut Worksheet,
     col_key: u32,
     col_upd: u32,
-) -> Result<(Vec<String>, Vec<String>), String> 
+) -> Result<(), String> 
 {
     // info!("rtbl:{} utbl:{} col_key:{} col_upd:{}", rtbl.get_name(), utbl.get_name(), col_key, col_upd);
 
-    let mut res = (Vec::new(), Vec::new());
+    let mut found = false;
     
     let utbl_max_row = common::MAX_ROW; //utbl.get_highest_row();
     let rtbl_max_row = common::MAX_ROW; //rtbl.get_highest_row();
@@ -108,8 +108,6 @@ pub fn apply_key_value_data_by_indexes(
 
         if !utbl_key_value.is_empty() 
         {
-            let mut found = false;
-            
             for rtbl_row in 1..=rtbl_max_row //loop over the reference table rows
             {
                 let rtbl_key_value = rtbl.get_value((col_key, rtbl_row));
@@ -141,9 +139,9 @@ pub fn apply_key_value_data_by_indexes(
                         utbl.get_cell_mut((col_upd, utbl_row)).set_value(rtbl_upd_value.clone());
                     }
 
-                    res.0.push(format!("Updated '{} {}{}' with '{}' from '{} {}{}'!", 
+                    info!("Updated '{} {}{}' with '{}' from '{} {}{}'!", 
                                         utbl.get_name(), range_ops::index_to_column(col_upd), utbl_row, rtbl_upd_value,
-                                        rtbl.get_name(), range_ops::index_to_column(col_upd), rtbl_row));
+                                        rtbl.get_name(), range_ops::index_to_column(col_upd), rtbl_row);
 
                     found = true;
                     
@@ -153,22 +151,19 @@ pub fn apply_key_value_data_by_indexes(
 
             if !found
             {
-                res.1.push(format!("Can't find '{} {}{}' '{}' in '{}'!", utbl.get_name(), range_ops::index_to_column(col_upd), 
-                                    utbl_row, utbl_key_value, rtbl.get_name()));
+                error!("Can't find '{} {}{}' '{}' in '{}'!", utbl.get_name(), range_ops::index_to_column(col_upd), 
+                                    utbl_row, utbl_key_value, rtbl.get_name());
             }
         }
     }
 
-    if res.0.is_empty()
+    if !found
     {
         error!("{}", common::MESSAGE_NO_KEY_VALUE_MAPPING.to_string());
-        Err(common::MESSAGE_NO_KEY_VALUE_MAPPING.to_string())
-    } 
-    else 
-    {
-        reset_formulas(utbl);
-        Ok(res)
+        return Err(format!("{}", common::MESSAGE_NO_KEY_VALUE_MAPPING.to_string()));
     }
+    reset_formulas(utbl);
+    Ok(())
 }
 
 pub fn apply_key_value_data_by_strings(
@@ -176,7 +171,7 @@ pub fn apply_key_value_data_by_strings(
     utbl: &mut Worksheet,
     col_key: &String,
     cols_upd: &String,
-) -> Result<(Vec<String>, Vec<String>), String> 
+) -> Result<(), String>
 {
     if cols_upd.len() == 0 
     {
@@ -184,27 +179,15 @@ pub fn apply_key_value_data_by_strings(
         return Err(common::ERROR_DEST_COL_NOT_DEFINED.to_string());
     }
 
-    let mut res = (Vec::new(), Vec::new());
     for col_upd in cols_upd.split(',') 
     {
-        let result = apply_key_value_data_by_indexes(rtbl, utbl, 
-                                                                range_ops::column_to_index(col_key), 
-        range_ops::column_to_index(col_upd));
-
-        match result {
-            Ok((mut updated, mut not_found)) => 
-            {
-                res.0.append(&mut updated);
-                res.1.append(&mut not_found);   
-            }
-            Err(err) => 
-            {
-                error!("{}", err);
-                return Err(format!("{}", err));
-            }
-        }  
+        if let Err(err) = apply_key_value_data_by_indexes(rtbl, utbl, range_ops::column_to_index(col_key), range_ops::column_to_index(col_upd)) 
+        {
+            error!("{}", err);
+            return Err(format!("{}", err));
+        }
     }
-    Ok(res)
+    Ok(())
 }
 
 pub fn get_worksheet_names_list(book: &Spreadsheet) -> Vec<String> {
@@ -495,10 +478,10 @@ pub fn filter_sheet_by_col_and_accum(
     return res;
 }
 
-pub fn execute(cfg: &common::Config) -> Result<(Vec<String>, Vec<String>), String> 
+pub fn execute(cfg: &common::Config) -> Result<(), String>
 {
     let mut res_error: String = String::new();
-    let mut res_success:(Vec<String>, Vec<String>) = (Vec::new(), Vec::new());
+    let mut count_updated = 0;
 
     // Load the update Excel file
     let target_path = std::path::Path::new(&cfg.tgt_file);
@@ -523,8 +506,9 @@ pub fn execute(cfg: &common::Config) -> Result<(Vec<String>, Vec<String>), Strin
                 {
                     if names.len() > 0 
                     {
-                        res_success.0.push(names);
-                    } 
+                        info!("Found sheets: {}", names);
+                        count_updated += 1;
+                    }
                     else 
                     {
                         error!("{} {}", common::NO_SHEETS_FOUND, cfg.tgt_file);
@@ -568,7 +552,8 @@ pub fn execute(cfg: &common::Config) -> Result<(Vec<String>, Vec<String>), Strin
                 }
                 else
                 {
-                    res_success.0.push(format!("{} '{}'", common::FILTERED_SHEET, utbln));
+                    info!("{} '{}'", common::FILTERED_SHEET, utbln);
+                    count_updated += 1;
                 }
             }
 
@@ -623,19 +608,11 @@ pub fn execute(cfg: &common::Config) -> Result<(Vec<String>, Vec<String>), Strin
                     }
                 };
                 
-                let result = apply_key_value_data_by_strings(rtbl, utbl, &cfg.tgt_src_col, &cfg.tgt_dest_col);
-
-                let r = match result {
-                    Ok(r) => r,
-                    Err(e) => 
-                    {
-                        error!("{}:{}", common::MESSAGE_NO_KEY_VALUE_MAPPING, e);
-                        return Err(format!("{}:{}", common::MESSAGE_NO_KEY_VALUE_MAPPING, e));
-                    }
-                };
-
-                res_success.0.extend(r.0);
-                res_success.1.extend(r.1); 
+                if let Err(err) = apply_key_value_data_by_strings(rtbl, utbl, &cfg.tgt_src_col, &cfg.tgt_dest_col)
+                {
+                    error!("{}:{}", common::MESSAGE_NO_KEY_VALUE_MAPPING, err);
+                    return Err(format!("{}:{}", common::MESSAGE_NO_KEY_VALUE_MAPPING, err));
+                }
             }
         },
 
@@ -647,40 +624,40 @@ pub fn execute(cfg: &common::Config) -> Result<(Vec<String>, Vec<String>), Strin
     }
 
     // Save the changes if there are any successful updates, otherwise return the error message
-    if res_success.0.len() > 0 
-    {
-        if cfg.command == common::Command::CmdFilterSheets || cfg.command == common::Command::CmdUpdateSheets
-        {
-            let mut outfile = target_path.to_str().unwrap().to_string();
 
-            // Save changes
-            if cfg.inplace 
-            {
-                let result = writer::xlsx::write(&ubook, target_path);
-                if let Err(err) = result 
-                {
-                    error!("{}:{} {}", common::ERROR_UNABLE_TO_WRITE_FILE, target_path.display(), err);
-                    return Err(format!("{}:{} {}", common::ERROR_UNABLE_TO_WRITE_FILE, target_path.display(), err));
-                }
-            } 
-            else 
-            {
-                let new_file = format!("{}{}", cfg.tgt_file.trim_end_matches(common::XLSX_EXTENSION), common::NEW_FILE_SUFFIX);
-                let result = writer::xlsx::write(&ubook, std::path::Path::new(&new_file));
-                if let Err(err) = result 
-                {
-                    error!("{}:{} {}", common::ERROR_UNABLE_TO_WRITE_FILE, new_file, err);
-                    return Err(format!("{}:{} {}", common::ERROR_UNABLE_TO_WRITE_FILE, new_file, err));
-                }
-                outfile = new_file;
-            }
-            info!("Saved file {}!", outfile);
-        }
-        Ok(res_success)
-    }
-    else 
+    if 0 > count_updated
     {
         error!("{} {}", common::ERROR_NO_ROWS_UPDATED.to_string(), res_error);
-        Err(format!("{} {}", common::ERROR_NO_ROWS_UPDATED.to_string(), res_error))
+        return Err(format!("{} {}", common::ERROR_NO_ROWS_UPDATED.to_string(), res_error))
     }
+
+    if cfg.command == common::Command::CmdFilterSheets || cfg.command == common::Command::CmdUpdateSheets
+    {
+        let mut outfile = target_path.to_str().unwrap().to_string();
+
+        // Save changes
+        if cfg.inplace 
+        {
+            let result = writer::xlsx::write(&ubook, target_path);
+            if let Err(err) = result 
+            {
+                error!("{}:{} {}", common::ERROR_UNABLE_TO_WRITE_FILE, target_path.display(), err);
+                return Err(format!("{}:{} {}", common::ERROR_UNABLE_TO_WRITE_FILE, target_path.display(), err));
+            }
+        } 
+        else 
+        {
+            let new_file = format!("{}{}", cfg.tgt_file.trim_end_matches(common::XLSX_EXTENSION), common::NEW_FILE_SUFFIX);
+            let result = writer::xlsx::write(&ubook, std::path::Path::new(&new_file));
+            if let Err(err) = result 
+            {
+                error!("{}:{} {}", common::ERROR_UNABLE_TO_WRITE_FILE, new_file, err);
+                return Err(format!("{}:{} {}", common::ERROR_UNABLE_TO_WRITE_FILE, new_file, err));
+            }
+            outfile = new_file;
+        }
+        info!("Saved file {}!", outfile);
+    }
+    Ok(())
+
 }

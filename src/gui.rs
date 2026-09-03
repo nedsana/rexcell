@@ -8,7 +8,7 @@ use std::thread;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use log::{debug, info, warn, error};
+use log::{debug, info, error};
 
 #[derive(Debug, Clone)]
 struct TargetData {
@@ -87,7 +87,6 @@ struct GuiApp
     cfg_update_tgt: TargetData,
     cfg_update_ref: ReferencesData,
 
-    output_text: String,
     error: String,
 
     active_tab: Tab,
@@ -121,8 +120,6 @@ impl Default for GuiApp
                                     common::REF_DEFAULT_TABLE.to_string(), 
                                     common::REF_DEFAULT_SRC_COL.to_string(),
                                     common::REF_DEFAULT_DST_COL.to_string()),
-
-            output_text: String::new(),
 
             error: String::new(),
 
@@ -193,30 +190,6 @@ impl GuiApp
             }
             Err(err) => Err(format!("{}", err)),
         }
-    }
-
-    fn handle_result(&mut self, res: &Result<(Vec<String>, Vec<String>), String>) -> (String, String)
-    {
-        let mut out_res = String::new();
-        let mut out_err = String::new();
-
-        match res {
-            Ok(lines) => {
-                for line in &lines.0 {
-                    out_res.push_str(line);
-                    out_res.push_str("\n");
-                }
-                for line in &lines.1 {
-                    out_res.push_str(line);
-                    out_res.push_str("\n");
-                }
-            }
-            Err(err) => {
-                out_err.push_str(err);
-            }
-        }
-
-        (out_res, out_err)
     }
 
     fn draw_filter_section(&mut self, ui: &mut egui::Ui, headers: &[&str], filtering: bool)
@@ -292,26 +265,20 @@ impl GuiApp
 
                         thread::spawn(move || 
                         {
-                            let _res = excell::execute(&cfg);
-/*
-                            let out = self.handle_result(&res);
-
-                            if 0 < out.1.len() //error found
+                            let res = excell::execute(&cfg);
+                            match res 
                             {
-                                self.output_text.clear();
-                                self.error = format!("Failed to filter file {}!\n{}\n", cfg.tgt_file, out.1);
+                                Ok(()) => 
+                                {
+                                    info!("Filtering file {} - OK!", cfg.tgt_file);
+                                }
+                                Err(err) => 
+                                {
+                                    error!("Filtering file {} - FAILED! {}", cfg.tgt_file, err);
+                                    // self.error = format!("Failed to update file {}! {}\n", cfg.tgt_file, out.1);
+                                }
                             }
-                            else //ok
-                            {
-                                self.error.clear();
-                                self.output_text = if cfg.inplace { format!("Filtered file {}!\n{}\n", cfg.tgt_file, out.0) } 
-                                        else { 
-                                                let new_file = format!("{}{}", cfg.tgt_file.trim_end_matches(common::XLSX_EXTENSION), common::NEW_FILE_SUFFIX);
-                                                format!("Filtered to file {}! {}\n", new_file, out.0) };
-                            }
-*/
                             is_working_clone.store(false, Ordering::SeqCst);
-                            log::info!("Filtering complete!");
                         });
                     }
                     else 
@@ -388,26 +355,20 @@ impl GuiApp
 
                         thread::spawn(move || 
                         {
-                            let _res = excell::execute(&cfg);
-    /*
-                            let out = self.handle_result(&res);
-
-                            if 0 < out.1.len() //error found
+                            let res = excell::execute(&cfg);
+                            match res 
                             {
-                                self.output_text.clear();
-                                self.error = format!("Failed to update file {}! {}\n", cfg.tgt_file, out.1);
+                                Ok(()) => 
+                                {
+                                    info!("Updating file {} - OK!", cfg.tgt_file);
+                                }
+                                Err(err) => 
+                                {
+                                    error!("Updating file {} - FAILED! {}", cfg.tgt_file, err);
+                                    // self.error = format!("Failed to update file {}! {}\n", cfg.tgt_file, out.1);
+                                }
                             }
-                            else //ok
-                            {
-                                self.error.clear();
-                                self.output_text = if cfg.inplace { format!("Updated file {}! {}\n", cfg.tgt_file, out.0) } 
-                                        else { 
-                                                let new_file = format!("{}{}", cfg.tgt_file.trim_end_matches(common::XLSX_EXTENSION), common::NEW_FILE_SUFFIX);
-                                                format!("Updated to file {}! {}\n", new_file, out.0) };
-                            }
-    */
                             is_working_clone.store(false, Ordering::SeqCst);
-                            log::info!("Updating complete!");
                         });
                     }
                     else
@@ -417,7 +378,7 @@ impl GuiApp
                 }
                 else
                 {
-                    log::info!("Updating is running!");
+                    info!("Updating is running!");
                 }
             }
         });
@@ -509,7 +470,6 @@ impl eframe::App for GuiApp
                         .stick_to_bottom(true)
                         .show(ui, |ui| {
                             ui.add(
-                                // egui::TextEdit::multiline(&mut self.output_text)
                                 egui::TextEdit::multiline(&mut self.log_buffer)
                                     .desired_rows(16)
                                     .desired_width(f32::INFINITY)
