@@ -286,7 +286,7 @@ pub fn find_missing_entries(find_where: & dyn IRange, find_what: & dyn IRange, c
  * Scan the workseet to find if there are ranges (Multiline or Merged), with same header, but with more rows than the provided range_out.
  * @return - return temporary Worksheet which contain a single IRange entry (Basic, Merged or Multiline) with all rows which should belong to it.
  */
-pub fn make_largest_range<'a>(range_in: &'a dyn IRange, sheet_in: &'a Worksheet, cmp_cols: &'a Vec<u32>) -> Worksheet
+pub fn make_largest_range<'a>(range_in: &'a dyn IRange, sheet_in: &'a Worksheet, cmp_cols: &'a Vec<u32>, acc_cols: &'a Vec<u32>) -> Worksheet
 {
     let (_, _, _, _, rows_in, cols_in) = range_ops::range_bounds(range_in.get_range());
    
@@ -294,7 +294,7 @@ pub fn make_largest_range<'a>(range_in: &'a dyn IRange, sheet_in: &'a Worksheet,
     tmp_sheet.set_name("TMP_SHEET");
 
     //Add the input range to the temporary sheet. Any rows, which belong to this group will be appened
-    if range_ops::append_range(sheet_in, range_in.get_range(), &mut tmp_sheet, false) 
+    if range_ops::append_range(sheet_in, range_in.get_range(), &mut tmp_sheet, acc_cols) 
     {
         info!("Appended range {}:[{}] to {}", sheet_in.get_name(), range_ops::range_to_string(range_in.get_range()), tmp_sheet.get_name());
 
@@ -326,7 +326,7 @@ pub fn make_largest_range<'a>(range_in: &'a dyn IRange, sheet_in: &'a Worksheet,
                             {
                                 let (brow_me, _, _, _, _, _) = range_ops::range_bounds(&missing_entry);
 
-                                if range_ops::append_range(it.get_sheet(), &missing_entry, &mut range_tmp.get_sheet_mut(), true)
+                                if range_ops::append_range(it.get_sheet(), &missing_entry, &mut range_tmp.get_sheet_mut(), acc_cols)
                                 {
                                     let (br, er, bc, ec, _, _) = range_ops::range_bounds(range_tmp.get_range());
 
@@ -439,7 +439,7 @@ pub fn filter_sheet_by_col_and_accum(
             }
             else
             { //appending
-                let sheet_largest_range = make_largest_range(&it, sheet_in, &cmp_cols);
+                let sheet_largest_range = make_largest_range(&it, sheet_in, &cmp_cols, &acc_cols);
 
                 let iter_sheet_largest_range = range_ops::IterRow::new(&sheet_largest_range, max_row, max_col);
 
@@ -455,7 +455,7 @@ pub fn filter_sheet_by_col_and_accum(
                 {
                     if 0 == loop_cnt
                     {
-                        res = range_ops::append_range(it_slr.get_sheet(), &it_slr.get_range(), sheet_out, false);
+                        res = range_ops::append_range(it_slr.get_sheet(), &it_slr.get_range(), sheet_out, &acc_cols);
 
                         info!("Appended range {}:[{}] to {}: {}", it_slr.get_sheet().get_name(), range_ops::range_to_string(it_slr.get_range()), sheet_out.get_name(), res);
                     }

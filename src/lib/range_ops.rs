@@ -351,9 +351,11 @@ pub fn append_range(
     sheet_in:   &Worksheet, 
     range_in:   &Range,
     sheet_out:  & mut Worksheet,
-    clear_numeric_fields: bool
+    clear_columns_content: &Vec<u32>
 ) -> bool
 {
+    info!("clear_columns_content({:?})", clear_columns_content);
+
     let mut res = false;
 
     let merged_cells = sheet_in.get_merge_cells();
@@ -381,21 +383,14 @@ pub fn append_range(
                 // let cell_value = src_cell.get_formatted_value().clone();
 
                 let dst_cell = sheet_out.get_cell_mut((col, current_new_row));
-                
-                // Preserve data types when copying cells
-                if cell_data_type == "n" && let Some(num) = src_cell.get_value_number() 
+
+                if clear_columns_content.contains(&col) && cell_data_type == "n"
                 {
-                    // info!("dst_cell({}{}).set_value_number({})", range_ops::index_to_column(col), current_new_row, num);
-                    if clear_numeric_fields
-                    {
-                        dst_cell.set_value_number(0);
-                    }
-                    else
-                    {
-                        dst_cell.set_value_number(num);
-                    }
-                } 
-                else 
+                    dst_cell.set_value_number(0);
+
+                    // info!("Clearing value: dst_cell({}{}).set_value({})", index_to_column(col), current_new_row, dst_cell.get_value());
+                }
+                else
                 {
                     if let Some(rich_text) = o_rich_text 
                     {
@@ -405,9 +400,10 @@ pub fn append_range(
                     {
                         dst_cell.set_value(cell_value);
                     }
-                    // info!("dst_cell({}{}).set_value({})", range_ops::index_to_column(col), current_new_row, dst_cell.get_value());
+
+                    // info!("Copied value: dst_cell({}{}).set_value({})", index_to_column(col), current_new_row, dst_cell.get_value());
                 }
-                
+
                 dst_cell.set_style(cell_style);
 
                 added_col = true;
