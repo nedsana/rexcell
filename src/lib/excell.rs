@@ -213,7 +213,7 @@ pub fn get_worksheet_names(path: &std::path::Path) -> Result<String, String> {
  */
 pub fn find_range_in_sheet<'a>(range: &'a dyn IRange, sheet: &'a Worksheet, cmp_cols: &'a Vec<u32>) -> Option<RangeType<'a>>
 {
-    let iter_sheet = range_ops::IterRow::new(sheet, common::MAX_ROW, common::MAX_COL);
+    let iter_sheet = range_ops::IterRow::new(sheet, common::MAX_ROW, common::MAX_COL, 1, true);
     for it in iter_sheet 
     {
         // if it.compare_range(range, false, None, Some(cmp_cols.clone()))
@@ -300,7 +300,7 @@ pub fn make_largest_range<'a>(range_in: &'a dyn IRange, sheet_in: &'a Worksheet,
 
         let mut range_tmp = make_range_inst_mut(range_in.get_type(), range_ops::make_range_from_indexes(1, 1, cols_in, rows_in), &mut tmp_sheet);
 
-        let iter_sheet = range_ops::IterRow::new(sheet_in, common::MAX_ROW, common::MAX_COL);
+        let iter_sheet = range_ops::IterRow::new(sheet_in, common::MAX_ROW, common::MAX_COL, 1, true);
         for it in iter_sheet 
         {
             if range_ops::same_types(&range_tmp, &it)
@@ -407,7 +407,7 @@ pub fn filter_sheet_by_col_and_accum(
     let max_row = common::MAX_ROW; //sheet_in.get_highest_row();
     let max_col = common::MAX_COL; //sheet_in.get_highest_column();
 
-    let iter_sheet = range_ops::IterRow::new(sheet_in, max_row, max_col);
+    let iter_sheet = range_ops::IterRow::new(sheet_in, max_row, max_col, 1, true);
     for it in iter_sheet 
     {
         let (brow_it, _, _, _, _, _) = range_ops::range_bounds(it.get_range());
@@ -441,7 +441,7 @@ pub fn filter_sheet_by_col_and_accum(
             { //appending
                 let sheet_largest_range = make_largest_range(&it, sheet_in, &cmp_cols, &acc_cols);
 
-                let iter_sheet_largest_range = range_ops::IterRow::new(&sheet_largest_range, max_row, max_col);
+                let iter_sheet_largest_range = range_ops::IterRow::new(&sheet_largest_range, max_row, max_col, 1, true);
 
                 // // temporary file for debugging
                 // let mut tmp_ssheet = umya_spreadsheet::new_file(); //DELETE_ME
@@ -490,6 +490,16 @@ pub fn get_anaysis_data(
     cols_to_update: &String
 ) -> bool 
 {
+    let max_row = common::MAX_ROW; //sheet_in.get_highest_row();
+    let max_col = common::MAX_COL; //sheet_in.get_highest_column();
+
+    for it in range_ops::IterRow::new(sheet_analysis, max_row, max_col, 1, true) //DELETE_ME
+    {
+        info!("Analysis Range {}:[{}] Type:{}!", it.get_sheet().get_name(), range_ops::range_to_string(it.get_range()), it.get_type_name());
+    }
+    return false; //DELETE_ME
+
+
     let mut res: bool = true;
 
     let read_cols: Vec<u32> = cols_to_read.split(',').map(|s| range_ops::column_to_index(s.trim())).collect();
@@ -502,10 +512,9 @@ pub fn get_anaysis_data(
         return false;
     }
 
-    let max_row = common::MAX_ROW; //sheet_in.get_highest_row();
-    let max_col = common::MAX_COL; //sheet_in.get_highest_column();
 
-    let iter_sheet = range_ops::IterRow::new(sheet_filtered, max_row, max_col);
+
+    let iter_sheet = range_ops::IterRow::new(sheet_filtered, max_row, max_col, 1, true);
     for it in iter_sheet 
     {
         let (brow_it, erow_it, _, _, rows_it, _) = range_ops::range_bounds(it.get_range()); //(brow, erow, bcol, ecol, rows, cols)

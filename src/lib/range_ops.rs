@@ -623,7 +623,8 @@ fn iter_row_next_impl_shared<'a>(
     current_row: &mut u32,
     max_row: u32,
     max_col: u32,
-    _label: &str,
+    pivot_col: u32,
+    pivot_numeric: bool
 ) -> Option<(Range, range_types::IterRowNextKind)> 
 {
     let mut ret: Option<(Range, range_types::IterRowNextKind)> = None;
@@ -638,7 +639,7 @@ fn iter_row_next_impl_shared<'a>(
             // info!("Found merged cells range '{}'", range_to_string(&merged_cells));
 
             let (_, merged_end_row, _, _, _, _) = range_bounds(merged_cells);
-            cells_range = make_range_from_indexes(1, *current_row, 1 + max_col, merged_end_row);
+            cells_range = make_range_from_indexes(pivot_col, *current_row, pivot_col + max_col, merged_end_row);
 
             let (_, _, _, _, range_rows, _) = range_bounds(&cells_range);
 
@@ -646,61 +647,68 @@ fn iter_row_next_impl_shared<'a>(
 
             ret = Some((cells_range, range_types::IterRowNextKind::Merged));
         } 
-        else if let Some(src_cell) = sheet.get_cell((1, *current_row)) //will return None if the cell is empty!
+        else if let Some(src_cell) = sheet.get_cell((pivot_col, *current_row)) //will return None if the cell is empty!
         {
             let _first_cell_value = src_cell.get_value().clone();
             let first_cell_data_type = src_cell.get_data_type().to_string();
             
-            cells_range = make_range_from_indexes(1, *current_row, 1 + max_col, *current_row);
+            cells_range = make_range_from_indexes(pivot_col, *current_row, pivot_col + max_col, *current_row);
 
-            if first_cell_data_type == "n" 
+            if pivot_numeric
             {
-                let mut range_rows = {
-                    let (_, _, _, _, rows, _) = range_bounds(&cells_range);
-                    rows
-                };
-                let mut multiline = false;
-
-                let next_row = *current_row + 1;
-                for nrow in next_row..=max_row 
+                if first_cell_data_type == "n" 
                 {
-                    if let Some(next_cell) = sheet.get_cell((1, nrow)) 
-                    {
-                        let _next_cell_value = next_cell.get_value().clone();
-                        let next_cell_data_type = next_cell.get_data_type().to_string();
+                    let mut range_rows = {
+                        let (_, _, _, _, rows, _) = range_bounds(&cells_range);
+                        rows
+                    };
+                    let mut multiline = false;
 
-                        if next_cell_data_type == "n" 
+                    let next_row = *current_row + 1;
+                    for nrow in next_row..=max_row 
+                    {
+                        if let Some(next_cell) = sheet.get_cell((pivot_col, nrow)) 
                         {
-                            break;
-                        } 
-                        else if next_cell_data_type == "s" && _next_cell_value == "-" 
-                        {
-                            cells_range = make_range_from_indexes(1, *current_row, 1 + max_col, nrow);
-                            let (_, _, _, _, new_range_rows, _) = range_bounds(&cells_range);
-                            range_rows = new_range_rows;
-                            multiline = true;
+                            let _next_cell_value = next_cell.get_value().clone();
+                            let next_cell_data_type = next_cell.get_data_type().to_string();
+
+                            if next_cell_data_type == "n" 
+                            {
+                                break;
+                            } 
+                            else if next_cell_data_type == "s" && _next_cell_value == "-" 
+                            {
+                                cells_range = make_range_from_indexes(pivot_col, *current_row, pivot_col + max_col, nrow);
+                                let (_, _, _, _, new_range_rows, _) = range_bounds(&cells_range);
+                                range_rows = new_range_rows;
+                                multiline = true;
+                            }
                         }
                     }
-                }
 
-                *current_row += range_rows;
+                    *current_row += range_rows;
 
-                if multiline 
-                {
-                    // info!("Range [{}]: from multiline cells! current_row={}", range_to_string(&cells_range), current_row);
-                    ret = Some((cells_range, range_types::IterRowNextKind::Multiline));
+                    if multiline 
+                    {
+                        // info!("Range [{}]: from multiline cells! current_row={}", range_to_string(&cells_range), current_row);
+                        ret = Some((cells_range, range_types::IterRowNextKind::Multiline));
+                    } 
+                    else 
+                    {
+                        // info!("Range [{}]: from regular cells! current_row={}", range_to_string(&cells_range), current_row);
+                        ret = Some((cells_range, range_types::IterRowNextKind::Basic));
+                    }
                 } 
                 else 
                 {
-                    // info!("Range [{}]: from regular cells! current_row={}", range_to_string(&cells_range), current_row);
+                    // info!("Current row {} starts with unexpected type:'{}'!", *current_row, first_cell_data_type);
                     ret = Some((cells_range, range_types::IterRowNextKind::Basic));
+                    *current_row += 1;
                 }
-            } 
-            else 
+            }
+            else
             {
-                // info!("Current row {} starts with unexpected type:'{}'!", *current_row, first_cell_data_type);
-                ret = Some((cells_range, range_types::IterRowNextKind::Basic));
-                *current_row += 1;
+                //to do ...
             }
         } 
         else 
@@ -711,7 +719,7 @@ fn iter_row_next_impl_shared<'a>(
             let eridx = bridx+20;
             for ridx in bridx..eridx
             {
-                if let Some(_cell) = sheet.get_cell((1, ridx))
+                if let Some(_cell) = sheet.get_cell((pivot_col, ridx))
                 {
                     is_last_row = false;
                     break;
@@ -724,7 +732,7 @@ fn iter_row_next_impl_shared<'a>(
             }
             else
             {
-                cells_range = make_range_from_indexes(1, *current_row, 1 + max_col, *current_row);
+                cells_range = make_range_from_indexes(pivot_col, *current_row, pivot_col + max_col, *current_row);
                 // info!("Range [{}]: from regular empty cells! current_row={}", range_to_string(&cells_range), current_row);
                 ret = Some((cells_range, range_types::IterRowNextKind::Basic));
             }
@@ -744,10 +752,12 @@ fn iter_row_next_impl<'a>(
     current_row: &mut u32,
     max_row: u32,
     max_col: u32,
+    pivot_col: u32,
+    pivot_numeric: bool
 ) -> Option<range_types::RangeType<'a>> 
 {
     let mut ret: Option<range_types::RangeType<'a>> = None;
-    match iter_row_next_impl_shared(sheet, current_row, max_row, max_col, "iter_row_next_impl") 
+    match iter_row_next_impl_shared(sheet, current_row, max_row, max_col, pivot_col, pivot_numeric) 
     {
         Some((range, range_types::IterRowNextKind::Basic)) => ret = Some(range_types::RangeType::Basic(range_types::RangeBasic { range, sheet })),
         Some((range, range_types::IterRowNextKind::Merged)) => ret = Some(range_types::RangeType::Merged(range_types::RangeMergedCells { range, sheet })),
@@ -763,10 +773,12 @@ fn iter_row_next_impl_mut<'a>(
     current_row: &mut u32,
     max_row: u32,
     max_col: u32,
+    pivot_col: u32,
+    pivot_numeric: bool
 ) -> Option<range_types::RangeTypeMut<'a>> 
 {
     let mut ret: Option<range_types::RangeTypeMut<'a>> = None;
-    match iter_row_next_impl_shared(sheet, current_row, max_row, max_col, "iter_row_next_impl_mut") 
+    match iter_row_next_impl_shared(sheet, current_row, max_row, max_col, pivot_col, pivot_numeric) 
     {
         Some((range, range_types::IterRowNextKind::Basic)) => ret = Some(range_types::RangeTypeMut::Basic(range_types::RangeBasicMut { range, sheet })),
         Some((range, range_types::IterRowNextKind::Merged)) => ret = Some(range_types::RangeTypeMut::Merged(range_types::RangeMergedCellsMut { range, sheet })),
@@ -786,16 +798,20 @@ pub struct IterRow<'a>
     pub current_row: u32,
     pub max_row: u32,
     pub max_col: u32,
+    pub pivot_col: u32,
+    pub pivot_numeric: bool
 }
 
 impl<'a> IterRow<'a> 
 {
-    pub fn new(sheet: &'a Worksheet, mrow: u32, mcol: u32) -> Self {
+    pub fn new(sheet: &'a Worksheet, mrow: u32, mcol: u32, pivot: u32, numeric: bool) -> Self {
         Self {
             sheet,
             current_row: 1,
             max_row: mrow,
             max_col: mcol,
+            pivot_col: pivot,
+            pivot_numeric: numeric
         }
     }
 }
@@ -807,7 +823,7 @@ impl<'a> Iterator for IterRow<'a>
     fn next(&mut self) -> Option<Self::Item> 
     {
         let mut ret: Option<Self::Item> = None;
-        match iter_row_next_impl(self.sheet, &mut self.current_row, self.max_row, self.max_col) {
+        match iter_row_next_impl(self.sheet, &mut self.current_row, self.max_row, self.max_col, self.pivot_col, self.pivot_numeric) {
             Some(range) => ret = Some(range),
             None => (),
         }
@@ -825,16 +841,20 @@ pub struct IterRowMut<'a>
     pub current_row: u32,
     pub max_row: u32,
     pub max_col: u32,
+    pub pivot_col: u32,
+    pub pivot_numeric: bool
 }
 
 impl<'a> IterRowMut<'a>
 {
-    pub fn new(sheet: &'a mut Worksheet, mrow: u32, mcol: u32) -> Self {
+    pub fn new(sheet: &'a mut Worksheet, mrow: u32, mcol: u32, pivot: u32, numeric: bool) -> Self {
         Self {
             sheet,
             current_row: 1,
             max_row: mrow,
             max_col: mcol,
+            pivot_col: pivot,
+            pivot_numeric: numeric
         }
     }
 }
@@ -854,7 +874,7 @@ impl LendingIterator for IterRowMut<'_>
     fn next(&mut self) -> Option<Self::Item<'_>> 
     {
         let mut ret: Option<Self::Item<'_>> = None;
-        match iter_row_next_impl_mut(self.sheet, &mut self.current_row, self.max_row, self.max_col) {
+        match iter_row_next_impl_mut(self.sheet, &mut self.current_row, self.max_row, self.max_col, self.pivot_col, self.pivot_numeric) {
             Some(range) => ret = Some(range),
             None => (),
         }
