@@ -480,18 +480,27 @@ pub fn filter_sheet_by_col_and_accum(
 
 /**
  * get_anaysis_data(atbl, &mut fotbl, &cfg.tgt_src_col, &cfg.tgt_dest_col)
+ * get_anaysis_data(atbl, &"A,G".to_string(), &mut fotbl, &cfg.tgt_src_col, &"B,F".to_string())
  */
 pub fn get_anaysis_data(
-    sheet_analysis:  &Worksheet, 
+    sheet_analysis: &Worksheet, 
+    cols_to_read:   &String,
     sheet_filtered: &mut Worksheet,
-    col_filter: &String,
-    cols_accum: &String
+    cols_pivot:     &String,
+    cols_to_update: &String
 ) -> bool 
 {
     let mut res: bool = true;
 
-    let cmp_cols: Vec<u32> = col_filter.split(',').map(|s| range_ops::column_to_index(s.trim())).collect();
-    let acc_cols: Vec<u32> = cols_accum.split(',').map(|s| range_ops::column_to_index(s.trim())).collect();
+    let read_cols: Vec<u32> = cols_to_read.split(',').map(|s| range_ops::column_to_index(s.trim())).collect();
+    let pivot_cols: Vec<u32> = cols_pivot.split(',').map(|s| range_ops::column_to_index(s.trim())).collect();
+    let update_cols: Vec<u32> = cols_to_update.split(',').map(|s| range_ops::column_to_index(s.trim())).collect();
+
+    if read_cols.len() != update_cols.len()
+    {
+        error!("Columns to update (len:{}) must be the same count as the columns to read (len:{})!", update_cols.len(), read_cols.len());
+        return false;
+    }
 
     let max_row = common::MAX_ROW; //sheet_in.get_highest_row();
     let max_col = common::MAX_COL; //sheet_in.get_highest_column();
@@ -499,65 +508,35 @@ pub fn get_anaysis_data(
     let iter_sheet = range_ops::IterRow::new(sheet_filtered, max_row, max_col);
     for it in iter_sheet 
     {
-        let (brow_it, _, _, _, _, _) = range_ops::range_bounds(it.get_range());
+        let (brow_it, erow_it, _, _, rows_it, _) = range_ops::range_bounds(it.get_range()); //(brow, erow, bcol, ecol, rows, cols)
         if "n" != it.get_sheet().get_cell_value((1, brow_it)).get_data_type().to_string()
         {
             info!("Range {}:[{}] skipping none numeric leading data type!", it.get_sheet().get_name(), range_ops::range_to_string(it.get_range()));
             continue;
         }
-        else
+
+        for row_it in brow_it..=erow_it
         {
-            info!("Processing range '{}:[{}]'!", it.get_sheet().get_name(), range_ops::range_to_string(it.get_range()));
+            for col_it in &pivot_cols
+            {
+                let filtered_cell_value = it.get_sheet().get_cell_value((*col_it, row_it)).get_value();
+
+                info!("Processing range '{}:[{}:'{}']'", it.get_sheet().get_name(), range_ops::range_to_string(it.get_range()), filtered_cell_value);
+
+                for arow in 1..=common::MAX_ROW //loop over the analysis table rows
+                {
+                    let analysis_col = 1;
+                    let analysis_cell_value = sheet_analysis.get_value((analysis_col, arow));
+
+                    if range_ops::cmp_strs(&filtered_cell_value, &analysis_cell_value)
+                    {
+                        info!("Analysis value found '{}:[{}:'{}']'", sheet_analysis.get_name(), range_ops::coords_to_str(analysis_col, arow), analysis_cell_value);
+
+                        // get_anaysis_data(atbl, &"A,G".to_string(), &mut fotbl, &cfg.tgt_src_col, &"B,F".to_string())
+                    }
+                }
+            }
         }
-
-        // loop 
-        // {
-        //     if let Some(found_range) = find_range_in_sheet(&it, sheet_out, &cmp_cols)
-        //     { //accumulating
-        //         let found_range_clone = found_range.get_range().clone();
-        //         drop(found_range);
-
-        //         info!("Range {} already exists in sheet {}! Accumulating data!", range_ops::range_to_string(it.get_range()), sheet_out.get_name());
-
-        //         if range_ops::accumulate_ranges(sheet_in, it.get_range(), sheet_out, &found_range_clone, &cmp_cols, &acc_cols)
-        //         {
-        //             info!("Accumulated in-range '{}' to out-range '{}'!", range_ops::range_to_string(it.get_range()), range_ops::range_to_string(&found_range_clone));
-        //         }
-
-        //         break; //exit the internal loop
-        //     }
-        //     else
-        //     { //appending
-        //         let sheet_largest_range = make_largest_range(&it, sheet_in, &cmp_cols, &acc_cols);
-
-        //         let iter_sheet_largest_range = range_ops::IterRow::new(&sheet_largest_range, max_row, max_col);
-
-        //         // // temporary file for debugging
-        //         // let mut tmp_ssheet = umya_spreadsheet::new_file(); //DELETE_ME
-        //         // _ = tmp_ssheet.add_sheet(sheet_largest_range.clone()); //DELETE_ME
-        //         // let tmpfname = format!("TMP_SHEET_{}.xlsx", range_ops::range_to_string(it.get_range()));
-        //         // _ = writer::xlsx::write(&tmp_ssheet, std::path::Path::new(&tmpfname)); //DELETE_ME
-        //         // // process::exit(1);
-
-        //         let mut loop_cnt = 0;
-        //         for it_slr in iter_sheet_largest_range
-        //         {
-        //             if 0 == loop_cnt
-        //             {
-        //                 res = range_ops::append_range(it_slr.get_sheet(), &it_slr.get_range(), sheet_out, &acc_cols);
-
-        //                 info!("Appended range {}:[{}] to {}: {}", it_slr.get_sheet().get_name(), range_ops::range_to_string(it_slr.get_range()), sheet_out.get_name(), res);
-        //             }
-        //             loop_cnt += 1;
-        //         }
-        //         if 1 < loop_cnt
-        //         {
-        //             error!("Only one largest range expected! Found {}!", loop_cnt);
-        //         }
-
-        //         //NOTE: no 'beak' here, because we've appended a range with zeroed numeric cells. The next loop should find this appended range and should update its values properly!
-        //     } //appending            
-        // }
 
         debug!("========================================================");
         // process::exit(1);
@@ -764,7 +743,7 @@ pub fn execute(cfg: &common::Config) -> Result<(), String>
             }
 
             //The entries are filtered in a new sheet. Now get the needed values from analysis table
-            if false == get_anaysis_data(atbl, &mut fotbl, &cfg.tgt_src_col, &cfg.tgt_dest_col)
+            if false == get_anaysis_data(atbl, &"A,G".to_string(), &mut fotbl, &cfg.tgt_src_col, &"B,F".to_string()) //WARNING: hardcoded values!
             {
                 error!("Failed to process analysis data from {}:{}", cfg.analysis_file, cfg.analysis_table);
                 return Err(format!("Failed to process analysis data from {}:{}", cfg.analysis_file, cfg.analysis_table));
