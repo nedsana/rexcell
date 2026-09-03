@@ -478,6 +478,95 @@ pub fn filter_sheet_by_col_and_accum(
     return res;
 }
 
+/**
+ * get_anaysis_data(atbl, &mut fotbl, &cfg.tgt_src_col, &cfg.tgt_dest_col)
+ */
+pub fn get_anaysis_data(
+    sheet_analysis:  &Worksheet, 
+    sheet_filtered: &mut Worksheet,
+    col_filter: &String,
+    cols_accum: &String
+) -> bool 
+{
+    let mut res: bool = true;
+
+    let cmp_cols: Vec<u32> = col_filter.split(',').map(|s| range_ops::column_to_index(s.trim())).collect();
+    let acc_cols: Vec<u32> = cols_accum.split(',').map(|s| range_ops::column_to_index(s.trim())).collect();
+
+    let max_row = common::MAX_ROW; //sheet_in.get_highest_row();
+    let max_col = common::MAX_COL; //sheet_in.get_highest_column();
+
+    let iter_sheet = range_ops::IterRow::new(sheet_filtered, max_row, max_col);
+    for it in iter_sheet 
+    {
+        let (brow_it, _, _, _, _, _) = range_ops::range_bounds(it.get_range());
+        if "n" != it.get_sheet().get_cell_value((1, brow_it)).get_data_type().to_string()
+        {
+            info!("Range {}:[{}] skipping none numeric leading data type!", it.get_sheet().get_name(), range_ops::range_to_string(it.get_range()));
+            continue;
+        }
+        else
+        {
+            info!("Processing range '{}:[{}]'!", it.get_sheet().get_name(), range_ops::range_to_string(it.get_range()));
+        }
+
+        // loop 
+        // {
+        //     if let Some(found_range) = find_range_in_sheet(&it, sheet_out, &cmp_cols)
+        //     { //accumulating
+        //         let found_range_clone = found_range.get_range().clone();
+        //         drop(found_range);
+
+        //         info!("Range {} already exists in sheet {}! Accumulating data!", range_ops::range_to_string(it.get_range()), sheet_out.get_name());
+
+        //         if range_ops::accumulate_ranges(sheet_in, it.get_range(), sheet_out, &found_range_clone, &cmp_cols, &acc_cols)
+        //         {
+        //             info!("Accumulated in-range '{}' to out-range '{}'!", range_ops::range_to_string(it.get_range()), range_ops::range_to_string(&found_range_clone));
+        //         }
+
+        //         break; //exit the internal loop
+        //     }
+        //     else
+        //     { //appending
+        //         let sheet_largest_range = make_largest_range(&it, sheet_in, &cmp_cols, &acc_cols);
+
+        //         let iter_sheet_largest_range = range_ops::IterRow::new(&sheet_largest_range, max_row, max_col);
+
+        //         // // temporary file for debugging
+        //         // let mut tmp_ssheet = umya_spreadsheet::new_file(); //DELETE_ME
+        //         // _ = tmp_ssheet.add_sheet(sheet_largest_range.clone()); //DELETE_ME
+        //         // let tmpfname = format!("TMP_SHEET_{}.xlsx", range_ops::range_to_string(it.get_range()));
+        //         // _ = writer::xlsx::write(&tmp_ssheet, std::path::Path::new(&tmpfname)); //DELETE_ME
+        //         // // process::exit(1);
+
+        //         let mut loop_cnt = 0;
+        //         for it_slr in iter_sheet_largest_range
+        //         {
+        //             if 0 == loop_cnt
+        //             {
+        //                 res = range_ops::append_range(it_slr.get_sheet(), &it_slr.get_range(), sheet_out, &acc_cols);
+
+        //                 info!("Appended range {}:[{}] to {}: {}", it_slr.get_sheet().get_name(), range_ops::range_to_string(it_slr.get_range()), sheet_out.get_name(), res);
+        //             }
+        //             loop_cnt += 1;
+        //         }
+        //         if 1 < loop_cnt
+        //         {
+        //             error!("Only one largest range expected! Found {}!", loop_cnt);
+        //         }
+
+        //         //NOTE: no 'beak' here, because we've appended a range with zeroed numeric cells. The next loop should find this appended range and should update its values properly!
+        //     } //appending            
+        // }
+
+        debug!("========================================================");
+        // process::exit(1);
+        // return res;
+    }
+    info!("Finished loop, exiting");
+    return res;
+}
+
 pub fn execute(cfg: &common::Config) -> Result<(), String>
 {
     let mut res_error: String = String::new();
@@ -616,6 +705,80 @@ pub fn execute(cfg: &common::Config) -> Result<(), String>
             }
         },
 
+        common::Command::CmdAutocompleteSheets => 
+        {
+            // Load the analysis Excel file
+            let analysis_path = std::path::Path::new(&cfg.analysis_file);
+            let result = reader::xlsx::read(analysis_path);
+            let mut abook = match result
+            {
+                Ok(bk) => bk,
+                Err(err) => {
+                    error!("{}:'{}' {}", common::ERROR_CANT_READ_ANALYSIS_FILE, analysis_path.display(), err);
+                    return Err(format!("{}:'{}' {}", common::ERROR_CANT_READ_ANALYSIS_FILE, analysis_path.display(), err));
+                }
+            };
+
+            // Get the update sheet
+            let result = abook.get_sheet_by_name_mut(&cfg.analysis_table);
+            let atbl = match result
+            {
+                Some(tbl) => tbl,
+                None => 
+                {
+                    error!("{}:{}", common::ERROR_ANALYSIS_SHEET_NOT_FOUND, cfg.analysis_table);
+                    return Err(format!("{}:{}", common::ERROR_ANALYSIS_SHEET_NOT_FOUND, cfg.analysis_table));
+                }
+            };
+
+            let mut fotbl = Worksheet::default();
+            fotbl.set_name(cfg.new_sheet_name.clone());
+
+            for utbln in cfg.tgt_upd_table.split(',') 
+            {
+                // Get the update sheet
+                let result = ubook.get_sheet_by_name_mut(&utbln);
+                let utbl = match result
+                {
+                    Some(tbl) => tbl,
+                    None => 
+                    {
+                        error!("{}:{}", common::ERROR_UPDATE_SHEET_NOT_FOUND, utbln);
+                        return Err(format!("{}:{}", common::ERROR_UPDATE_SHEET_NOT_FOUND, utbln));
+                    }
+                };
+
+                // Create new table with unique values from cfg.tgt_src_col.When repetition is found, accumulate the values in cfg.tgt_dest_col.
+                let r = filter_sheet_by_col_and_accum(utbl, &mut fotbl, &cfg.tgt_src_col, &cfg.tgt_dest_col);
+                if !r 
+                {
+                    error!("{}:{}", common::ERROR_FAILED_FILTER_SHEET, utbln);
+                    res_error = format!("{}:{}", common::ERROR_FAILED_FILTER_SHEET, utbln);
+                    break;
+                }
+                else
+                {
+                    info!("{} '{}'", common::FILTERED_SHEET, utbln);
+                    count_updated += 1;
+                }
+            }
+
+            //The entries are filtered in a new sheet. Now get the needed values from analysis table
+            if false == get_anaysis_data(atbl, &mut fotbl, &cfg.tgt_src_col, &cfg.tgt_dest_col)
+            {
+                error!("Failed to process analysis data from {}:{}", cfg.analysis_file, cfg.analysis_table);
+                return Err(format!("Failed to process analysis data from {}:{}", cfg.analysis_file, cfg.analysis_table));
+            }
+
+            //Add the extra sheet to the book
+            let result = ubook.add_sheet(fotbl);
+            if let Err(err) = result
+            {
+                error!("{}:{}", common::ERROR_FAILED_TO_ADD_SHEET, err);
+                return Err(format!("{}:{}", common::ERROR_FAILED_TO_ADD_SHEET, err));
+            }; 
+        },
+
         _ => 
         {
             error!("{}:{:?}", common::ERROR_INVALID_COMMAND, cfg.command);
@@ -631,7 +794,7 @@ pub fn execute(cfg: &common::Config) -> Result<(), String>
         return Err(format!("{} {}", common::ERROR_NO_ROWS_UPDATED.to_string(), res_error))
     }
 
-    if cfg.command == common::Command::CmdFilterSheets || cfg.command == common::Command::CmdUpdateSheets
+    if cfg.command == common::Command::CmdFilterSheets || cfg.command == common::Command::CmdUpdateSheets || cfg.command == common::Command::CmdAutocompleteSheets
     {
         let mut outfile = target_path.to_str().unwrap().to_string();
 

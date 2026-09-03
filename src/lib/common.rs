@@ -5,6 +5,7 @@ pub enum Command {
     CmdListSheets,
     CmdFilterSheets,
     CmdUpdateSheets,
+    CmdAutocompleteSheets,
     CmdUndefined,
 }
 
@@ -20,7 +21,7 @@ pub const TGT_DEST_COL_ACCUM_HELP: &str = "Columns to accumulate, on filter matc
 pub const TGT_DEST_COL_HELP: &str = "Column to update";
 pub const TGT_UPDATE_SHEET_HELP: &str = "Update tables. Comma-separated list.";
 pub const NEW_SHEET_NAME_HELP: &str = "Name of the new sheet";
-
+pub const ANALYSIS_FILE_HELP: &str = "Excel file with analysis";
 
 pub const TGT_DEFAULT_EXCEL_FILE: &str = "";
 pub const TGT_DEFAULT_SRC_COL: &str = "C";
@@ -87,6 +88,7 @@ pub const CMD_ARG_KEY: &str = "-k";
 pub const CMD_ARG_VALUE: &str = "-v";
 pub const CMD_ARG_INPLACE: &str = "-i";
 
+pub const TAB_LABEL_AUTOCOMPLETE: &str = "Autocomplete Tables";
 pub const TAB_LABEL_FILTER: &str = "Filter Tables";
 pub const TAB_LABEL_UPDATE: &str = "Update Tables";
 
@@ -100,8 +102,10 @@ pub const ERROR_FAILED_TO_START_GUI: &str = "Failed to start GUI";
 pub const ERROR_CANT_READ_FILE: &str = "Can't read file";
 pub const ERROR_CANT_READ_REF_FILE: &str = "Can't read reference file";
 pub const ERROR_CANT_READ_TGT_FILE: &str = "Can't read target file";
+pub const ERROR_CANT_READ_ANALYSIS_FILE: &str = "Can't read analysis file";
 pub const ERROR_REFERENCE_SHEET_NOT_FOUND: &str = "The reference sheet is not found";
 pub const ERROR_UPDATE_SHEET_NOT_FOUND: &str = "The update sheet is not found";
+pub const ERROR_ANALYSIS_SHEET_NOT_FOUND: &str = "The analysis sheet is not found";
 pub const ERROR_UNABLE_TO_WRITE_FILE: &str = "Unable to write the file";
 pub const ERROR_MULTIPLE_REF_SHEETS: &str = "Multiple reference sheets provided!";
 pub const ERROR_NO_ROWS_UPDATED: &str = "No rows updated!";
@@ -135,6 +139,9 @@ pub struct Config {
     
     pub new_sheet_name: String,
     pub inplace: bool,
+
+    pub analysis_file: String,
+    pub analysis_table: String
 }
 
 pub fn formatted_applied_mappings(applied: usize) -> String {

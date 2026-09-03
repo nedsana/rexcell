@@ -73,11 +73,36 @@ impl ReferencesData {
     }
 }
 
+#[derive(Debug, Clone)]
+struct AnalysisData { 
+    analysis_path: String,
+    analysis_sheet: String,
+}
+
+impl Default for AnalysisData {
+    fn default() -> Self {
+        Self {
+            analysis_path: String::from(common::REF_DEFAULT_EXCEL_FILE),
+            analysis_sheet: String::from(common::REF_DEFAULT_TABLE),
+        }
+    }
+}
+
+impl AnalysisData {
+    pub fn new(p_path: String, p_reference_sheet: String) -> Self {
+        Self { 
+            analysis_path: String::from(p_path),
+            analysis_sheet: String::from(p_reference_sheet),
+        }
+    }
+}
+
 #[derive(PartialEq)]
 enum Tab 
 {
     Filter,
     Update,
+    AutoComplete
 }
 
 struct GuiApp 
@@ -86,6 +111,8 @@ struct GuiApp
 
     cfg_update_tgt: TargetData,
     cfg_update_ref: ReferencesData,
+
+    analysis_data: AnalysisData,
 
     error: String,
 
@@ -120,6 +147,9 @@ impl Default for GuiApp
                                     common::REF_DEFAULT_TABLE.to_string(), 
                                     common::REF_DEFAULT_SRC_COL.to_string(),
                                     common::REF_DEFAULT_DST_COL.to_string()),
+
+            analysis_data: AnalysisData::new( common::REF_DEFAULT_EXCEL_FILE.to_string(), 
+                                    common::REF_DEFAULT_TABLE.to_string()),
 
             error: String::new(),
 
@@ -256,6 +286,8 @@ impl GuiApp
                             ref_col_value: "".to_string(),
                             new_sheet_name: tgt_data.new_sheet_name.clone(),
                             inplace: true,
+                            analysis_file: "".to_string(),
+                            analysis_table: "".to_string(),
                         };
                         
                         debug!("Start filtering!");
@@ -346,6 +378,8 @@ impl GuiApp
                             ref_col_value: self.cfg_update_ref.col_value.clone(),
                             new_sheet_name: self.cfg_update_tgt.new_sheet_name.clone(),
                             inplace: true,
+                            analysis_file: "".to_string(),
+                            analysis_table: "".to_string(),
                         };
 
                         debug!("Start updating!");
@@ -383,11 +417,137 @@ impl GuiApp
             }
         });
     }
+
+    fn draw_autocomplete_section(&mut self, ui: &mut egui::Ui, headers: &[&str], filtering: bool)
+    {
+        egui::Frame::group(ui.style()).show(ui, |ui| 
+        {
+            let tgt_data: &mut TargetData = if filtering {
+                &mut self.cfg_filter
+            } else {
+                &mut self.cfg_update_tgt
+            };
+
+            ui.label(headers[0]);
+            ui.add_space(4.0);
+            ui.horizontal(|ui| {
+                ui.label(headers[1]);
+                ui.text_edit_singleline(&mut tgt_data.path);
+                if ui.button(headers[2]).clicked() {
+                    if let Some(path_buf) = FileDialog::new().pick_file() {
+                        if let Some(path_str) = path_buf.to_str() {
+                            tgt_data.path = path_str.to_string();
+                            Self::get_sheets_list(path_str)
+                                .map(|sheets| tgt_data.update_sheets = sheets)
+                                .map_err(|err| self.error = err)
+                                .ok();
+                        }
+                    }
+                }
+            });
+
+            ui.add_space(8.0);
+            ui.label(headers[3]);
+            ui.text_edit_singleline(&mut tgt_data.update_sheets);
+
+            ui.add_space(4.0);
+            ui.label(headers[4]);
+            ui.text_edit_singleline(&mut tgt_data.src_col);
+
+            ui.add_space(4.0);
+            ui.label(headers[5]);
+            ui.text_edit_singleline(&mut tgt_data.dest_col);
+
+            ui.add_space(4.0);
+            ui.label(headers[6]);
+            ui.text_edit_singleline(&mut tgt_data.new_sheet_name);
+
+            // analysis_data
+            ui.add_space(4.0);
+            ui.label(headers[7]);
+            ui.add_space(4.0);
+            ui.horizontal(|ui| {
+                ui.label(headers[8]);
+                ui.text_edit_singleline(&mut self.analysis_data.analysis_path);
+                if ui.button(headers[9]).clicked() {
+                    if let Some(path_buf) = FileDialog::new().pick_file() {
+                        if let Some(path_str) = path_buf.to_str() {
+                            self.analysis_data.analysis_path = path_str.to_string();
+                            Self::get_sheets_list(path_str)
+                                .map(|sheets| self.analysis_data.analysis_sheet = sheets)
+                                .map_err(|err| self.error = err)
+                                .ok();
+                        }
+                    }
+                }
+            });
+
+            ui.add_space(8.0);
+            ui.label(headers[9]);
+            ui.text_edit_singleline(&mut self.analysis_data.analysis_sheet);
+
+            ui.add_space(4.0);
+            if ui.button(headers[10]).clicked()
+            {
+                if false == self.is_working.load(Ordering::SeqCst)
+                {
+                    // cargo run --bin rexcell -- -c cmd-filter-sheets -t ../Test_Excell.xlsx -u "Лист1,Лист2,Лист3" -s C -d E -n "Test"
+                    let cfg: common::Config = common::Config {
+                        command: common::Command::CmdAutocompleteSheets,
+                        tgt_file: tgt_data.path.clone(), 
+                        tgt_upd_table: tgt_data.update_sheets.clone(),
+                        tgt_src_col: tgt_data.src_col.clone(),
+                        tgt_dest_col: tgt_data.dest_col.clone(),
+                        ref_file: "".to_string(),
+                        ref_table: "".to_string(),
+                        ref_col_key: "".to_string(),
+                        ref_col_value: "".to_string(),
+                        new_sheet_name: tgt_data.new_sheet_name.clone(),
+                        inplace: true,
+                        analysis_file: self.analysis_data.analysis_path.clone(),
+                        analysis_table: self.analysis_data.analysis_sheet.clone()
+                    };
+                    
+                    debug!("Start autocomplete!");
+
+                    self.is_working.store(true, Ordering::SeqCst);
+                    let is_working_clone = self.is_working.clone();
+
+                    thread::spawn(move || 
+                    {
+                        let res = excell::execute(&cfg);
+                        match res 
+                        {
+                            Ok(()) => 
+                            {
+                                info!("Autocompleting file {} - OK!", cfg.tgt_file);
+                            }
+                            Err(err) => 
+                            {
+                                error!("Autocompleting file {} - FAILED! {}", cfg.tgt_file, err);
+                                // self.error = format!("Failed to update file {}! {}\n", cfg.tgt_file, out.1);
+                            }
+                        }
+                        is_working_clone.store(false, Ordering::SeqCst);
+                    });
+                }
+                else 
+                {
+                    debug!("Autocomplete is running!");
+                }
+            }
+        });
+    }
 }
 
 const FILTER_SECTION_HEADERS: [&str; 8] = [common::TGT_FILE_HELP, common::LABEL_FILE, common::BUTTON_BROWSE, 
                                         common::LIST_SHEETS_TO_UPDATE, common::TGT_SRC_COL_HELP, common::TGT_DEST_COL_ACCUM_HELP, 
                                         common::NEW_SHEET_NAME_HELP, common::BUTTON_FILTER_DATA];
+
+const AUTOCOMPLETE_SECTION_HEADERS: [&str; 11] = [common::TGT_FILE_HELP, common::LABEL_FILE, common::BUTTON_BROWSE, 
+                                                 common::LIST_SHEETS_TO_UPDATE, common::TGT_SRC_COL_HELP, common::TGT_DEST_COL_ACCUM_HELP, common::NEW_SHEET_NAME_HELP, 
+                                                 common::ANALYSIS_FILE_HELP, common::LABEL_FILE, common::BUTTON_BROWSE,
+                                                 common::BUTTON_FILTER_DATA];
 
 const UPDATE_SECTION_TGT_HEADERS: [&str; 6] = [common::TGT_FILE_HELP, common::LABEL_FILE, common::BUTTON_BROWSE, 
                                                common::LIST_SHEETS_TO_UPDATE, common::REF_SRC_COL_HELP, common::TGT_DEST_COL_HELP];
@@ -426,12 +586,24 @@ impl eframe::App for GuiApp
 
                 ui.horizontal(|ui| 
                 {
+                    ui.selectable_value(&mut self.active_tab, Tab::AutoComplete, common::TAB_LABEL_AUTOCOMPLETE);
                     ui.selectable_value(&mut self.active_tab, Tab::Filter, common::TAB_LABEL_FILTER);
                     ui.selectable_value(&mut self.active_tab, Tab::Update, common::TAB_LABEL_UPDATE);
                 });
 
                 match self.active_tab 
                 {
+                    Tab::AutoComplete => 
+                    {
+                        egui::Frame::group(ui.style()).show(ui, |ui| 
+                        {
+                            ui.columns(2, |columns| 
+                            {
+                                self.draw_autocomplete_section(&mut columns[0], &AUTOCOMPLETE_SECTION_HEADERS, true);
+                            });
+                        });
+                    }
+
                     Tab::Filter => 
                     {
                         egui::Frame::group(ui.style()).show(ui, |ui| 
