@@ -836,26 +836,25 @@ fn iter_row_next_impl_mut<'a>(
 }
 
 // =========================================================
-// ITERATOR, NONE-MUTABLE, FOR LOOPING OVER WORKSHEET ROWS
+// ITERATOR, GENERIC, FOR LOOPING OVER WORKSHEET ROWS
 // =========================================================
 
-pub struct IterRow<'a> 
+//Generic IterRow type
+pub struct IterRowGeneric<S>
 {
-    pub sheet:          &'a Worksheet,
+    pub sheet:          S,
     pub current_row:    u32,
     pub max_row:        u32,
     pub max_col:        u32,
     pub pivot_col:      u32,
     pub pivot_numeric:  bool,
-    pub pivot_re:       Regex
+    pub pivot_re:       Regex 
 }
 
-impl<'a> IterRow<'a> 
-{
-    pub fn new(sheet: &'a Worksheet, mrow: u32, mcol: u32, pivot: u32, numeric: bool, re: &str) -> Result<Self, regex::Error> 
-    {
-        let pivot_re = Regex::new(re)?; 
-
+impl<S> IterRowGeneric<S> {
+    pub fn new(sheet: S, mrow: u32, mcol: u32, pivot: u32, numeric: bool, re: &str) -> Result<Self, regex::Error> {
+        let pivot_re = Regex::new(re)?;
+        
         Ok(Self {
             sheet,
             current_row: 1,
@@ -863,10 +862,16 @@ impl<'a> IterRow<'a>
             max_col: mcol,
             pivot_col: pivot,
             pivot_numeric: numeric,
-            pivot_re
+            pivot_re,
         })
     }
 }
+
+// =========================================================
+// ITERATOR, NONE-MUTABLE, FOR LOOPING OVER WORKSHEET ROWS
+// =========================================================
+
+pub type IterRow<'a> = IterRowGeneric<&'a Worksheet>;
 
 impl<'a> Iterator for IterRow<'a> 
 {
@@ -887,34 +892,7 @@ impl<'a> Iterator for IterRow<'a>
 // ITERATOR, MUTABLE, FOR LOOPING OVER WORKSHEET ROWS
 // =========================================================
 
-pub struct IterRowMut<'a>
-{
-    pub sheet:          &'a mut Worksheet,
-    pub current_row:    u32,
-    pub max_row:        u32,
-    pub max_col:        u32,
-    pub pivot_col:      u32,
-    pub pivot_numeric:  bool,
-    pub pivot_re:       Regex
-}
-
-impl<'a> IterRowMut<'a>
-{
-    pub fn new(sheet: &'a mut Worksheet, mrow: u32, mcol: u32, pivot: u32, numeric: bool, re: &str) -> Result<Self, regex::Error> 
-    {
-        let pivot_re = Regex::new(re)?; 
-
-        Ok(Self {
-            sheet,
-            current_row: 1,
-            max_row: mrow,
-            max_col: mcol,
-            pivot_col: pivot,
-            pivot_numeric: numeric,
-            pivot_re
-        })
-    }
-}
+pub type IterRowMut<'a> = IterRowGeneric<&'a mut Worksheet>;
 
 //The statandart iterators, can no be mutable. So we need this specific iterator. NOTE: can't be used in for loops, but works with while!
 pub trait LendingIterator 
