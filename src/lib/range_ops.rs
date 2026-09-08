@@ -3,6 +3,7 @@ use umya_spreadsheet::{Worksheet, Range, Cell};
 use super::range_types;
 // use super::common;
 use log::{info, warn, error};
+use regex::Regex;
 
 //compare strings, ignoring white spaces (' ',\t, \n, \r)
 pub fn cmp_strs(s1: &str, s2: &str) -> bool 
@@ -354,7 +355,7 @@ pub fn append_range(
     clear_columns_content: &Vec<u32>
 ) -> bool
 {
-    info!("clear_columns_content({:?})", clear_columns_content);
+    // info!("clear_columns_content({:?})", clear_columns_content);
 
     let mut res = false;
 
@@ -624,7 +625,8 @@ fn iter_row_next_impl_shared<'a>(
     max_row: u32,
     max_col: u32,
     pivot_col: u32,
-    pivot_numeric: bool
+    pivot_numeric: bool,
+    pivot_re: &Regex
 ) -> Option<(Range, range_types::IterRowNextKind)> 
 {
     let mut ret: Option<(Range, range_types::IterRowNextKind)> = None;
@@ -669,19 +671,21 @@ fn iter_row_next_impl_shared<'a>(
                     {
                         if let Some(next_cell) = sheet.get_cell((pivot_col, nrow)) 
                         {
-                            let _next_cell_value = next_cell.get_value().clone();
+                            let next_cell_value = next_cell.get_value().clone();
                             let next_cell_data_type = next_cell.get_data_type().to_string();
+                            let pattern_found = pivot_re.is_match(&next_cell_value); //search for rows staring with symbol '-'
 
-                            if next_cell_data_type == "n" 
-                            {
-                                break;
-                            } 
-                            else if next_cell_data_type == "s" && _next_cell_value == "-" 
+                            if next_cell_data_type == "s" && pattern_found
                             {
                                 cells_range = make_range_from_indexes(pivot_col, *current_row, pivot_col + max_col, nrow);
                                 let (_, _, _, _, new_range_rows, _) = range_bounds(&cells_range);
                                 range_rows = new_range_rows;
                                 multiline = true;
+                            }
+                            else
+                            {
+                                // info!("Next row {}: [numeric:{}; pattern '{}' found:{}]", nrow, next_cell_data_type, pivot_re.as_str(), pattern_found);
+                                break;
                             }
                         }
                     }
@@ -753,11 +757,12 @@ fn iter_row_next_impl<'a>(
     max_row: u32,
     max_col: u32,
     pivot_col: u32,
-    pivot_numeric: bool
+    pivot_numeric: bool,
+    pivot_re: &Regex
 ) -> Option<range_types::RangeType<'a>> 
 {
     let mut ret: Option<range_types::RangeType<'a>> = None;
-    match iter_row_next_impl_shared(sheet, current_row, max_row, max_col, pivot_col, pivot_numeric) 
+    match iter_row_next_impl_shared(sheet, current_row, max_row, max_col, pivot_col, pivot_numeric, pivot_re) 
     {
         Some((range, range_types::IterRowNextKind::Basic)) => ret = Some(range_types::RangeType::Basic(range_types::RangeBasic { range, sheet })),
         Some((range, range_types::IterRowNextKind::Merged)) => ret = Some(range_types::RangeType::Merged(range_types::RangeMergedCells { range, sheet })),
@@ -774,11 +779,12 @@ fn iter_row_next_impl_mut<'a>(
     max_row: u32,
     max_col: u32,
     pivot_col: u32,
-    pivot_numeric: bool
+    pivot_numeric: bool,
+    pivot_re: &Regex
 ) -> Option<range_types::RangeTypeMut<'a>> 
 {
     let mut ret: Option<range_types::RangeTypeMut<'a>> = None;
-    match iter_row_next_impl_shared(sheet, current_row, max_row, max_col, pivot_col, pivot_numeric) 
+    match iter_row_next_impl_shared(sheet, current_row, max_row, max_col, pivot_col, pivot_numeric, pivot_re) 
     {
         Some((range, range_types::IterRowNextKind::Basic)) => ret = Some(range_types::RangeTypeMut::Basic(range_types::RangeBasicMut { range, sheet })),
         Some((range, range_types::IterRowNextKind::Merged)) => ret = Some(range_types::RangeTypeMut::Merged(range_types::RangeMergedCellsMut { range, sheet })),
@@ -794,25 +800,30 @@ fn iter_row_next_impl_mut<'a>(
 
 pub struct IterRow<'a> 
 {
-    pub sheet: &'a Worksheet,
-    pub current_row: u32,
-    pub max_row: u32,
-    pub max_col: u32,
-    pub pivot_col: u32,
-    pub pivot_numeric: bool
+    pub sheet:          &'a Worksheet,
+    pub current_row:    u32,
+    pub max_row:        u32,
+    pub max_col:        u32,
+    pub pivot_col:      u32,
+    pub pivot_numeric:  bool,
+    pub pivot_re:       Regex
 }
 
 impl<'a> IterRow<'a> 
 {
-    pub fn new(sheet: &'a Worksheet, mrow: u32, mcol: u32, pivot: u32, numeric: bool) -> Self {
-        Self {
+    pub fn new(sheet: &'a Worksheet, mrow: u32, mcol: u32, pivot: u32, numeric: bool, re: &str) -> Result<Self, regex::Error> 
+    {
+        let pivot_re = Regex::new(re)?; 
+
+        Ok(Self {
             sheet,
             current_row: 1,
             max_row: mrow,
             max_col: mcol,
             pivot_col: pivot,
-            pivot_numeric: numeric
-        }
+            pivot_numeric: numeric,
+            pivot_re
+        })
     }
 }
 
@@ -823,7 +834,7 @@ impl<'a> Iterator for IterRow<'a>
     fn next(&mut self) -> Option<Self::Item> 
     {
         let mut ret: Option<Self::Item> = None;
-        match iter_row_next_impl(self.sheet, &mut self.current_row, self.max_row, self.max_col, self.pivot_col, self.pivot_numeric) {
+        match iter_row_next_impl(self.sheet, &mut self.current_row, self.max_row, self.max_col, self.pivot_col, self.pivot_numeric, &self.pivot_re) {
             Some(range) => ret = Some(range),
             None => (),
         }
@@ -837,25 +848,30 @@ impl<'a> Iterator for IterRow<'a>
 
 pub struct IterRowMut<'a>
 {
-    pub sheet: &'a mut Worksheet,
-    pub current_row: u32,
-    pub max_row: u32,
-    pub max_col: u32,
-    pub pivot_col: u32,
-    pub pivot_numeric: bool
+    pub sheet:          &'a mut Worksheet,
+    pub current_row:    u32,
+    pub max_row:        u32,
+    pub max_col:        u32,
+    pub pivot_col:      u32,
+    pub pivot_numeric:  bool,
+    pub pivot_re:       Regex
 }
 
 impl<'a> IterRowMut<'a>
 {
-    pub fn new(sheet: &'a mut Worksheet, mrow: u32, mcol: u32, pivot: u32, numeric: bool) -> Self {
-        Self {
+    pub fn new(sheet: &'a mut Worksheet, mrow: u32, mcol: u32, pivot: u32, numeric: bool, re: &str) -> Result<Self, regex::Error> 
+    {
+        let pivot_re = Regex::new(re)?; 
+
+        Ok(Self {
             sheet,
             current_row: 1,
             max_row: mrow,
             max_col: mcol,
             pivot_col: pivot,
-            pivot_numeric: numeric
-        }
+            pivot_numeric: numeric,
+            pivot_re
+        })
     }
 }
 
@@ -874,7 +890,7 @@ impl LendingIterator for IterRowMut<'_>
     fn next(&mut self) -> Option<Self::Item<'_>> 
     {
         let mut ret: Option<Self::Item<'_>> = None;
-        match iter_row_next_impl_mut(self.sheet, &mut self.current_row, self.max_row, self.max_col, self.pivot_col, self.pivot_numeric) {
+        match iter_row_next_impl_mut(self.sheet, &mut self.current_row, self.max_row, self.max_col, self.pivot_col, self.pivot_numeric, &self.pivot_re) {
             Some(range) => ret = Some(range),
             None => (),
         }
