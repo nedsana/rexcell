@@ -651,7 +651,7 @@ fn iter_row_next_impl_shared<'a>(
         } 
         else if let Some(src_cell) = sheet.get_cell((pivot_col, *current_row)) //will return None if the cell is empty!
         {
-            let _first_cell_value = src_cell.get_value().clone();
+            let first_cell_value = src_cell.get_value().clone();
             let first_cell_data_type = src_cell.get_data_type().to_string();
             
             cells_range = make_range_from_indexes(pivot_col, *current_row, pivot_col + max_col, *current_row);
@@ -712,7 +712,48 @@ fn iter_row_next_impl_shared<'a>(
             }
             else
             {
-                //to do ...
+                let mut multiline = false;
+                if pivot_re.is_match(&first_cell_value)
+                {
+                    let mut range_rows = {
+                        let (_, _, _, _, rows, _) = range_bounds(&cells_range);
+                        rows
+                    };
+
+                    let next_row = *current_row + 1;
+                    for nrow in next_row..=max_row //loop untill the next pattern is found
+                    {
+                        if let Some(next_cell) = sheet.get_cell((pivot_col, nrow)) 
+                        {
+                            if pivot_re.is_match(&next_cell.get_value().clone())
+                            {
+                                cells_range = make_range_from_indexes(pivot_col, *current_row, pivot_col + max_col, nrow-1); //this includes the row with matched pattern, so remove one line
+                                let (_, _, _, _, new_range_rows, _) = range_bounds(&cells_range);
+                                range_rows = new_range_rows; 
+                                multiline = true;
+                                break;
+                            }
+                        }
+                    }
+
+                    *current_row += range_rows; 
+                }
+                else 
+                {
+                    *current_row += 1;
+                }
+
+                if multiline 
+                {
+                    // info!("Range [{}]: from multiline cells! current_row={}", range_to_string(&cells_range), current_row);
+                    ret = Some((cells_range, range_types::IterRowNextKind::Multiline));
+                } 
+                else 
+                {
+                    // info!("Range [{}]: from regular cells! current_row={}", range_to_string(&cells_range), current_row);
+                    ret = Some((cells_range, range_types::IterRowNextKind::Basic));
+                }
+
             }
         } 
         else 

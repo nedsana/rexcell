@@ -527,7 +527,7 @@ pub fn get_anaysis_data(
     let max_row = common::MAX_ROW; //sheet_in.get_highest_row();
     let max_col = common::MAX_COL; //sheet_in.get_highest_column();
 
-    match range_ops::IterRow::new(sheet_analysis, max_row, max_col, 1, true, "-")
+    match range_ops::IterRow::new(sheet_analysis, max_row, max_col, 1, false, "Позиция: *, *Основание:.*")
     {
         Ok(iter_sheet) => 
         {
@@ -773,6 +773,7 @@ pub fn execute(cfg: &common::Config) -> Result<(), String>
             let mut fotbl = Worksheet::default();
             fotbl.set_name(cfg.new_sheet_name.clone());
 
+            /*
             for utbln in cfg.tgt_upd_table.split(',') 
             {
                 // Get the update sheet
@@ -801,6 +802,7 @@ pub fn execute(cfg: &common::Config) -> Result<(), String>
                     count_updated += 1;
                 }
             }
+            */
 
             //The entries are filtered in a new sheet. Now get the needed values from analysis table
             if false == get_anaysis_data(atbl, &"A,G".to_string(), &mut fotbl, &cfg.tgt_src_col, &"B,F".to_string()) //WARNING: hardcoded values!
@@ -809,13 +811,15 @@ pub fn execute(cfg: &common::Config) -> Result<(), String>
                 return Err(format!("Failed to process analysis data from {}:{}", cfg.analysis_file, cfg.analysis_table));
             }
 
+            /*
             //Add the extra sheet to the book
             let result = ubook.add_sheet(fotbl);
             if let Err(err) = result
             {
                 error!("{}:{}", common::ERROR_FAILED_TO_ADD_SHEET, err);
                 return Err(format!("{}:{}", common::ERROR_FAILED_TO_ADD_SHEET, err));
-            }; 
+            };
+            */ 
         },
 
         _ => 
