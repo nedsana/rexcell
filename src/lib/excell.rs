@@ -527,6 +527,7 @@ pub fn get_anaysis_data(
     let max_row = common::MAX_ROW; //sheet_in.get_highest_row();
     let max_col = common::MAX_COL; //sheet_in.get_highest_column();
 
+/*
     match range_ops::IterRow::new(sheet_analysis, max_row, max_col, 1, false, "Позиция: *, *Основание:.*", range_ops::Offsets::new(0,0,-1,-1))
     {
         Ok(iter_sheet) => 
@@ -542,6 +543,7 @@ pub fn get_anaysis_data(
         }
     }
     return false; //DELETE_ME
+*/
 
     let mut res: bool = true;
 
@@ -557,24 +559,25 @@ pub fn get_anaysis_data(
 
     match range_ops::IterRow::new(sheet_filtered, max_row, max_col, 1, true, "-", range_ops::Offsets::default())
     {
-        Ok(iter_sheet) => 
+        Ok(filtered_sheet_it) => 
         {
-            for it in iter_sheet 
+            for fit in filtered_sheet_it 
             {
-                let (brow_it, erow_it, _, _, _, _) = range_ops::range_bounds(it.get_range()); //(brow, erow, bcol, ecol, rows, cols)
-                if "n" != it.get_sheet().get_cell_value((1, brow_it)).get_data_type().to_string()
+                let (fbr, _fer, _fbc, _fec, _, _) = range_ops::range_bounds(fit.get_range()); //(brow, erow, bcol, ecol, rows, cols)
+
+                if "n" != fit.get_sheet().get_cell_value((1, fbr)).get_data_type().to_string()
                 {
-                    info!("Range {}:[{}] skipping none numeric leading data type!", it.get_sheet().get_name(), range_ops::range_to_string(it.get_range()));
+                    info!("Range {}:[{}] skipping none numeric leading data type!", fit.get_sheet().get_name(), range_ops::range_to_string(fit.get_range()));
                     continue;
                 }
-
-                for row_it in brow_it..=erow_it
+/*
+                for row_it in brow_it..=_erow_it
                 {
                     for col_it in &pivot_cols
                     {
-                        let filtered_cell_value = it.get_sheet().get_cell_value((*col_it, row_it)).get_value();
+                        let filtered_cell_value = fit.get_sheet().get_cell_value((*col_it, row_it)).get_value();
 
-                        info!("Processing range '{}:[{}:'{}']'", it.get_sheet().get_name(), range_ops::range_to_string(it.get_range()), filtered_cell_value);
+                        info!("Processing range '{}:[{}:'{}']'", fit.get_sheet().get_name(), range_ops::range_to_string(fit.get_range()), filtered_cell_value);
 
                         for arow in 1..=common::MAX_ROW //loop over the analysis table rows
                         {
@@ -588,6 +591,29 @@ pub fn get_anaysis_data(
                                 // get_anaysis_data(atbl, &"A,G".to_string(), &mut fotbl, &cfg.tgt_src_col, &"B,F".to_string())
                             }
                         }
+                    }
+                }
+*/
+                let filtered_cell_value = fit.get_sheet().get_cell_value((pivot_cols[0], fbr)).get_value();
+                info!("Filtered value at {}:{}:'{}'", fit.get_sheet().get_name(), range_ops::coords_to_str(pivot_cols[0], fbr), filtered_cell_value);
+
+                match range_ops::IterRow::new(sheet_analysis, max_row, max_col, 1, false, "Позиция: *, *Основание:.*", range_ops::Offsets::new(0,0,-1,-1))
+                {
+                    Ok(analysis_sheet_it) => 
+                    {
+                        for ait in analysis_sheet_it
+                        {
+                            // info!("Analysis Range {}:[{}] Type:{}!", ait.get_sheet().get_name(), range_ops::range_to_string(ait.get_range()), ait.get_type_name());
+
+                            let (abr, _aer, _abc, _aec, _, _) = range_ops::range_bounds(ait.get_range()); //(brow, erow, bcol, ecol, rows, cols)
+
+                            let filtered_cell_value = ait.get_sheet().get_cell_value((read_cols[0], abr)).get_value();
+                            info!("Analysis value at {}:{}:'{}'", ait.get_sheet().get_name(), range_ops::coords_to_str(read_cols[0], abr), filtered_cell_value);
+                        }
+                    },
+                    Err(err) => 
+                    {
+                        error!("Failed to create iterator: {}", err);
                     }
                 }
 
@@ -773,7 +799,6 @@ pub fn execute(cfg: &common::Config) -> Result<(), String>
             let mut fotbl = Worksheet::default();
             fotbl.set_name(cfg.new_sheet_name.clone());
 
-            /*
             for utbln in cfg.tgt_upd_table.split(',') 
             {
                 // Get the update sheet
@@ -802,10 +827,9 @@ pub fn execute(cfg: &common::Config) -> Result<(), String>
                     count_updated += 1;
                 }
             }
-            */
 
             //The entries are filtered in a new sheet. Now get the needed values from analysis table
-            if false == get_anaysis_data(atbl, &"A,G".to_string(), &mut fotbl, &cfg.tgt_src_col, &"B,F".to_string()) //WARNING: hardcoded values!
+            if false == get_anaysis_data(atbl, &"A,G".to_string(), &mut fotbl, &cfg.tgt_src_col, &"C,F".to_string()) //WARNING: hardcoded values!
             {
                 error!("Failed to process analysis data from {}:{}", cfg.analysis_file, cfg.analysis_table);
                 return Err(format!("Failed to process analysis data from {}:{}", cfg.analysis_file, cfg.analysis_table));
