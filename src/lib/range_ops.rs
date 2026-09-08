@@ -619,14 +619,31 @@ pub fn accumulate_ranges(
     accumulated
 }
 
+pub fn offset_range(range: &Range, offsets: &Offsets) -> Result<Range, String>
+{
+    let (br, er, bc, ec, _, _) = range_bounds(&range);
+    
+    let ibr = (br as i32) + offsets.offset_beg_row;
+    let ier = (er as i32) + offsets.offset_end_row;
+    let ibc = (bc as i32) + offsets.offset_beg_col;
+    let iec = (ec as i32) + offsets.offset_end_col;
+
+    if 0 < ibc && 0 < ibr && 0 < iec && 0 < ier
+    {
+        return Ok(make_range_from_indexes(ibc as u32, ibr as u32, iec as u32, ier as u32));
+    }
+    Err(format!("Negative range value (brow:{} erow:{} bcol:{} ecol:{}) found after offset! Returning none modified rane!", ibr, ier, ibc, iec))
+}
+
 fn iter_row_next_impl_shared<'a>(
-    sheet: &Worksheet,
-    current_row: &mut u32,
-    max_row: u32,
-    max_col: u32,
-    pivot_col: u32,
-    pivot_numeric: bool,
-    pivot_re: &Regex
+    sheet:          &Worksheet,
+    current_row:    &mut u32,
+    max_row:        u32,
+    max_col:        u32,
+    pivot_col:      u32,
+    pivot_numeric:  bool,
+    pivot_re:       &Regex,
+    offsets:        &Offsets,
 ) -> Option<(Range, range_types::IterRowNextKind)> 
 {
     let mut ret: Option<(Range, range_types::IterRowNextKind)> = None;
@@ -645,9 +662,19 @@ fn iter_row_next_impl_shared<'a>(
 
             let (_, _, _, _, range_rows, _) = range_bounds(&cells_range);
 
-            *current_row += range_rows;
+            *current_row += range_rows; //should 'current_row' be affected by the range offset
 
-            ret = Some((cells_range, range_types::IterRowNextKind::Merged));
+            match offset_range(&cells_range, offsets)
+            {
+                Ok(cells_range) =>
+                {
+                    ret = Some((cells_range, range_types::IterRowNextKind::Merged));
+                }
+                Err(err) =>
+                {
+                    error!("Error when applying offset for merged range type! {}", err);
+                }
+            }
         } 
         else if let Some(src_cell) = sheet.get_cell((pivot_col, *current_row)) //will return None if the cell is empty!
         {
@@ -690,24 +717,46 @@ fn iter_row_next_impl_shared<'a>(
                         }
                     }
 
-                    *current_row += range_rows;
+                    *current_row += range_rows; //should 'current_row' be affected by the range offset
 
-                    if multiline 
+                    match offset_range(&cells_range, offsets)
                     {
-                        // info!("Range [{}]: from multiline cells! current_row={}", range_to_string(&cells_range), current_row);
-                        ret = Some((cells_range, range_types::IterRowNextKind::Multiline));
-                    } 
-                    else 
-                    {
-                        // info!("Range [{}]: from regular cells! current_row={}", range_to_string(&cells_range), current_row);
-                        ret = Some((cells_range, range_types::IterRowNextKind::Basic));
+                        Ok(cells_range) =>
+                        {
+                            if multiline 
+                            {
+                                // info!("Range [{}]: from multiline cells! current_row={}", range_to_string(&cells_range), current_row);
+                                ret = Some((cells_range, range_types::IterRowNextKind::Multiline));
+                            } 
+                            else 
+                            {
+                                // info!("Range [{}]: from regular cells! current_row={}", range_to_string(&cells_range), current_row);
+                                ret = Some((cells_range, range_types::IterRowNextKind::Basic));
+                            }
+                        }
+                        Err(err) =>
+                        {
+                            error!("Error when applying offset for multiline range type! {}", err);
+                        }
                     }
                 } 
                 else 
                 {
-                    // info!("Current row {} starts with unexpected type:'{}'!", *current_row, first_cell_data_type);
-                    ret = Some((cells_range, range_types::IterRowNextKind::Basic));
-                    *current_row += 1;
+                    info!("Current row {} starts with unexpected type:'{}'! {}", *current_row, first_cell_data_type, range_to_string(&cells_range));
+
+                    *current_row += 1; //should 'current_row' be affected by the range offset
+
+                    match offset_range(&cells_range, offsets)
+                    {
+                        Ok(cells_range) =>
+                        {
+                            ret = Some((cells_range, range_types::IterRowNextKind::Basic));
+                        }
+                        Err(err) =>
+                        {
+                            error!("Error when applying offset for basic range type! {}", err);
+                        }
+                    }
                 }
             }
             else
@@ -736,24 +785,33 @@ fn iter_row_next_impl_shared<'a>(
                         }
                     }
 
-                    *current_row += range_rows; 
+                    *current_row += range_rows; //should 'current_row' be affected by the range offset
                 }
                 else 
                 {
-                    *current_row += 1;
+                    *current_row += 1; //should 'current_row' be affected by the range offset
                 }
 
-                if multiline 
+                match offset_range(&cells_range, offsets)
                 {
-                    // info!("Range [{}]: from multiline cells! current_row={}", range_to_string(&cells_range), current_row);
-                    ret = Some((cells_range, range_types::IterRowNextKind::Multiline));
-                } 
-                else 
-                {
-                    // info!("Range [{}]: from regular cells! current_row={}", range_to_string(&cells_range), current_row);
-                    ret = Some((cells_range, range_types::IterRowNextKind::Basic));
+                    Ok(cells_range) =>
+                    {
+                        if multiline 
+                        {
+                            // info!("Range [{}]: from multiline cells! current_row={}", range_to_string(&cells_range), current_row);
+                            ret = Some((cells_range, range_types::IterRowNextKind::Multiline));
+                        } 
+                        else 
+                        {
+                            // info!("Range [{}]: from regular cells! current_row={}", range_to_string(&cells_range), current_row);
+                            ret = Some((cells_range, range_types::IterRowNextKind::Basic));
+                        }
+                    }
+                    Err(err) =>
+                    {
+                        error!("Error when applying offset for multipline range type for analysis! {}", err);
+                    }
                 }
-
             }
         } 
         else 
@@ -779,8 +837,20 @@ fn iter_row_next_impl_shared<'a>(
             {
                 cells_range = make_range_from_indexes(pivot_col, *current_row, pivot_col + max_col, *current_row);
                 // info!("Range [{}]: from regular empty cells! current_row={}", range_to_string(&cells_range), current_row);
-                ret = Some((cells_range, range_types::IterRowNextKind::Basic));
+
+                match offset_range(&cells_range, offsets)
+                {
+                    Ok(cells_range) =>
+                    {
+                        ret = Some((cells_range, range_types::IterRowNextKind::Basic));
+                    }
+                    Err(err) =>
+                    {
+                        error!("Error when applying offset for basic range type or EOF! {}", err);
+                    }
+                }
             }
+
             *current_row += 1;
         }
     }
@@ -793,17 +863,18 @@ fn iter_row_next_impl_shared<'a>(
 
 // Helper function that contains the common logic for IterRow and IterRowMut next() method
 fn iter_row_next_impl<'a>(
-    sheet: &'a Worksheet,
-    current_row: &mut u32,
-    max_row: u32,
-    max_col: u32,
-    pivot_col: u32,
-    pivot_numeric: bool,
-    pivot_re: &Regex
+    sheet:          &'a Worksheet,
+    current_row:    &mut u32,
+    max_row:        u32,
+    max_col:        u32,
+    pivot_col:      u32,
+    pivot_numeric:  bool,
+    pivot_re:       &Regex,
+    offsets:        &Offsets,
 ) -> Option<range_types::RangeType<'a>> 
 {
     let mut ret: Option<range_types::RangeType<'a>> = None;
-    match iter_row_next_impl_shared(sheet, current_row, max_row, max_col, pivot_col, pivot_numeric, pivot_re) 
+    match iter_row_next_impl_shared(sheet, current_row, max_row, max_col, pivot_col, pivot_numeric, pivot_re, offsets) 
     {
         Some((range, range_types::IterRowNextKind::Basic)) => ret = Some(range_types::RangeType::Basic(range_types::RangeBasic { range, sheet })),
         Some((range, range_types::IterRowNextKind::Merged)) => ret = Some(range_types::RangeType::Merged(range_types::RangeMergedCells { range, sheet })),
@@ -815,17 +886,18 @@ fn iter_row_next_impl<'a>(
 
 // Helper function that contains the common logic for IterRow and IterRowMut next() method
 fn iter_row_next_impl_mut<'a>(
-    sheet: &'a mut Worksheet,
-    current_row: &mut u32,
-    max_row: u32,
-    max_col: u32,
-    pivot_col: u32,
-    pivot_numeric: bool,
-    pivot_re: &Regex
+    sheet:          &'a mut Worksheet,
+    current_row:    &mut u32,
+    max_row:        u32,
+    max_col:        u32,
+    pivot_col:      u32,
+    pivot_numeric:  bool,
+    pivot_re:       &Regex,
+    offsets:        &Offsets,
 ) -> Option<range_types::RangeTypeMut<'a>> 
 {
     let mut ret: Option<range_types::RangeTypeMut<'a>> = None;
-    match iter_row_next_impl_shared(sheet, current_row, max_row, max_col, pivot_col, pivot_numeric, pivot_re) 
+    match iter_row_next_impl_shared(sheet, current_row, max_row, max_col, pivot_col, pivot_numeric, pivot_re, offsets) 
     {
         Some((range, range_types::IterRowNextKind::Basic)) => ret = Some(range_types::RangeTypeMut::Basic(range_types::RangeBasicMut { range, sheet })),
         Some((range, range_types::IterRowNextKind::Merged)) => ret = Some(range_types::RangeTypeMut::Merged(range_types::RangeMergedCellsMut { range, sheet })),
@@ -839,6 +911,37 @@ fn iter_row_next_impl_mut<'a>(
 // ITERATOR, GENERIC, FOR LOOPING OVER WORKSHEET ROWS
 // =========================================================
 
+pub struct Offsets
+{
+    pub offset_beg_col: i32,
+    pub offset_end_col: i32,
+    pub offset_beg_row: i32,
+    pub offset_end_row: i32,
+}
+
+impl Offsets {
+    pub fn new(obc: i32, oec: i32, obr: i32, oer: i32) -> Self 
+    {
+        Self {
+            offset_beg_col: obc,
+            offset_end_col: oec,
+            offset_beg_row: obr,
+            offset_end_row: oer,
+        }
+    }
+}
+
+impl Default for Offsets {
+    fn default() -> Self {
+        Self {
+            offset_beg_col: 0,
+            offset_end_col: 0,
+            offset_beg_row: 0,
+            offset_end_row: 0,
+        }
+    }
+}
+
 //Generic IterRow type
 pub struct IterRowGeneric<S>
 {
@@ -848,21 +951,23 @@ pub struct IterRowGeneric<S>
     pub max_col:        u32,
     pub pivot_col:      u32,
     pub pivot_numeric:  bool,
-    pub pivot_re:       Regex 
+    pub pivot_re:       Regex,
+    pub offsets:        Offsets,
 }
 
 impl<S> IterRowGeneric<S> {
-    pub fn new(sheet: S, mrow: u32, mcol: u32, pivot: u32, numeric: bool, re: &str) -> Result<Self, regex::Error> {
+    pub fn new(sheet: S, mrow: u32, mcol: u32, pivot: u32, numeric: bool, re: &str, offs: Offsets) -> Result<Self, regex::Error> {
         let pivot_re = Regex::new(re)?;
         
         Ok(Self {
             sheet,
-            current_row: 1,
-            max_row: mrow,
-            max_col: mcol,
-            pivot_col: pivot,
-            pivot_numeric: numeric,
+            current_row:    1,
+            max_row:        mrow,
+            max_col:        mcol,
+            pivot_col:      pivot,
+            pivot_numeric:  numeric,
             pivot_re,
+            offsets:        offs
         })
     }
 }
@@ -880,7 +985,7 @@ impl<'a> Iterator for IterRow<'a>
     fn next(&mut self) -> Option<Self::Item> 
     {
         let mut ret: Option<Self::Item> = None;
-        match iter_row_next_impl(self.sheet, &mut self.current_row, self.max_row, self.max_col, self.pivot_col, self.pivot_numeric, &self.pivot_re) {
+        match iter_row_next_impl(self.sheet, &mut self.current_row, self.max_row, self.max_col, self.pivot_col, self.pivot_numeric, &self.pivot_re, &self.offsets) {
             Some(range) => ret = Some(range),
             None => (),
         }
@@ -909,7 +1014,7 @@ impl LendingIterator for IterRowMut<'_>
     fn next(&mut self) -> Option<Self::Item<'_>> 
     {
         let mut ret: Option<Self::Item<'_>> = None;
-        match iter_row_next_impl_mut(self.sheet, &mut self.current_row, self.max_row, self.max_col, self.pivot_col, self.pivot_numeric, &self.pivot_re) {
+        match iter_row_next_impl_mut(self.sheet, &mut self.current_row, self.max_row, self.max_col, self.pivot_col, self.pivot_numeric, &self.pivot_re, &self.offsets) {
             Some(range) => ret = Some(range),
             None => (),
         }

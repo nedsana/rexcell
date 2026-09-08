@@ -213,7 +213,7 @@ pub fn get_worksheet_names(path: &std::path::Path) -> Result<String, String> {
  */
 pub fn find_range_in_sheet<'a>(range: &'a dyn IRange, sheet: &'a Worksheet, cmp_cols: &'a Vec<u32>) -> Option<RangeType<'a>>
 {
-    match range_ops::IterRow::new(sheet, common::MAX_ROW, common::MAX_COL, 1, true, "-")
+    match range_ops::IterRow::new(sheet, common::MAX_ROW, common::MAX_COL, 1, true, "-", range_ops::Offsets::default())
     {
         Ok(iter_sheet) =>
         {
@@ -309,7 +309,7 @@ pub fn make_largest_range<'a>(range_in: &'a dyn IRange, sheet_in: &'a Worksheet,
 
         let mut range_tmp = make_range_inst_mut(range_in.get_type(), range_ops::make_range_from_indexes(1, 1, cols_in, rows_in), &mut tmp_sheet);
 
-        match range_ops::IterRow::new(sheet_in, common::MAX_ROW, common::MAX_COL, 1, true, "-")
+        match range_ops::IterRow::new(sheet_in, common::MAX_ROW, common::MAX_COL, 1, true, "-", range_ops::Offsets::default())
         {
             Ok(iter_sheet) =>
             {
@@ -425,7 +425,7 @@ pub fn filter_sheet_by_col_and_accum(
     let max_row = common::MAX_ROW; //sheet_in.get_highest_row();
     let max_col = common::MAX_COL; //sheet_in.get_highest_column();
 
-    match range_ops::IterRow::new(sheet_in, common::MAX_ROW, common::MAX_COL, 1, true, "-")
+    match range_ops::IterRow::new(sheet_in, common::MAX_ROW, common::MAX_COL, 1, true, "-", range_ops::Offsets::default())
     {
         Ok(iter_sheet) =>
         {
@@ -462,7 +462,7 @@ pub fn filter_sheet_by_col_and_accum(
                     { //appending
                         let sheet_largest_range = make_largest_range(&it, sheet_in, &cmp_cols, &acc_cols);
 
-                        match range_ops::IterRow::new(&sheet_largest_range, max_row, max_col, 1, true, "-") 
+                        match range_ops::IterRow::new(&sheet_largest_range, max_row, max_col, 1, true, "-", range_ops::Offsets::default()) 
                         {
                             Ok(iter_sheet_largest_range) => 
                             {
@@ -527,7 +527,7 @@ pub fn get_anaysis_data(
     let max_row = common::MAX_ROW; //sheet_in.get_highest_row();
     let max_col = common::MAX_COL; //sheet_in.get_highest_column();
 
-    match range_ops::IterRow::new(sheet_analysis, max_row, max_col, 1, false, "Позиция: *, *Основание:.*")
+    match range_ops::IterRow::new(sheet_analysis, max_row, max_col, 1, false, "Позиция: *, *Основание:.*", range_ops::Offsets::default())
     {
         Ok(iter_sheet) => 
         {
@@ -555,7 +555,7 @@ pub fn get_anaysis_data(
         return false;
     }
 
-    match range_ops::IterRow::new(sheet_filtered, max_row, max_col, 1, true, "-")
+    match range_ops::IterRow::new(sheet_filtered, max_row, max_col, 1, true, "-", range_ops::Offsets::default())
     {
         Ok(iter_sheet) => 
         {
