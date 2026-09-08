@@ -527,7 +527,7 @@ pub fn get_anaysis_data(
     let max_row = common::MAX_ROW; //sheet_in.get_highest_row();
     let max_col = common::MAX_COL; //sheet_in.get_highest_column();
 
-    match range_ops::IterRow::new(sheet_analysis, max_row, max_col, 1, false, "Позиция: *, *Основание:.*", range_ops::Offsets::default())
+    match range_ops::IterRow::new(sheet_analysis, max_row, max_col, 1, false, "Позиция: *, *Основание:.*", range_ops::Offsets::new(0,0,-1,-1))
     {
         Ok(iter_sheet) => 
         {

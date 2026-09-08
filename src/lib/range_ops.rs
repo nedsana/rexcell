@@ -632,7 +632,7 @@ pub fn offset_range(range: &Range, offsets: &Offsets) -> Result<Range, String>
     {
         return Ok(make_range_from_indexes(ibc as u32, ibr as u32, iec as u32, ier as u32));
     }
-    Err(format!("Negative range value (brow:{} erow:{} bcol:{} ecol:{}) found after offset! Returning none modified rane!", ibr, ier, ibc, iec))
+    Err(format!("Invalid range (brow:{} erow:{} bcol:{} ecol:{}) found after offset!", ibr, ier, ibc, iec))
 }
 
 fn iter_row_next_impl_shared<'a>(
@@ -647,6 +647,8 @@ fn iter_row_next_impl_shared<'a>(
 ) -> Option<(Range, range_types::IterRowNextKind)> 
 {
     let mut ret: Option<(Range, range_types::IterRowNextKind)> = None;
+
+    let is_first_line = if 1 == *current_row  { true } else { false };
 
     if max_row > *current_row 
     {
@@ -666,13 +668,20 @@ fn iter_row_next_impl_shared<'a>(
 
             match offset_range(&cells_range, offsets)
             {
-                Ok(cells_range) =>
+                Ok(cells_offset_range) =>
                 {
-                    ret = Some((cells_range, range_types::IterRowNextKind::Merged));
+                    ret = Some((cells_offset_range, range_types::IterRowNextKind::Merged));
                 }
                 Err(err) =>
                 {
-                    error!("Error when applying offset for merged range type! {}", err);
+                    if is_first_line
+                    {
+                        ret = Some((cells_range, range_types::IterRowNextKind::Merged));
+                    }
+                    else
+                    {
+                        error!("Offset error! {} Using none-offset merged range!", err);
+                    }
                 }
             }
         } 
@@ -721,40 +730,63 @@ fn iter_row_next_impl_shared<'a>(
 
                     match offset_range(&cells_range, offsets)
                     {
-                        Ok(cells_range) =>
+                        Ok(cells_offset_range) =>
                         {
                             if multiline 
                             {
-                                // info!("Range [{}]: from multiline cells! current_row={}", range_to_string(&cells_range), current_row);
-                                ret = Some((cells_range, range_types::IterRowNextKind::Multiline));
+                                // info!("Range [{}]: from multiline cells! current_row={}", range_to_string(&cells_offset_range), current_row);
+                                ret = Some((cells_offset_range, range_types::IterRowNextKind::Multiline));
                             } 
                             else 
                             {
-                                // info!("Range [{}]: from regular cells! current_row={}", range_to_string(&cells_range), current_row);
-                                ret = Some((cells_range, range_types::IterRowNextKind::Basic));
+                                // info!("Range [{}]: from regular cells! current_row={}", range_to_string(&cells_offset_range), current_row);
+                                ret = Some((cells_offset_range, range_types::IterRowNextKind::Basic));
                             }
                         }
                         Err(err) =>
                         {
-                            error!("Error when applying offset for multiline range type! {}", err);
+                            if is_first_line
+                            {
+                                if multiline 
+                                {
+                                    // info!("Range [{}]: from multiline cells! current_row={}", range_to_string(&cells_range), current_row);
+                                    ret = Some((cells_range, range_types::IterRowNextKind::Multiline));
+                                } 
+                                else 
+                                {
+                                    // info!("Range [{}]: from regular cells! current_row={}", range_to_string(&cells_range), current_row);
+                                    ret = Some((cells_range, range_types::IterRowNextKind::Basic));
+                                }
+                            }
+                            else
+                            {
+                                error!("Offset error! {} Using none-offset multiline range!", err);
+                            }
                         }
                     }
                 } 
                 else 
                 {
-                    info!("Current row {} starts with unexpected type:'{}'! {}", *current_row, first_cell_data_type, range_to_string(&cells_range));
+                    // info!("Current row {} starts with unexpected type:'{}'! {}", *current_row, first_cell_data_type, range_to_string(&cells_range));
 
                     *current_row += 1; //should 'current_row' be affected by the range offset
 
                     match offset_range(&cells_range, offsets)
                     {
-                        Ok(cells_range) =>
+                        Ok(cells_offset_range) =>
                         {
-                            ret = Some((cells_range, range_types::IterRowNextKind::Basic));
+                            ret = Some((cells_offset_range, range_types::IterRowNextKind::Basic));
                         }
                         Err(err) =>
                         {
-                            error!("Error when applying offset for basic range type! {}", err);
+                            if is_first_line
+                            {
+                                ret = Some((cells_range, range_types::IterRowNextKind::Basic));
+                            }
+                            else
+                            {
+                                error!("Offset error! {} Using none-offset basic range!", err);
+                            }
                         }
                     }
                 }
@@ -794,22 +826,38 @@ fn iter_row_next_impl_shared<'a>(
 
                 match offset_range(&cells_range, offsets)
                 {
-                    Ok(cells_range) =>
+                    Ok(cells_offset_range) =>
                     {
                         if multiline 
                         {
-                            // info!("Range [{}]: from multiline cells! current_row={}", range_to_string(&cells_range), current_row);
-                            ret = Some((cells_range, range_types::IterRowNextKind::Multiline));
+                            // info!("Range [{}]: from multiline cells! current_row={}", range_to_string(&cells_offset_range), current_row);
+                            ret = Some((cells_offset_range, range_types::IterRowNextKind::Multiline));
                         } 
                         else 
                         {
-                            // info!("Range [{}]: from regular cells! current_row={}", range_to_string(&cells_range), current_row);
-                            ret = Some((cells_range, range_types::IterRowNextKind::Basic));
+                            // info!("Range [{}]: from regular cells! current_row={}", range_to_string(&cells_offset_range), current_row);
+                            ret = Some((cells_offset_range, range_types::IterRowNextKind::Basic));
                         }
                     }
                     Err(err) =>
                     {
-                        error!("Error when applying offset for multipline range type for analysis! {}", err);
+                        if is_first_line
+                        {
+                            if multiline 
+                            {
+                                // info!("Range [{}]: from multiline cells! current_row={}", range_to_string(&cells_range), current_row);
+                                ret = Some((cells_range, range_types::IterRowNextKind::Multiline));
+                            } 
+                            else 
+                            {
+                                // info!("Range [{}]: from regular cells! current_row={}", range_to_string(&cells_range), current_row);
+                                ret = Some((cells_range, range_types::IterRowNextKind::Basic));
+                            }
+                        }
+                        else
+                        {
+                            error!("Offset error! {} Using none-offset multiline range for none-numeric pivot!", err);
+                        }
                     }
                 }
             }
@@ -840,13 +888,20 @@ fn iter_row_next_impl_shared<'a>(
 
                 match offset_range(&cells_range, offsets)
                 {
-                    Ok(cells_range) =>
+                    Ok(cells_offset_range) =>
                     {
-                        ret = Some((cells_range, range_types::IterRowNextKind::Basic));
+                        ret = Some((cells_offset_range, range_types::IterRowNextKind::Basic));
                     }
                     Err(err) =>
                     {
-                        error!("Error when applying offset for basic range type or EOF! {}", err);
+                        if is_first_line
+                        {
+                            ret = Some((cells_range, range_types::IterRowNextKind::Basic));
+                        }
+                        else
+                        {
+                            error!("Offset error! {} Using none-offset basic range or EOF!", err);
+                        }
                     }
                 }
             }
