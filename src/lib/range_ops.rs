@@ -796,11 +796,14 @@ fn iter_row_next_impl_shared<'a>(
                 let mut multiline = false;
                 if pivot_re.is_match(&first_cell_value)
                 {
+                    multiline  = true;
+
                     let mut range_rows = {
                         let (_, _, _, _, rows, _) = range_bounds(&cells_range);
                         rows
                     };
 
+                    let mut pattern_found = false;
                     let next_row = *current_row + 1;
                     for nrow in next_row..=max_row //loop untill the next pattern is found
                     {
@@ -810,11 +813,21 @@ fn iter_row_next_impl_shared<'a>(
                             {
                                 cells_range = make_range_from_indexes(pivot_col, *current_row, pivot_col + max_col, nrow-1); //this includes the row with matched pattern, so remove one line
                                 let (_, _, _, _, new_range_rows, _) = range_bounds(&cells_range);
-                                range_rows = new_range_rows; 
-                                multiline = true;
+                                range_rows    = new_range_rows; //pattern found, overwrite range_rows
+                                pattern_found = true;
                                 break;
                             }
+                            else
+                            {
+                                range_rows += 1; //count the next row we've searched.
+                            }
                         }
+                    }
+
+                    if false == pattern_found //we've not detected next pattern, so get all of the left lines
+                    {
+                        let last_row = *current_row + range_rows;
+                        cells_range = make_range_from_indexes(pivot_col, *current_row, pivot_col + max_col, last_row);
                     }
 
                     *current_row += range_rows; //should 'current_row' be affected by the range offset
@@ -879,7 +892,7 @@ fn iter_row_next_impl_shared<'a>(
 
             if is_last_row
             {
-                warn!("Processing unexpected row:{}!", *current_row);
+                warn!("Last row '{}' was processed!", *current_row);
             }
             else
             {
