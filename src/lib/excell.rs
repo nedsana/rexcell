@@ -521,11 +521,14 @@ pub fn get_anaysis_data(
     col_loop_analysis:  &String,
     col_srch_analysis:  &String,
     col_valu_analysis:  &String,
+    loop_pattern:       &String,
+    value_pattern:      &String,
     sheet_filtered:     &mut Worksheet,
     col_srch_filtered:  &String,
     col_upda_filtered:  &String,
     col_tota_filtered:  &String,
     col_quan_filtered:  &String,
+    col_desc_filtered:  &String,
 ) -> bool 
 {
     let max_row = common::MAX_ROW; //sheet_in.get_highest_row();
@@ -541,6 +544,7 @@ pub fn get_anaysis_data(
     let fupda_col = range_ops::column_to_index(col_upda_filtered);
     let ftota_col = range_ops::column_to_index(col_tota_filtered);
     let fquan_col = range_ops::column_to_index(col_quan_filtered);
+    let fdesc_col = range_ops::column_to_index(col_desc_filtered);
 
     match range_ops::IterRowMut::new(sheet_filtered, max_row, max_col, 1, true, "-", range_ops::Offsets::default())
     {
@@ -558,40 +562,50 @@ pub fn get_anaysis_data(
 
                 let filtered_cell_value = fit.get_sheet().get_cell_value((fsrch_col, fbr)).get_value();
 
-                match range_ops::IterRow::new(sheet_analysis, max_row, max_col, 1, false, "Позиция: *, *Основание:.*", range_ops::Offsets::new(0,0,-1,-1))
+                match range_ops::IterRow::new(sheet_analysis, max_row, max_col, 1, false, loop_pattern, range_ops::Offsets::new(0,0,-1,-1))
                 {
                     Ok(analysis_sheet_it) => 
                     {
                         let mut found_analysis_entry = false;
                         let mut found_analysis_value = false;
                         let mut analysis_value = CellValue::default();
+                        let mut analysis_string = String::default();
 
                         for ait in analysis_sheet_it
                         {
-                            let (abr, aer, _abc, _aec, _, _) = range_ops::range_bounds(ait.get_range()); //(brow, erow, bcol, ecol, rows, cols)
+                            let (abr, aer, _, _, _, _) = range_ops::range_bounds(ait.get_range()); //(brow, erow, bcol, ecol, rows, cols)
 
                             let analysis_cell_value = ait.get_sheet().get_cell_value((aloop_col, abr)).get_value();
 
                             if range_ops::cmp_strs(&filtered_cell_value, &analysis_cell_value)
                             {
-                                found_analysis_entry = true;
-
                                 info!("Found analysis section for '{}:[{}:'{}']'", ait.get_sheet().get_name(), range_ops::coords_to_str(aloop_col, abr), analysis_cell_value);
 
-                                //loop backwards and get the last "Общо" entry
-                                for ar in (abr..=aer).rev()
+                                for ar in (abr..=aer).rev() //loop backwards and get the last value_pattern entry
                                 {
                                     let cell_value = ait.get_sheet().get_cell_value((asrch_col, ar)).get_value();
 
                                     // info!("Scanning '{}:[{}:'{}']'", ait.get_sheet().get_name(), range_ops::coords_to_str(asrch_col, ar), cell_value);
                                     
-                                    if range_ops::cmp_strs(&"Общо", &cell_value)
+                                    if range_ops::cmp_strs(value_pattern, &cell_value)
                                     {
+                                        found_analysis_entry = true;
                                         found_analysis_value = true;
+                                        
+                                        //get the value
                                         analysis_value = ait.get_sheet().get_cell_value((avalu_col, ar)).clone();
+
+                                        //get the analysis string
+                                        analysis_string = ait.get_sheet().get_cell_value((aloop_col, abr+1)).get_value().to_string();
+                                        if let Some(last_part) = analysis_string.split(':').last() 
+                                        {
+                                            analysis_string = last_part.trim().to_string();
+                                        }
+
                                         break;
                                     }
                                 }
+                                break;
                             }
                         }
 
@@ -604,6 +618,9 @@ pub fn get_anaysis_data(
                             if true == found_analysis_value
                             {
                                 info!("Setting value:{} for '{}:[{}:'{}']'", analysis_value.get_value().to_string(), fit.get_sheet().get_name(), range_ops::coords_to_str(fsrch_col, fbr), filtered_cell_value);
+
+                                let dst_cell_desc = fit.get_sheet_mut().get_cell_mut((fdesc_col, fbr));
+                                dst_cell_desc.set_value(analysis_string);
 
                                 let dst_cell_unit_price = fit.get_sheet_mut().get_cell_mut((fupda_col, fbr));
                                 dst_cell_unit_price.set_value(analysis_value.get_value());
@@ -853,8 +870,18 @@ pub fn execute(cfg: &common::Config) -> Result<(), String>
             }
 
             //The entries are filtered in a new sheet. Now get the needed values from analysis table
-            if false == get_anaysis_data(atbl, &"A".to_string(), &"B".to_string(), &"G".to_string(), 
-                                        &mut fotbl, &"C".to_string(), &"F".to_string(), &"G".to_string(), &"E".to_string()) //WARNING: hardcoded values!
+            if false == get_anaysis_data(atbl, 
+                &"A".to_string(), 
+                &"B".to_string(), 
+                &"G".to_string(), 
+                &"Позиция: *, *Основание:(.*)".to_string(),
+                &"Общо".to_string(), 
+                &mut fotbl, 
+                &"C".to_string(), 
+                &"F".to_string(), 
+                &"G".to_string(), 
+                &"E".to_string(), 
+                &"B".to_string()) //WARNING: hardcoded values!
             {
                 error!("Failed to process analysis data from {}:{}", cfg.analysis_file, cfg.analysis_table);
                 return Err(format!("Failed to process analysis data from {}:{}", cfg.analysis_file, cfg.analysis_table));
