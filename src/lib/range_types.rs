@@ -431,12 +431,21 @@ pub struct TagRangeMultiline;
 pub struct RangeGeneric<S, TAG> {
     pub range: Range,
     pub sheet: S,
+    pub current_row: u32,
     _tag: PhantomData<TAG> //needed to create different types of this struct
 }
 
-impl<S, TAG> RangeGeneric<S, TAG> {
-    pub fn new(range: Range, sheet: S) -> Self {
-        Self { range, sheet, _tag: PhantomData }
+impl<S, TAG> RangeGeneric<S, TAG> 
+{
+    pub fn new(p_range: Range, p_sheet: S) -> Self 
+    {
+        let br = *p_range.get_coordinate_start_row().unwrap().get_num();
+        Self { 
+            range:          p_range, 
+            sheet:          p_sheet, 
+            current_row:    br,
+            _tag:           PhantomData 
+        }
     }
 }
 
@@ -492,6 +501,24 @@ impl<S> PartialEq for RangeGeneric<S, TagRangeBasic> {
     fn eq(&self, _other: &Self) -> bool { false }
 }
 
+impl<'a> Iterator for RangeBasic<'a> 
+{
+    type Item = Range;
+
+    fn next(&mut self) -> Option<Self::Item> 
+    {
+        let mut ret: Option<Self::Item> = None;
+
+        let (_, er, bc, ec, _, _) = range_ops::range_bounds(self.get_range()); //(brow, erow, bcol, ecol, rows, cols)
+        if self.current_row <= er 
+        {
+            ret = Some(range_ops::make_range_from_indexes(bc, self.current_row, ec, self.current_row));
+            self.current_row += 1;
+        }
+        ret
+    }
+}
+
 // ----------------------  RangeMergedCells ----------------------
 
 // Implement IRange for RangeMergedCells, as long as 'S' can be converted to Worksheet
@@ -533,6 +560,24 @@ impl<S> PartialEq for RangeGeneric<S, TagRangeMergedCells> {
     fn eq(&self, _other: &Self) -> bool { false }
 }
 
+impl<'a> Iterator for RangeMergedCells<'a> 
+{
+    type Item = Range;
+
+    fn next(&mut self) -> Option<Self::Item> 
+    {
+        let mut ret: Option<Self::Item> = None;
+
+        let (_, er, bc, ec, _, _) = range_ops::range_bounds(self.get_range()); //(brow, erow, bcol, ecol, rows, cols)
+        if self.current_row <= er 
+        {
+            ret = Some(range_ops::make_range_from_indexes(bc, self.current_row, ec, self.current_row));
+            self.current_row += 1;
+        }
+        ret
+    }
+}
+
 // ----------------------  RangeMultiline ----------------------
 
 // Implement IRange for RangeMergedCells, as long as 'S' can be converted to Worksheet
@@ -572,6 +617,24 @@ impl<'a> IRangeMut for RangeMultilineMut<'a> {
 
 impl<S> PartialEq for RangeGeneric<S, TagRangeMultiline> {
     fn eq(&self, _other: &Self) -> bool { false }
+}
+
+impl<'a> Iterator for RangeMultiline<'a> 
+{
+    type Item = Range;
+
+    fn next(&mut self) -> Option<Self::Item> 
+    {
+        let mut ret: Option<Self::Item> = None;
+
+        let (_, er, bc, ec, _, _) = range_ops::range_bounds(self.get_range()); //(brow, erow, bcol, ecol, rows, cols)
+        if self.current_row <= er 
+        {
+            ret = Some(range_ops::make_range_from_indexes(bc, self.current_row, ec, self.current_row));
+            self.current_row += 1;
+        }
+        ret
+    }
 }
 
 // ==========================================
