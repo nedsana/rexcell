@@ -1,12 +1,18 @@
 use umya_spreadsheet::{Range, Worksheet};
 use super::range_ops;
 use std::vec;
+use std::ops::Deref;
+use std::marker::PhantomData;
 use log::{info, error};
 
 fn compare_cell_impl<T>(
-    this: &T,           col_this: u32,  row_this: u32,
-    other: &dyn IRange, col_other: u32, row_other: u32,
-    strict: bool,   _label: &str,
+    this: &T,           
+    col_this: u32,  
+    row_this: u32,
+    other: &dyn IRange, 
+    col_other: u32, 
+    row_other: u32,
+    strict: bool,
 ) -> bool
 where
     T: IRange,
@@ -56,7 +62,6 @@ fn compare_simple_range_impl<T>(
     strict: bool,
     o_use_rows: Option<vec::Vec<u32>>,
     o_use_cols: Option<vec::Vec<u32>>,
-    _label: &str,
 ) -> bool
 where
     T: IRange,
@@ -127,7 +132,6 @@ fn compare_merged_range_impl<T>(
     strict: bool,
     o_use_rows: Option<vec::Vec<u32>>,
     o_use_cols: Option<vec::Vec<u32>>,
-    _label: &str,
 ) -> bool
 where
     T: IRange,
@@ -216,7 +220,6 @@ fn compare_multiline_range_impl<T>(
     strict: bool,
     o_use_rows: Option<vec::Vec<u32>>,
     o_use_cols: Option<vec::Vec<u32>>,
-    _label: &str,
 ) -> bool
 where
     T: IRange,
@@ -318,7 +321,6 @@ fn contains_impl<T>(
     other: &dyn IRange,
     o_use_rows: Option<vec::Vec<u32>>, 
     o_use_cols: Option<vec::Vec<u32>>,
-    _label: &str,
 ) -> bool
 where
     T: IRange,
@@ -422,71 +424,28 @@ pub trait IRangeMut: IRange {
 // STRUCTS
 // ==========================================
 
-pub struct RangeBasic<'a> {
+pub struct TagRangeBasic;
+pub struct TagRangeMergedCells;
+pub struct TagRangeMultiline;
+
+pub struct RangeGeneric<S, TAG> {
     pub range: Range,
-    pub sheet: &'a Worksheet,
+    pub sheet: S,
+    _tag: PhantomData<TAG> //needed to create different types of this struct
 }
 
-pub struct RangeBasicMut<'a> {
-    pub range: Range,
-    pub sheet: &'a mut Worksheet,
-}
-
-pub struct RangeMergedCells<'a> {
-    pub range: Range,
-    pub sheet: &'a Worksheet,
-}
-
-pub struct RangeMergedCellsMut<'a> {
-    pub range: Range,
-    pub sheet: &'a mut Worksheet,
-}
-
-pub struct RangeMultiline<'a> {
-    pub range: Range,
-    pub sheet: &'a Worksheet,
-}
-
-pub struct RangeMultilineMut<'a> {
-    pub range: Range,
-    pub sheet: &'a mut Worksheet,
-}
-
-impl<'a> RangeBasic<'a> {
-    pub fn new(range: Range, sheet: &'a Worksheet) -> Self {
-        Self { range, sheet }
+impl<S, TAG> RangeGeneric<S, TAG> {
+    pub fn new(range: Range, sheet: S) -> Self {
+        Self { range, sheet, _tag: PhantomData }
     }
 }
 
-impl<'a> RangeBasicMut<'a> {
-    pub fn new(range: Range, sheet: &'a mut Worksheet) -> Self {
-        Self { range, sheet }
-    }
-}
-
-impl<'a> RangeMergedCells<'a> {
-    pub fn new(range: Range, sheet: &'a Worksheet) -> Self {
-        Self { range, sheet }
-    }
-}
-
-impl<'a> RangeMergedCellsMut<'a> {
-    pub fn new(range: Range, sheet: &'a mut Worksheet) -> Self {
-        Self { range, sheet }
-    }
-}
-
-impl<'a> RangeMultiline<'a> {
-    pub fn new(range: Range, sheet: &'a Worksheet) -> Self {
-        Self { range, sheet }
-    }
-}
-
-impl<'a> RangeMultilineMut<'a> {
-    pub fn new(range: Range, sheet: &'a mut Worksheet) -> Self {
-        Self { range, sheet }
-    }
-}
+pub type RangeBasic<'a>             = RangeGeneric<&'a Worksheet, TagRangeBasic>;
+pub type RangeBasicMut<'a>          = RangeGeneric<&'a mut Worksheet, TagRangeBasic>;
+pub type RangeMergedCells<'a>       = RangeGeneric<&'a Worksheet, TagRangeMergedCells>;
+pub type RangeMergedCellsMut<'a>    = RangeGeneric<&'a mut Worksheet, TagRangeMergedCells>;
+pub type RangeMultiline<'a>         = RangeGeneric<&'a Worksheet, TagRangeMultiline>;
+pub type RangeMultilineMut<'a>      = RangeGeneric<&'a mut Worksheet, TagRangeMultiline>;
 
 // ==========================================
 // STRUCT IMPLEMENTATION
@@ -494,7 +453,11 @@ impl<'a> RangeMultilineMut<'a> {
 
 // ----------------------  RangeBasic ----------------------
 
-impl<'a> IRange for RangeBasic<'a> {
+// Implement IRange for RangeBasicGeneric, as long as 'S' can be converted to Worksheet
+impl<S> IRange for RangeGeneric<S, TagRangeBasic> 
+where
+    S: Deref<Target = Worksheet>,
+{
     fn get_range(&self) -> &Range {
         &self.range
     }
@@ -503,72 +466,39 @@ impl<'a> IRange for RangeBasic<'a> {
         &self.sheet
     }
 
-    fn contains(&self, other: &dyn IRange, o_use_rows: Option<vec::Vec<u32>>, o_use_cols: Option<vec::Vec<u32>>) -> bool 
-    {
-        contains_impl(self, other, o_use_rows, o_use_cols, "RangeBasic")
+    fn contains(&self, other: &dyn IRange, o_use_rows: Option<vec::Vec<u32>>, o_use_cols: Option<vec::Vec<u32>>) -> bool {
+        contains_impl(self, other, o_use_rows, o_use_cols)
     }
 
-    fn compare_range(&self, other: &dyn IRange, strict: bool, o_use_rows: Option<vec::Vec<u32>>, o_use_cols: Option<vec::Vec<u32>>) -> bool 
-    {
-        compare_simple_range_impl(self, other, strict, o_use_rows, o_use_cols, "RangeBasic")
+    fn compare_range(&self, other: &dyn IRange, strict: bool, o_use_rows: Option<vec::Vec<u32>>, o_use_cols: Option<vec::Vec<u32>>) -> bool {
+        compare_simple_range_impl(self, other, strict, o_use_rows, o_use_cols)
     }
 
-    fn compare_cell(&self, col_this: u32, row_this: u32, other: &dyn IRange, col_other: u32, row_other: u32, strict: bool) -> bool 
-    {
-        compare_cell_impl(self, col_this, row_this, other, col_other, row_other, strict, "RangeBasic")
+    fn compare_cell(&self, col_this: u32, row_this: u32, other: &dyn IRange, col_other: u32, row_other: u32, strict: bool) -> bool {
+        compare_cell_impl(self, col_this, row_this, other, col_other, row_other, strict)
     }
 
     fn get_type(&self) -> IterRowNextKind { IterRowNextKind::Basic }
 }
 
-impl<'a> IRange for RangeBasicMut<'a> {
-    fn get_range(&self) -> &Range {
-        &self.range
-    }
-
-    fn get_sheet(&self) -> &Worksheet {
-        &self.sheet
-    }
-
-    fn contains(&self, other: &dyn IRange, o_use_rows: Option<vec::Vec<u32>>, o_use_cols: Option<vec::Vec<u32>>) -> bool 
-    {
-        contains_impl(self, other, o_use_rows, o_use_cols, "RangeBasicMut")
-    }
-
-    fn compare_range(&self, other: &dyn IRange, strict: bool, o_use_rows: Option<vec::Vec<u32>>, o_use_cols: Option<vec::Vec<u32>>) -> bool 
-    {
-        compare_simple_range_impl(self, other, strict, o_use_rows, o_use_cols, "RangeBasicMut")
-    }
-
-    fn compare_cell(&self, col_this: u32, row_this: u32, other: &dyn IRange, col_other: u32, row_other: u32, strict: bool) -> bool 
-    {
-        compare_cell_impl(self, col_this, row_this, other, col_other, row_other, strict, "RangeBasicMut")
-    }
-
-    fn get_type(&self) -> IterRowNextKind { IterRowNextKind::Basic }
-}
-
+// Explicit mutable interface
 impl<'a> IRangeMut for RangeBasicMut<'a> {
     fn get_sheet_mut(&mut self) -> &mut Worksheet {
         self.sheet
     }
 }
 
-impl<'a> PartialEq for RangeBasic<'a> {
-    fn eq(&self, _other: &Self) -> bool {
-        false
-    }
-}
-
-impl<'a> PartialEq for RangeBasicMut<'a> {
-    fn eq(&self, _other: &Self) -> bool {
-        false
-    }
+impl<S> PartialEq for RangeGeneric<S, TagRangeBasic> {
+    fn eq(&self, _other: &Self) -> bool { false }
 }
 
 // ----------------------  RangeMergedCells ----------------------
 
-impl<'a> IRange for RangeMergedCells<'a> {
+// Implement IRange for RangeMergedCells, as long as 'S' can be converted to Worksheet
+impl<S> IRange for RangeGeneric<S, TagRangeMergedCells> 
+where
+    S: Deref<Target = Worksheet>,
+{
     fn get_range(&self) -> &Range {
         &self.range
     }
@@ -577,72 +507,39 @@ impl<'a> IRange for RangeMergedCells<'a> {
         &self.sheet
     }
 
-    fn contains(&self, other: &dyn IRange, o_use_rows: Option<vec::Vec<u32>>, o_use_cols: Option<vec::Vec<u32>>) -> bool 
-    {
-        contains_impl(self, other, o_use_rows, o_use_cols, "RangeMergedCells")
+    fn contains(&self, other: &dyn IRange, o_use_rows: Option<vec::Vec<u32>>, o_use_cols: Option<vec::Vec<u32>>) -> bool {
+        contains_impl(self, other, o_use_rows, o_use_cols)
     }
 
-    fn compare_range(&self, other: &dyn IRange, strict: bool, o_use_rows: Option<vec::Vec<u32>>, o_use_cols: Option<vec::Vec<u32>>) -> bool 
-    {
-        compare_merged_range_impl(self, other, strict, o_use_rows, o_use_cols, "RangeMergedCells")
+    fn compare_range(&self, other: &dyn IRange, strict: bool, o_use_rows: Option<vec::Vec<u32>>, o_use_cols: Option<vec::Vec<u32>>) -> bool {
+        compare_merged_range_impl(self, other, strict, o_use_rows, o_use_cols)
     }
 
-    fn compare_cell(&self, col_this: u32, row_this: u32, other: &dyn IRange, col_other: u32, row_other: u32, strict: bool) -> bool 
-    {
-        compare_cell_impl(self, col_this, row_this, other, col_other, row_other, strict, "RangeMergedCells")
+    fn compare_cell(&self, col_this: u32, row_this: u32, other: &dyn IRange, col_other: u32, row_other: u32, strict: bool) -> bool {
+        compare_cell_impl(self, col_this, row_this, other, col_other, row_other, strict)
     }
 
-    fn get_type(&self) -> IterRowNextKind { IterRowNextKind::Merged }
+    fn get_type(&self) -> IterRowNextKind { IterRowNextKind::Basic }
 }
 
-impl<'a> IRange for RangeMergedCellsMut<'a> {
-    fn get_range(&self) -> &Range {
-        &self.range
-    }
-
-    fn get_sheet(&self) -> &Worksheet {
-        &self.sheet
-    }
-
-    fn contains(&self, other: &dyn IRange, o_use_rows: Option<vec::Vec<u32>>, o_use_cols: Option<vec::Vec<u32>>) -> bool 
-    {
-        contains_impl(self, other, o_use_rows, o_use_cols, "RangeMergedCellsMut")
-    }
-    
-    fn compare_range(&self, other: &dyn IRange, strict: bool, o_use_rows: Option<vec::Vec<u32>>, o_use_cols: Option<vec::Vec<u32>>) -> bool 
-    {
-        compare_merged_range_impl(self, other, strict, o_use_rows, o_use_cols, "RangeMergedCellsMut")
-    }
-
-    fn compare_cell(&self, col_this: u32, row_this: u32, other: &dyn IRange, col_other: u32, row_other: u32, strict: bool) -> bool 
-    {
-        compare_cell_impl(self, col_this, row_this, other, col_other, row_other, strict, "RangeMergedCellsMut")
-    }
-
-    fn get_type(&self) -> IterRowNextKind { IterRowNextKind::Merged }
-}
-
+// Explicit mutable interface
 impl<'a> IRangeMut for RangeMergedCellsMut<'a> {
     fn get_sheet_mut(&mut self) -> &mut Worksheet {
         self.sheet
     }
 }
 
-impl<'a> PartialEq for RangeMergedCells<'a> {
-    fn eq(&self, _other: &Self) -> bool {
-        false
-    }
-}
-
-impl<'a> PartialEq for RangeMergedCellsMut<'a> {
-    fn eq(&self, _other: &Self) -> bool {
-        false
-    }
+impl<S> PartialEq for RangeGeneric<S, TagRangeMergedCells> {
+    fn eq(&self, _other: &Self) -> bool { false }
 }
 
 // ----------------------  RangeMultiline ----------------------
 
-impl<'a> IRange for RangeMultiline<'a> {
+// Implement IRange for RangeMergedCells, as long as 'S' can be converted to Worksheet
+impl<S> IRange for RangeGeneric<S, TagRangeMultiline> 
+where
+    S: Deref<Target = Worksheet>,
+{
     fn get_range(&self) -> &Range {
         &self.range
     }
@@ -651,67 +548,30 @@ impl<'a> IRange for RangeMultiline<'a> {
         &self.sheet
     }
 
-    fn contains(&self, other: &dyn IRange, o_use_rows: Option<vec::Vec<u32>>, o_use_cols: Option<vec::Vec<u32>>) -> bool 
-    {
-        contains_impl(self, other, o_use_rows, o_use_cols, "RangeMultiline")
+    fn contains(&self, other: &dyn IRange, o_use_rows: Option<vec::Vec<u32>>, o_use_cols: Option<vec::Vec<u32>>) -> bool {
+        contains_impl(self, other, o_use_rows, o_use_cols)
     }
 
-    fn compare_range(&self, other: &dyn IRange, strict: bool, o_use_rows: Option<vec::Vec<u32>>, o_use_cols: Option<vec::Vec<u32>>) -> bool 
-    {
-        compare_multiline_range_impl(self, other, strict, o_use_rows, o_use_cols, "RangeMultiline")
+    fn compare_range(&self, other: &dyn IRange, strict: bool, o_use_rows: Option<vec::Vec<u32>>, o_use_cols: Option<vec::Vec<u32>>) -> bool {
+        compare_multiline_range_impl(self, other, strict, o_use_rows, o_use_cols)
     }
 
-    fn compare_cell(&self, col_this: u32, row_this: u32, other: &dyn IRange, col_other: u32, row_other: u32, strict: bool) -> bool 
-    {
-        compare_cell_impl(self, col_this, row_this, other, col_other, row_other, strict, "RangeMultiline")
+    fn compare_cell(&self, col_this: u32, row_this: u32, other: &dyn IRange, col_other: u32, row_other: u32, strict: bool) -> bool {
+        compare_cell_impl(self, col_this, row_this, other, col_other, row_other, strict)
     }
 
-    fn get_type(&self) -> IterRowNextKind { IterRowNextKind::Multiline }
+    fn get_type(&self) -> IterRowNextKind { IterRowNextKind::Basic }
 }
 
-impl<'a> IRange for RangeMultilineMut<'a> {
-    fn get_range(&self) -> &Range {
-        &self.range
-    }
-
-    fn get_sheet(&self) -> &Worksheet {
-        &self.sheet
-    }
-
-    fn contains(&self, other: &dyn IRange, o_use_rows: Option<vec::Vec<u32>>, o_use_cols: Option<vec::Vec<u32>>) -> bool 
-    {
-        contains_impl(self, other, o_use_rows, o_use_cols, "RangeMultilineMut")
-    }
-
-    fn compare_range(&self, other: &dyn IRange, strict: bool, o_use_rows: Option<vec::Vec<u32>>, o_use_cols: Option<vec::Vec<u32>>) -> bool 
-    {
-        compare_multiline_range_impl(self, other, strict, o_use_rows, o_use_cols, "RangeMultilineMut")
-    }
-
-    fn compare_cell(&self, col_this: u32, row_this: u32, other: &dyn IRange, col_other: u32, row_other: u32, strict: bool) -> bool 
-    {
-        compare_cell_impl(self, col_this, row_this, other, col_other, row_other, strict, "RangeMultilineMut")
-    }
-
-    fn get_type(&self) -> IterRowNextKind { IterRowNextKind::Multiline }
-}
-
+// Explicit mutable interface
 impl<'a> IRangeMut for RangeMultilineMut<'a> {
     fn get_sheet_mut(&mut self) -> &mut Worksheet {
         self.sheet
     }
 }
 
-impl<'a> PartialEq for RangeMultiline<'a> {
-    fn eq(&self, _other: &Self) -> bool {
-	    false
-    }
-}
-
-impl<'a> PartialEq for RangeMultilineMut<'a> {
-    fn eq(&self, _other: &Self) -> bool {
-	    false
-    }
+impl<S> PartialEq for RangeGeneric<S, TagRangeMultiline> {
+    fn eq(&self, _other: &Self) -> bool { false }
 }
 
 // ==========================================

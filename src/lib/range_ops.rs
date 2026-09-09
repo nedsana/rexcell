@@ -944,9 +944,9 @@ fn iter_row_next_impl<'a>(
     let mut ret: Option<range_types::RangeType<'a>> = None;
     match iter_row_next_impl_shared(sheet, current_row, max_row, max_col, pivot_col, pivot_numeric, pivot_re, offsets) 
     {
-        Some((range, range_types::IterRowNextKind::Basic)) => ret = Some(range_types::RangeType::Basic(range_types::RangeBasic { range, sheet })),
-        Some((range, range_types::IterRowNextKind::Merged)) => ret = Some(range_types::RangeType::Merged(range_types::RangeMergedCells { range, sheet })),
-        Some((range, range_types::IterRowNextKind::Multiline)) => ret = Some(range_types::RangeType::Multiline(range_types::RangeMultiline { range, sheet })),
+        Some((range, range_types::IterRowNextKind::Basic)) => ret = Some(range_types::RangeType::Basic(range_types::RangeBasic::new(range,sheet))),
+        Some((range, range_types::IterRowNextKind::Merged)) => ret = Some(range_types::RangeType::Merged(range_types::RangeMergedCells::new(range,sheet))),
+        Some((range, range_types::IterRowNextKind::Multiline)) => ret = Some(range_types::RangeType::Multiline(range_types::RangeMultiline::new(range,sheet))),
         None => (),
     }
     ret
@@ -967,9 +967,9 @@ fn iter_row_next_impl_mut<'a>(
     let mut ret: Option<range_types::RangeTypeMut<'a>> = None;
     match iter_row_next_impl_shared(sheet, current_row, max_row, max_col, pivot_col, pivot_numeric, pivot_re, offsets) 
     {
-        Some((range, range_types::IterRowNextKind::Basic)) => ret = Some(range_types::RangeTypeMut::Basic(range_types::RangeBasicMut { range, sheet })),
-        Some((range, range_types::IterRowNextKind::Merged)) => ret = Some(range_types::RangeTypeMut::Merged(range_types::RangeMergedCellsMut { range, sheet })),
-        Some((range, range_types::IterRowNextKind::Multiline)) => ret = Some(range_types::RangeTypeMut::Multiline(range_types::RangeMultilineMut { range, sheet })),
+        Some((range, range_types::IterRowNextKind::Basic)) => ret = Some(range_types::RangeTypeMut::Basic(range_types::RangeBasicMut::new(range,sheet))),
+        Some((range, range_types::IterRowNextKind::Merged)) => ret = Some(range_types::RangeTypeMut::Merged(range_types::RangeMergedCellsMut::new(range,sheet))),
+        Some((range, range_types::IterRowNextKind::Multiline)) => ret = Some(range_types::RangeTypeMut::Multiline(range_types::RangeMultilineMut::new(range,sheet))),
         None => (),
     }
     ret
