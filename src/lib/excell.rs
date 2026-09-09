@@ -517,27 +517,30 @@ pub fn filter_sheet_by_col_and_accum(
  * get_anaysis_data(atbl, &"A,B,G".to_string(), &mut fotbl, &cfg.tgt_src_col, &"C,F,G".to_string())
  */
 pub fn get_anaysis_data(
-    sheet_analysis: &Worksheet, 
-    cols_to_read:   &String,
-    sheet_filtered: &mut Worksheet,
-    cols_pivot:     &String,
-    cols_to_update: &String
+    sheet_analysis:     &Worksheet, 
+    col_loop_analysis:  &String,
+    col_srch_analysis:  &String,
+    col_valu_analysis:  &String,
+    sheet_filtered:     &mut Worksheet,
+    col_srch_filtered:  &String,
+    col_upda_filtered:  &String,
+    col_tota_filtered:  &String,
+    col_quan_filtered:  &String,
 ) -> bool 
 {
     let max_row = common::MAX_ROW; //sheet_in.get_highest_row();
     let max_col = common::MAX_COL; //sheet_in.get_highest_column();
 
-    let mut res: bool = true;
+    let mut res: bool = false;
 
-    let read_cols: Vec<u32> = cols_to_read.split(',').map(|s| range_ops::column_to_index(s.trim())).collect();
-    let pivot_cols: Vec<u32> = cols_pivot.split(',').map(|s| range_ops::column_to_index(s.trim())).collect();
-    let update_cols: Vec<u32> = cols_to_update.split(',').map(|s| range_ops::column_to_index(s.trim())).collect();
+    let aloop_col = range_ops::column_to_index(col_loop_analysis);
+    let asrch_col = range_ops::column_to_index(col_srch_analysis);
+    let avalu_col = range_ops::column_to_index(col_valu_analysis);
 
-    if read_cols.len() != update_cols.len()
-    {
-        error!("Columns to update (len:{}) must be the same count as the columns to read (len:{})!", update_cols.len(), read_cols.len());
-        return false;
-    }
+    let fsrch_col = range_ops::column_to_index(col_srch_filtered);
+    let fupda_col = range_ops::column_to_index(col_upda_filtered);
+    let ftota_col = range_ops::column_to_index(col_tota_filtered);
+    let fquan_col = range_ops::column_to_index(col_quan_filtered);
 
     match range_ops::IterRowMut::new(sheet_filtered, max_row, max_col, 1, true, "-", range_ops::Offsets::default())
     {
@@ -553,7 +556,7 @@ pub fn get_anaysis_data(
                     continue;
                 }
 
-                let filtered_cell_value = fit.get_sheet().get_cell_value((pivot_cols[0], fbr)).get_value();
+                let filtered_cell_value = fit.get_sheet().get_cell_value((fsrch_col, fbr)).get_value();
 
                 match range_ops::IterRow::new(sheet_analysis, max_row, max_col, 1, false, "Позиция: *, *Основание:.*", range_ops::Offsets::new(0,0,-1,-1))
                 {
@@ -561,31 +564,31 @@ pub fn get_anaysis_data(
                     {
                         let mut found_analysis_entry = false;
                         let mut found_analysis_value = false;
-                        let mut analysis_value = "".to_string();
+                        let mut analysis_value = CellValue::default();
 
                         for ait in analysis_sheet_it
                         {
                             let (abr, aer, _abc, _aec, _, _) = range_ops::range_bounds(ait.get_range()); //(brow, erow, bcol, ecol, rows, cols)
 
-                            let analysis_cell_value = ait.get_sheet().get_cell_value((read_cols[0], abr)).get_value();
+                            let analysis_cell_value = ait.get_sheet().get_cell_value((aloop_col, abr)).get_value();
 
                             if range_ops::cmp_strs(&filtered_cell_value, &analysis_cell_value)
                             {
                                 found_analysis_entry = true;
 
-                                info!("Found analysis section for '{}:[{}:'{}']'", ait.get_sheet().get_name(), range_ops::coords_to_str(read_cols[0], abr), analysis_cell_value);
+                                info!("Found analysis section for '{}:[{}:'{}']'", ait.get_sheet().get_name(), range_ops::coords_to_str(aloop_col, abr), analysis_cell_value);
 
                                 //loop backwards and get the last "Общо" entry
                                 for ar in (abr..=aer).rev()
                                 {
-                                    let cell_value = ait.get_sheet().get_cell_value((read_cols[1], ar)).get_value();
+                                    let cell_value = ait.get_sheet().get_cell_value((asrch_col, ar)).get_value();
 
-                                    // info!("Scanning '{}:[{}:'{}']'", ait.get_sheet().get_name(), range_ops::coords_to_str(read_cols[1], ar), cell_value);
+                                    // info!("Scanning '{}:[{}:'{}']'", ait.get_sheet().get_name(), range_ops::coords_to_str(asrch_col, ar), cell_value);
                                     
                                     if range_ops::cmp_strs(&"Общо", &cell_value)
                                     {
                                         found_analysis_value = true;
-                                        analysis_value = ait.get_sheet().get_cell_value((read_cols[2], ar)).get_value().to_string();
+                                        analysis_value = ait.get_sheet().get_cell_value((avalu_col, ar)).clone();
                                         break;
                                     }
                                 }
@@ -594,17 +597,42 @@ pub fn get_anaysis_data(
 
                         if false == found_analysis_entry
                         {
-                            error!("Failed to find analysis section for '{}:[{}:'{}']'", fit.get_sheet().get_name(), range_ops::coords_to_str(pivot_cols[0], fbr), filtered_cell_value);
+                            error!("Failed to find analysis section for '{}:[{}:'{}']'", fit.get_sheet().get_name(), range_ops::coords_to_str(fsrch_col, fbr), filtered_cell_value);
                         }
                         else
                         {
                             if true == found_analysis_value
                             {
-                                info!("Setting value:{} for '{}:[{}:'{}']'", analysis_value, fit.get_sheet().get_name(), range_ops::coords_to_str(pivot_cols[0], fbr), filtered_cell_value);
+                                info!("Setting value:{} for '{}:[{}:'{}']'", analysis_value.get_value().to_string(), fit.get_sheet().get_name(), range_ops::coords_to_str(fsrch_col, fbr), filtered_cell_value);
 
-                                let dst_cell = fit.get_sheet_mut().get_cell_mut((update_cols[2], fbr));
+                                let dst_cell_unit_price = fit.get_sheet_mut().get_cell_mut((fupda_col, fbr));
+                                dst_cell_unit_price.set_value(analysis_value.get_value());
 
-                                dst_cell.set_value(analysis_value);
+                                //get the quantity column
+                                match fit.get_sheet().get_cell((fquan_col, fbr))
+                                {
+                                    Some(quantity_value) =>
+                                    {
+                                        if quantity_value.get_data_type() == "n" && let Some(qnum) = quantity_value.get_value_number() && 
+                                           analysis_value.get_data_type() == "n" && let Some(anum) = analysis_value.get_value_number()
+                                        {
+                                            let dst_cell_total_price = fit.get_sheet_mut().get_cell_mut((ftota_col, fbr));
+                                            dst_cell_total_price.set_value_number(qnum * anum);
+
+                                            res = true;
+                                        } 
+                                        else 
+                                        {
+                                            error!("Trying to multiply none-numeric values! {}:{}='{}' and {}:{}='{}'", 
+                                                    fit.get_sheet().get_name(), range_ops::coords_to_str(fquan_col, fbr), quantity_value.get_value().to_string(),
+                                                    fit.get_sheet().get_name(), range_ops::coords_to_str(fupda_col, fbr), analysis_value.get_value().to_string());
+                                        }
+                                    }
+                                    None => 
+                                    {
+                                        error!("Failed to read value from {}:{}", fit.get_sheet().get_name(), range_ops::coords_to_str(fquan_col, fbr));
+                                    }
+                                }
                             }
                         }
                     },
@@ -615,8 +643,7 @@ pub fn get_anaysis_data(
                 }
 
                 debug!("========================================================");
-                // process::exit(1);
-                // return res;
+
             }
             info!("Finished analysis loop, exiting");
         },
@@ -826,7 +853,8 @@ pub fn execute(cfg: &common::Config) -> Result<(), String>
             }
 
             //The entries are filtered in a new sheet. Now get the needed values from analysis table
-            if false == get_anaysis_data(atbl, &"A,B,G".to_string(), &mut fotbl, &cfg.tgt_src_col, &"C,F,F".to_string()) //WARNING: hardcoded values!
+            if false == get_anaysis_data(atbl, &"A".to_string(), &"B".to_string(), &"G".to_string(), 
+                                        &mut fotbl, &"C".to_string(), &"F".to_string(), &"G".to_string(), &"E".to_string()) //WARNING: hardcoded values!
             {
                 error!("Failed to process analysis data from {}:{}", cfg.analysis_file, cfg.analysis_table);
                 return Err(format!("Failed to process analysis data from {}:{}", cfg.analysis_file, cfg.analysis_table));
@@ -839,7 +867,6 @@ pub fn execute(cfg: &common::Config) -> Result<(), String>
                 error!("{}:{}", common::ERROR_FAILED_TO_ADD_SHEET, err);
                 return Err(format!("{}:{}", common::ERROR_FAILED_TO_ADD_SHEET, err));
             };
-
         },
 
         _ => 
