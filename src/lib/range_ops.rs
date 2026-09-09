@@ -892,7 +892,7 @@ fn iter_row_next_impl_shared<'a>(
 
             if is_last_row
             {
-                warn!("Last row '{}' was processed!", *current_row);
+                // warn!("Last row '{}' was processed!", *current_row);
             }
             else
             {
