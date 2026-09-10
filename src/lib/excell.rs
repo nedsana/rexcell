@@ -179,12 +179,8 @@ pub fn apply_key_value_data_by_strings(
         return Err(common::ERROR_DEST_COL_NOT_DEFINED.to_string());
     }
 
-    debug!("apply_key_value_data_by_strings(rtbl:{}, utbl:{}, col_key:{}, col_upd:{}", rtbl.get_name().to_string(), utbl.get_name().to_string(), col_key, cols_upd);
-
     for col_upd in cols_upd.split(',') 
     {
-        debug!("apply_key_value_data_by_indexes(rtbl:{}, utbl:{}, col_key:{}, col_upd:{}", rtbl.get_name().to_string(), utbl.get_name().to_string(), col_key, col_upd);
-
         if let Err(err) = apply_key_value_data_by_indexes(rtbl, utbl, range_ops::column_to_index(col_key), range_ops::column_to_index(col_upd)) 
         {
             error!("{}", err);
@@ -517,23 +513,33 @@ pub fn filter_sheet_by_col_and_accum(
 }
 
 /**
- * get_anaysis_data(atbl, &mut fotbl, &cfg.tgt_src_col, &cfg.tgt_dest_col)
- * get_anaysis_data(atbl, &"A,G".to_string(), &mut fotbl, &cfg.tgt_src_col, &"B,F".to_string())
- * get_anaysis_data(atbl, &"A,B,G".to_string(), &mut fotbl, &cfg.tgt_src_col, &"C,F,G".to_string())
+ * Get the necessary data from the analysis sheet and add it to the filtered sheet
+ * analysis_sheet    - the sheet with analysis data
+ * analysis_col_srch - the column, from analysis sheet, we search to find the text from 'analysis_srch_pat' (beg range, holding all rows for this section)
+ * analysis_col_term - the column, from analysis sheet, we search to find the text from 'analysis_term_pat' (end range, holding all rows for this section)
+ * analysis_col_valu - the column, from analysis sheet, we search to find the value, we are interested in from this section
+ * analysis_srch_pat - the text we use to find the start of the section from analysis sheet
+ * analysis_term_pat - the text we use to find the end of the section from analysis sheet
+ * filtered_sheet    - the sheet with filtered data
+ * filtered_col_srch - the column, from filtered sheet, we search to find the text from 'analysis_srch_pat'
+ * filtered_col_upda - the column, from filtered sheet, we want to update with the data from 'analysis_col_valu'
+ * filtered_col_tota - the column, from filtered sheet, where we write the calculation for total (filtered_col_upda * filtered_col_quan)
+ * filtered_col_quan - the column, from filtered sheet, we use to calculate total
+ * filtered_col_desc - the column, from filtered sheet, we want to update with the data from 'analysis_col_srch'
  */
 pub fn get_anaysis_data(
-    sheet_analysis:     &Worksheet, 
-    col_loop_analysis:  &String,
-    col_srch_analysis:  &String,
-    col_valu_analysis:  &String,
-    loop_pattern:       &String,
-    value_pattern:      &String,
-    sheet_filtered:     &mut Worksheet,
-    col_srch_filtered:  &String,
-    col_upda_filtered:  &String,
-    col_tota_filtered:  &String,
-    col_quan_filtered:  &String,
-    col_desc_filtered:  &String,
+    analysis_sheet:     &Worksheet, 
+    analysis_col_srch:  &String,
+    analysis_col_term:  &String,
+    analysis_col_valu:  &String,
+    analysis_srch_pat:  &String,
+    analysis_term_pat:  &String,
+    filtered_sheet:     &mut Worksheet,
+    filtered_col_srch:  &String,
+    filtered_col_upda:  &String,
+    filtered_col_tota:  &String,
+    filtered_col_quan:  &String,
+    filtered_col_desc:  &String,
 ) -> bool 
 {
     let max_row = common::MAX_ROW; //sheet_in.get_highest_row();
@@ -541,17 +547,17 @@ pub fn get_anaysis_data(
 
     let mut res: bool = false;
 
-    let aloop_col = range_ops::column_to_index(col_loop_analysis);
-    let asrch_col = range_ops::column_to_index(col_srch_analysis);
-    let avalu_col = range_ops::column_to_index(col_valu_analysis);
+    let aloop_col = range_ops::column_to_index(analysis_col_srch);
+    let asrch_col = range_ops::column_to_index(analysis_col_term);
+    let avalu_col = range_ops::column_to_index(analysis_col_valu);
 
-    let fsrch_col = range_ops::column_to_index(col_srch_filtered);
-    let fupda_col = range_ops::column_to_index(col_upda_filtered);
-    let ftota_col = range_ops::column_to_index(col_tota_filtered);
-    let fquan_col = range_ops::column_to_index(col_quan_filtered);
-    let fdesc_col = range_ops::column_to_index(col_desc_filtered);
+    let fsrch_col = range_ops::column_to_index(filtered_col_srch);
+    let fupda_col = range_ops::column_to_index(filtered_col_upda);
+    let ftota_col = range_ops::column_to_index(filtered_col_tota);
+    let fquan_col = range_ops::column_to_index(filtered_col_quan);
+    let fdesc_col = range_ops::column_to_index(filtered_col_desc);
 
-    match range_ops::IterRowMut::new(sheet_filtered, max_row, max_col, 1, true, "-", range_ops::Offsets::default())
+    match range_ops::IterRowMut::new(filtered_sheet, max_row, max_col, 1, true, "-", range_ops::Offsets::default())
     {
         Ok(mut filtered_sheet_it) => 
         {
@@ -573,7 +579,7 @@ pub fn get_anaysis_data(
 
                     let filtered_cell_value = fit.get_sheet().get_cell_value((fsrch_col, fbr)).get_value();
 
-                    match range_ops::IterRow::new(sheet_analysis, max_row, max_col, 1, false, loop_pattern, range_ops::Offsets::new(0,0,-1,-1))
+                    match range_ops::IterRow::new(analysis_sheet, max_row, max_col, 1, false, analysis_srch_pat, range_ops::Offsets::new(0,0,-1,-1))
                     {
                         Ok(analysis_sheet_it) => 
                         {
@@ -592,13 +598,13 @@ pub fn get_anaysis_data(
                                 {
                                     info!("Found analysis section for '{}:[{}:'{}']'", ait.get_sheet().get_name(), range_ops::coords_to_str(aloop_col, abr), analysis_cell_value);
 
-                                    for ar in (abr..=aer).rev() //loop backwards and get the last value_pattern entry
+                                    for ar in (abr..=aer).rev() //loop backwards and get the last analysis_term_pat entry
                                     {
                                         let cell_value = ait.get_sheet().get_cell_value((asrch_col, ar)).get_value();
 
                                         // info!("Scanning '{}:[{}:'{}']'", ait.get_sheet().get_name(), range_ops::coords_to_str(asrch_col, ar), cell_value);
 
-                                        if range_ops::cmp_strs(value_pattern, &cell_value)
+                                        if range_ops::cmp_strs(analysis_term_pat, &cell_value)
                                         {
                                             found_analysis_entry = true;
                                             found_analysis_value = true;
