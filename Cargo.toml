@@ -11,6 +11,7 @@ rfd = "0.12"
 log = "0.4"
 fern = "0.6"
 regex = "1.10"
+evalexpr = "13.1"
 
 [[bin]]
 name = "gui"

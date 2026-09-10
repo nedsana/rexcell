@@ -6,6 +6,8 @@ use crate::range_types::*;
 use log::{debug, info, warn, error};
 use super::common;
 use super::range_ops;
+use evalexpr::*;
+use std::collections::BTreeSet;
 
 pub fn get_ref_map_by_indexes(sheet: &Worksheet, col_key: u32, col_value: u32) -> HashMap<String, String> {
     let mut ref_map: HashMap<String, String> = HashMap::new();
@@ -514,32 +516,28 @@ pub fn filter_sheet_by_col_and_accum(
 
 /**
  * Get the necessary data from the analysis sheet and add it to the filtered sheet
- * analysis_sheet    - the sheet with analysis data
- * analysis_col_srch - the column, from analysis sheet, we search to find the text from 'analysis_srch_pat' (beg range, holding all rows for this section)
- * analysis_col_term - the column, from analysis sheet, we search to find the text from 'analysis_term_pat' (end range, holding all rows for this section)
- * analysis_col_valu - the column, from analysis sheet, we search to find the value, we are interested in from this section
- * analysis_srch_pat - the text we use to find the start of the section from analysis sheet
- * analysis_term_pat - the text we use to find the end of the section from analysis sheet
- * filtered_sheet    - the sheet with filtered data
- * filtered_col_srch - the column, from filtered sheet, we search to find the text from 'analysis_srch_pat'
- * filtered_col_upda - the column, from filtered sheet, we want to update with the data from 'analysis_col_valu'
- * filtered_col_tota - the column, from filtered sheet, where we write the calculation for total (filtered_col_upda * filtered_col_quan)
- * filtered_col_quan - the column, from filtered sheet, we use to calculate total
- * filtered_col_desc - the column, from filtered sheet, we want to update with the data from 'analysis_col_srch'
+ * analysis_sheet     - the sheet with analysis data
+ * analysis_col_srch  - the column, from analysis sheet, we search to find the text from 'analysis_srch_pat' (beg range, holding all rows for this section)
+ * analysis_col_term  - the column, from analysis sheet, we search to find the text from 'analysis_term_pat' (end range, holding all rows for this section)
+ * analysis_cols_copy_from - the columns (comma separated), we want to copy to the filtered sheet
+ * analysis_srch_pat  - the text we use to find the start of the section from analysis sheet
+ * analysis_term_pat  - the text we use to find the end of the section from analysis sheet
+ * filtered_sheet     - the sheet with filtered data
+ * filtered_col_srch  - the column, from filtered sheet, we search to find the text from 'analysis_srch_pat'
+ * filtered_cols_copy_dst - the columns (comma separated), we want to copy from the analysis sheet
+ * filtered_calculations  - calculations (comma separated), we want to apply to the filtered sheet
  */
 pub fn get_anaysis_data(
-    analysis_sheet:     &Worksheet, 
-    analysis_col_srch:  &String,
-    analysis_col_term:  &String,
-    analysis_col_valu:  &String,
-    analysis_srch_pat:  &String,
-    analysis_term_pat:  &String,
-    filtered_sheet:     &mut Worksheet,
-    filtered_col_srch:  &String,
-    filtered_col_upda:  &String,
-    filtered_col_tota:  &String,
-    filtered_col_quan:  &String,
-    filtered_col_desc:  &String,
+    analysis_sheet:          &Worksheet, 
+    analysis_col_srch:       &String,
+    analysis_col_term:       &String,
+    analysis_cols_copy_src:  &String,
+    analysis_srch_pat:       &String,
+    analysis_term_pat:       &String,
+    filtered_sheet:          &mut Worksheet,
+    filtered_col_srch:       &String,
+    filtered_cols_copy_dst:  &String,
+    filtered_calculations:   &String,
 ) -> bool 
 {
     let max_row = common::MAX_ROW; //sheet_in.get_highest_row();
@@ -549,13 +547,23 @@ pub fn get_anaysis_data(
 
     let aloop_col = range_ops::column_to_index(analysis_col_srch);
     let asrch_col = range_ops::column_to_index(analysis_col_term);
-    let avalu_col = range_ops::column_to_index(analysis_col_valu);
+    // let avalu_col = range_ops::column_to_index(analysis_cols_copy_from);
+
+    let acols_copy_src: Vec<u32> = analysis_cols_copy_src.split(',').map(|s| range_ops::column_to_index(s.trim())).collect();
+    let fcols_copy_dst: Vec<u32> = filtered_cols_copy_dst.split(',').map(|s| range_ops::column_to_index(s.trim())).collect();
+    let fcalculations: Vec<String> = filtered_calculations.split(',').map(|s| s.trim().to_string()).collect();
+
+    if acols_copy_src.len() != fcols_copy_dst.len()
+    {
+        error!("Columns to copy from (len:{}) must be the same as the columns to copy to (len:{})! ", acols_copy_src.len(), fcols_copy_dst.len());
+        return res;
+    }
 
     let fsrch_col = range_ops::column_to_index(filtered_col_srch);
-    let fupda_col = range_ops::column_to_index(filtered_col_upda);
-    let ftota_col = range_ops::column_to_index(filtered_col_tota);
-    let fquan_col = range_ops::column_to_index(filtered_col_quan);
-    let fdesc_col = range_ops::column_to_index(filtered_col_desc);
+    // let fupda_col = range_ops::column_to_index(filtered_col_upda);
+    // let ftota_col = range_ops::column_to_index(filtered_col_tota);
+    // let fquan_col = range_ops::column_to_index(filtered_col_quan);
+    // let fdesc_col = range_ops::column_to_index(filtered_col_desc);
 
     match range_ops::IterRowMut::new(filtered_sheet, max_row, max_col, 1, true, "-", range_ops::Offsets::default())
     {
@@ -585,8 +593,10 @@ pub fn get_anaysis_data(
                         {
                             let mut found_analysis_entry = false;
                             let mut found_analysis_value = false;
-                            let mut analysis_value = CellValue::default();
-                            let mut analysis_string = String::default();
+                            // let mut analysis_value = CellValue::default();
+                            // let mut analysis_string = String::default();
+
+                            let mut analysis_data_to_copy: Vec<CellValue> = Vec::new();
 
                             for ait in analysis_sheet_it
                             {
@@ -609,16 +619,17 @@ pub fn get_anaysis_data(
                                             found_analysis_entry = true;
                                             found_analysis_value = true;
 
-                                            //get the value
-                                            analysis_value = ait.get_sheet().get_cell_value((avalu_col, ar)).clone();
-
-                                            //get the analysis string
-                                            analysis_string = ait.get_sheet().get_cell_value((aloop_col, abr+1)).get_value().to_string();
-                                            if let Some(last_part) = analysis_string.split(':').last() 
+                                            for cpcol in &acols_copy_src
                                             {
-                                                analysis_string = last_part.trim().to_string();
+                                                if *cpcol == aloop_col
+                                                {
+                                                    analysis_data_to_copy.push(ait.get_sheet().get_cell_value((*cpcol, abr+1)).clone());
+                                                }
+                                                else
+                                                {
+                                                    analysis_data_to_copy.push(ait.get_sheet().get_cell_value((*cpcol, ar)).clone());
+                                                }
                                             }
-
                                             break;
                                         }
                                     }
@@ -634,39 +645,132 @@ pub fn get_anaysis_data(
                             {
                                 if true == found_analysis_value
                                 {
-                                    info!("Setting value:{} for '{}:[{}:'{}']'", analysis_value.get_value().to_string(), fit.get_sheet().get_name(), range_ops::coords_to_str(fsrch_col, fbr), filtered_cell_value);
-
-                                    let dst_cell_desc = fit.get_sheet_mut().get_cell_mut((fdesc_col, fbr));
-                                    dst_cell_desc.set_value(analysis_string);
-
-                                    let dst_cell_unit_price = fit.get_sheet_mut().get_cell_mut((fupda_col, fbr));
-                                    dst_cell_unit_price.set_value(analysis_value.get_value());
-
-                                    //get the quantity column
-                                    match fit.get_sheet().get_cell((fquan_col, fbr))
+                                    for (col_dst, data_to_copy) in fcols_copy_dst.iter().zip(analysis_data_to_copy.iter())
                                     {
-                                        Some(quantity_value) =>
-                                        {
-                                            if quantity_value.get_data_type() == "n" && let Some(qnum) = quantity_value.get_value_number() && 
-                                            analysis_value.get_data_type() == "n" && let Some(anum) = analysis_value.get_value_number()
-                                            {
-                                                let dst_cell_total_price = fit.get_sheet_mut().get_cell_mut((ftota_col, fbr));
-                                                dst_cell_total_price.set_value_number(qnum * anum);
+                                        info!("Setting value:{} for '{}:[{}:'{}']'", data_to_copy.get_value().to_string(), fit.get_sheet().get_name(), range_ops::coords_to_str(*col_dst, fbr), filtered_cell_value);
 
-                                                res = true;
-                                            } 
-                                            else 
+                                        let mut s_data_to_copy = data_to_copy.get_value().to_string();
+
+                                        if let Some(last_part) = s_data_to_copy.split(':').last() 
+                                        {
+                                            s_data_to_copy = last_part.trim().to_string();
+                                        }
+
+                                        let dst_cell_desc = fit.get_sheet_mut().get_cell_mut((*col_dst, fbr));
+
+                                        dst_cell_desc.set_value(s_data_to_copy);
+                                    }
+
+                                    for scalc in &fcalculations
+                                    {
+                                        info!("Calculation:{}", scalc);
+
+                                        match build_operator_tree::<DefaultNumericTypes>(scalc)
+                                        {
+                                            Ok(expr) => 
                                             {
-                                                error!("Trying to multiply none-numeric values! {}:{}='{}' and {}:{}='{}'", 
-                                                        fit.get_sheet().get_name(), range_ops::coords_to_str(fquan_col, fbr), quantity_value.get_value().to_string(),
-                                                        fit.get_sheet().get_name(), range_ops::coords_to_str(fupda_col, fbr), analysis_value.get_value().to_string());
+                                                let mut scalc_cols: Vec<&str> = expr.iter_variable_identifiers().collect();
+
+                                                let dst_col = range_ops::column_to_index(scalc_cols.remove(0));
+
+                                                let mut context = HashMapContext::<DefaultNumericTypes>::new();
+
+                                                for scalc_col in scalc_cols
+                                                {
+                                                    let calc_col = range_ops::column_to_index(scalc_col);
+
+                                                    //get the columns from the formula
+                                                    let mut cell_val = 0.0;
+                                                    match fit.get_sheet().get_cell((calc_col, fbr))
+                                                    {
+                                                        Some(calc_col_val) =>
+                                                        {
+                                                            if calc_col_val.get_data_type() == "n" && let Some(num) = calc_col_val.get_value_number()
+                                                            {
+                                                                cell_val = num;
+                                                            } 
+                                                        }
+                                                        None => 
+                                                        {
+                                                            error!("Failed to read value from {}:{}", fit.get_sheet().get_name(), range_ops::coords_to_str(calc_col, fbr));
+                                                        }
+                                                    }
+
+                                                    context.set_value(scalc_col.into(), Value::Float(cell_val)).unwrap();
+                                                }
+
+                                                match expr.eval_with_context(&context)
+                                                {
+                                                    Ok(result) =>
+                                                    {
+                                                        error!("result: {}", result); //DELETE_ME
+
+                                                        let final_f64: f64 = match result 
+                                                        {
+                                                            Value::Float(f) => f,          // Ако е Float, го вземаме директно
+                                                            Value::Int(i) => i as f64,     // Ако е Int (напр. формулата е върнала точно 5), го кастваме
+                                                            _ => {
+                                                                error!("Evaluating expression did not return a numer!");
+                                                                0.0
+                                                            }
+                                                        };
+                                                        
+                                                        let dst_cell_total_price = fit.get_sheet_mut().get_cell_mut((dst_col, fbr));
+
+                                                        dst_cell_total_price.set_value_number(final_f64);
+                                                    }
+                                                    Err(err) => 
+                                                    {
+                                                        error!("Evaluating expression failed: {}", err);
+                                                    }
+                                                }
+                                            },
+                                            Err(err) => 
+                                            {
+                                                error!("Failed to create calculation expression: {}", err);
                                             }
                                         }
-                                        None => 
-                                        {
-                                            error!("Failed to read value from {}:{}", fit.get_sheet().get_name(), range_ops::coords_to_str(fquan_col, fbr));
-                                        }
                                     }
+
+                                    res = true;
+                                    
+                                    // info!("Setting value:{} for '{}:[{}:'{}']'", analysis_value.get_value().to_string(), fit.get_sheet().get_name(), range_ops::coords_to_str(fsrch_col, fbr), filtered_cell_value);
+
+                                    // let dst_cell_desc = fit.get_sheet_mut().get_cell_mut((fdesc_col, fbr));
+                                    // dst_cell_desc.set_value(analysis_string);
+
+                                    // let dst_cell_unit_price = fit.get_sheet_mut().get_cell_mut((fupda_col, fbr));
+                                    // dst_cell_unit_price.set_value(analysis_value.get_value());
+
+                                    // //get the quantity column
+                                    // match fit.get_sheet().get_cell((fquan_col, fbr))
+                                    // {
+                                    //     Some(quantity_value) =>
+                                    //     {
+                                    //         if quantity_value.get_data_type() == "n" && let Some(qnum) = quantity_value.get_value_number() && 
+                                    //         analysis_value.get_data_type() == "n" && let Some(anum) = analysis_value.get_value_number()
+                                    //         {
+                                    //             let dst_cell_total_price = fit.get_sheet_mut().get_cell_mut((ftota_col, fbr));
+                                    //             dst_cell_total_price.set_value_number(qnum * anum);
+
+                                    //             res = true;
+                                    //         } 
+                                    //         else 
+                                    //         {
+                                    //             error!("Trying to multiply none-numeric values! {}:{}='{}' and {}:{}='{}'", 
+                                    //                     fit.get_sheet().get_name(), range_ops::coords_to_str(fquan_col, fbr), quantity_value.get_value().to_string(),
+                                    //                     fit.get_sheet().get_name(), range_ops::coords_to_str(fupda_col, fbr), analysis_value.get_value().to_string());
+                                    //         }
+                                    //     }
+                                    //     None => 
+                                    //     {
+                                    //         error!("Failed to read value from {}:{}", fit.get_sheet().get_name(), range_ops::coords_to_str(fquan_col, fbr));
+                                    //     }
+                                    // }
+                                }
+                                else
+                                {
+                                    error!("Failed to find analysis value for '{}:[{}:'{}']'", fit.get_sheet().get_name(), range_ops::coords_to_str(fsrch_col, fbr), filtered_cell_value);
                                 }
                             }
                         },
@@ -892,15 +996,13 @@ pub fn execute(cfg: &common::Config) -> Result<(), String>
             if false == get_anaysis_data(atbl, 
                 &"A".to_string(), 
                 &"B".to_string(), 
-                &"G".to_string(), 
+                &"A,G".to_string(), 
                 &"Позиция: *, *Основание:(.*)".to_string(),
                 &"Общо".to_string(), 
                 &mut fotbl, 
                 &"C".to_string(), 
-                &"F".to_string(), 
-                &"G".to_string(), 
-                &"E".to_string(), 
-                &"B".to_string()) //WARNING: hardcoded values!
+                &"B,F".to_string(), 
+                &"G=E*F".to_string()) //WARNING: hardcoded values!
             {
                 error!("Failed to process analysis data from {}:{}", cfg.analysis_file, cfg.analysis_table);
                 return Err(format!("Failed to process analysis data from {}:{}", cfg.analysis_file, cfg.analysis_table));
