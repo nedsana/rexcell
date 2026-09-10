@@ -421,6 +421,7 @@ pub trait IRangeMut: IRange {
     fn get_sheet_mut(&mut self) -> &mut Worksheet;
 }
 
+//The statandart iterators, can no be mutable. So we need this specific iterator. NOTE: can't be used in for loops, but works with while!
 pub trait LendingIterator
 {
     type Item<'this> where Self: 'this;
@@ -479,6 +480,10 @@ where
     }
 }
 
+//This implementation is not used and most likely incorrect: the range-type-iterator should return 
+//row-by-row the content of the 'range' member. But here we return the LendingIterator itself as mutable.
+//The row-by-row access should be done externally which makes no sense.
+//Keep the implementation for now, but it is not used!
 impl<S, TAG> LendingIterator for RangeGeneric<S, TAG>
 where
     Self: IRange,
@@ -853,6 +858,7 @@ impl<'a> Iterator for RangeTypeMut<'a>
     }
 }
 
+//This implementation is not used and most likely incorrect! See above!
 impl<'a> LendingIterator for RangeTypeMut<'a>
 {
     type Item<'this> = &'this mut RangeTypeMut<'a> where Self: 'this;

@@ -6,7 +6,6 @@ use crate::range_types::*;
 use log::{debug, info, warn, error};
 use super::common;
 use super::range_ops;
-use super::range_types;
 
 pub fn get_ref_map_by_indexes(sheet: &Worksheet, col_key: u32, col_value: u32) -> HashMap<String, String> {
     let mut ref_map: HashMap<String, String> = HashMap::new();
@@ -554,123 +553,119 @@ pub fn get_anaysis_data(
         {
             while let Some(mut fit) = range_ops::LendingIterator::next(&mut filtered_sheet_it)
             {
-                let (fbr, _fer, _fbc, _fec, _, _) = range_ops::range_bounds(fit.get_range()); //(brow, erow, bcol, ecol, rows, cols)
+                let (ffbr, _, _, _, _, _) = range_ops::range_bounds(fit.get_range()); //(brow, erow, bcol, ecol, rows, cols)
 
-                if "n" != fit.get_sheet().get_cell_value((1, fbr)).get_data_type().to_string()
+                if "n" != fit.get_sheet().get_cell_value((1, ffbr)).get_data_type().to_string()
                 {
                     info!("Range {}:[{}] skipping none numeric leading data type!", fit.get_sheet().get_name(), range_ops::range_to_string(fit.get_range()));
                     continue;
                 }
 
-                while let Some(tmp) = Iterator::next(&mut fit)
+                while let Some(fitr) = Iterator::next(&mut fit) //loop over the rows of the iterator's range
                 {
-                    info!("Tmp Range {}:[{}] sub-range:{}", fit.get_sheet().get_name(), range_ops::range_to_string(fit.get_range()), range_ops::range_to_string(&tmp));
-                }
-                fit.reset_iter();
-                while let Some(tmp) = range_types::LendingIterator::next(&mut fit)
-                {
-                    info!("Tmp Range Mut {}:[{}]", tmp.get_sheet().get_name(), range_ops::range_to_string(tmp.get_range()));
-                }
+                    // info!("Tmp Range {}:[{}] sub-range:{}", fit.get_sheet().get_name(), range_ops::range_to_string(fit.get_range()), range_ops::range_to_string(&fitr));
 
-                let filtered_cell_value = fit.get_sheet().get_cell_value((fsrch_col, fbr)).get_value();
+                    let (fbr, _fer, _fbc, _fec, _, _) = range_ops::range_bounds(&fitr); //(brow, erow, bcol, ecol, rows, cols)
 
-                match range_ops::IterRow::new(sheet_analysis, max_row, max_col, 1, false, loop_pattern, range_ops::Offsets::new(0,0,-1,-1))
-                {
-                    Ok(analysis_sheet_it) => 
+                    let filtered_cell_value = fit.get_sheet().get_cell_value((fsrch_col, fbr)).get_value();
+
+                    match range_ops::IterRow::new(sheet_analysis, max_row, max_col, 1, false, loop_pattern, range_ops::Offsets::new(0,0,-1,-1))
                     {
-                        let mut found_analysis_entry = false;
-                        let mut found_analysis_value = false;
-                        let mut analysis_value = CellValue::default();
-                        let mut analysis_string = String::default();
-
-                        for ait in analysis_sheet_it
+                        Ok(analysis_sheet_it) => 
                         {
-                            let (abr, aer, _, _, _, _) = range_ops::range_bounds(ait.get_range()); //(brow, erow, bcol, ecol, rows, cols)
+                            let mut found_analysis_entry = false;
+                            let mut found_analysis_value = false;
+                            let mut analysis_value = CellValue::default();
+                            let mut analysis_string = String::default();
 
-                            let analysis_cell_value = ait.get_sheet().get_cell_value((aloop_col, abr)).get_value();
-
-                            if range_ops::cmp_strs(&filtered_cell_value, &analysis_cell_value)
+                            for ait in analysis_sheet_it
                             {
-                                info!("Found analysis section for '{}:[{}:'{}']'", ait.get_sheet().get_name(), range_ops::coords_to_str(aloop_col, abr), analysis_cell_value);
+                                let (abr, aer, _, _, _, _) = range_ops::range_bounds(ait.get_range()); //(brow, erow, bcol, ecol, rows, cols)
 
-                                for ar in (abr..=aer).rev() //loop backwards and get the last value_pattern entry
+                                let analysis_cell_value = ait.get_sheet().get_cell_value((aloop_col, abr)).get_value();
+
+                                if range_ops::cmp_strs(&filtered_cell_value, &analysis_cell_value)
                                 {
-                                    let cell_value = ait.get_sheet().get_cell_value((asrch_col, ar)).get_value();
+                                    info!("Found analysis section for '{}:[{}:'{}']'", ait.get_sheet().get_name(), range_ops::coords_to_str(aloop_col, abr), analysis_cell_value);
 
-                                    // info!("Scanning '{}:[{}:'{}']'", ait.get_sheet().get_name(), range_ops::coords_to_str(asrch_col, ar), cell_value);
-                                    
-                                    if range_ops::cmp_strs(value_pattern, &cell_value)
+                                    for ar in (abr..=aer).rev() //loop backwards and get the last value_pattern entry
                                     {
-                                        found_analysis_entry = true;
-                                        found_analysis_value = true;
-                                        
-                                        //get the value
-                                        analysis_value = ait.get_sheet().get_cell_value((avalu_col, ar)).clone();
+                                        let cell_value = ait.get_sheet().get_cell_value((asrch_col, ar)).get_value();
 
-                                        //get the analysis string
-                                        analysis_string = ait.get_sheet().get_cell_value((aloop_col, abr+1)).get_value().to_string();
-                                        if let Some(last_part) = analysis_string.split(':').last() 
+                                        // info!("Scanning '{}:[{}:'{}']'", ait.get_sheet().get_name(), range_ops::coords_to_str(asrch_col, ar), cell_value);
+
+                                        if range_ops::cmp_strs(value_pattern, &cell_value)
                                         {
-                                            analysis_string = last_part.trim().to_string();
-                                        }
+                                            found_analysis_entry = true;
+                                            found_analysis_value = true;
 
-                                        break;
+                                            //get the value
+                                            analysis_value = ait.get_sheet().get_cell_value((avalu_col, ar)).clone();
+
+                                            //get the analysis string
+                                            analysis_string = ait.get_sheet().get_cell_value((aloop_col, abr+1)).get_value().to_string();
+                                            if let Some(last_part) = analysis_string.split(':').last() 
+                                            {
+                                                analysis_string = last_part.trim().to_string();
+                                            }
+
+                                            break;
+                                        }
                                     }
+                                    break;
                                 }
-                                break;
                             }
-                        }
 
-                        if false == found_analysis_entry
-                        {
-                            error!("Failed to find analysis section for '{}:[{}:'{}']'", fit.get_sheet().get_name(), range_ops::coords_to_str(fsrch_col, fbr), filtered_cell_value);
-                        }
-                        else
-                        {
-                            if true == found_analysis_value
+                            if false == found_analysis_entry
                             {
-                                info!("Setting value:{} for '{}:[{}:'{}']'", analysis_value.get_value().to_string(), fit.get_sheet().get_name(), range_ops::coords_to_str(fsrch_col, fbr), filtered_cell_value);
-
-                                let dst_cell_desc = fit.get_sheet_mut().get_cell_mut((fdesc_col, fbr));
-                                dst_cell_desc.set_value(analysis_string);
-
-                                let dst_cell_unit_price = fit.get_sheet_mut().get_cell_mut((fupda_col, fbr));
-                                dst_cell_unit_price.set_value(analysis_value.get_value());
-
-                                //get the quantity column
-                                match fit.get_sheet().get_cell((fquan_col, fbr))
+                                error!("Failed to find analysis section for '{}:[{}:'{}']'", fit.get_sheet().get_name(), range_ops::coords_to_str(fsrch_col, fbr), filtered_cell_value);
+                            }
+                            else
+                            {
+                                if true == found_analysis_value
                                 {
-                                    Some(quantity_value) =>
-                                    {
-                                        if quantity_value.get_data_type() == "n" && let Some(qnum) = quantity_value.get_value_number() && 
-                                           analysis_value.get_data_type() == "n" && let Some(anum) = analysis_value.get_value_number()
-                                        {
-                                            let dst_cell_total_price = fit.get_sheet_mut().get_cell_mut((ftota_col, fbr));
-                                            dst_cell_total_price.set_value_number(qnum * anum);
+                                    info!("Setting value:{} for '{}:[{}:'{}']'", analysis_value.get_value().to_string(), fit.get_sheet().get_name(), range_ops::coords_to_str(fsrch_col, fbr), filtered_cell_value);
 
-                                            res = true;
-                                        } 
-                                        else 
-                                        {
-                                            error!("Trying to multiply none-numeric values! {}:{}='{}' and {}:{}='{}'", 
-                                                    fit.get_sheet().get_name(), range_ops::coords_to_str(fquan_col, fbr), quantity_value.get_value().to_string(),
-                                                    fit.get_sheet().get_name(), range_ops::coords_to_str(fupda_col, fbr), analysis_value.get_value().to_string());
-                                        }
-                                    }
-                                    None => 
+                                    let dst_cell_desc = fit.get_sheet_mut().get_cell_mut((fdesc_col, fbr));
+                                    dst_cell_desc.set_value(analysis_string);
+
+                                    let dst_cell_unit_price = fit.get_sheet_mut().get_cell_mut((fupda_col, fbr));
+                                    dst_cell_unit_price.set_value(analysis_value.get_value());
+
+                                    //get the quantity column
+                                    match fit.get_sheet().get_cell((fquan_col, fbr))
                                     {
-                                        error!("Failed to read value from {}:{}", fit.get_sheet().get_name(), range_ops::coords_to_str(fquan_col, fbr));
+                                        Some(quantity_value) =>
+                                        {
+                                            if quantity_value.get_data_type() == "n" && let Some(qnum) = quantity_value.get_value_number() && 
+                                            analysis_value.get_data_type() == "n" && let Some(anum) = analysis_value.get_value_number()
+                                            {
+                                                let dst_cell_total_price = fit.get_sheet_mut().get_cell_mut((ftota_col, fbr));
+                                                dst_cell_total_price.set_value_number(qnum * anum);
+
+                                                res = true;
+                                            } 
+                                            else 
+                                            {
+                                                error!("Trying to multiply none-numeric values! {}:{}='{}' and {}:{}='{}'", 
+                                                        fit.get_sheet().get_name(), range_ops::coords_to_str(fquan_col, fbr), quantity_value.get_value().to_string(),
+                                                        fit.get_sheet().get_name(), range_ops::coords_to_str(fupda_col, fbr), analysis_value.get_value().to_string());
+                                            }
+                                        }
+                                        None => 
+                                        {
+                                            error!("Failed to read value from {}:{}", fit.get_sheet().get_name(), range_ops::coords_to_str(fquan_col, fbr));
+                                        }
                                     }
                                 }
                             }
+                        },
+                        Err(err) => 
+                        {
+                            error!("Failed to create iterator: {}", err);
                         }
-                    },
-                    Err(err) => 
-                    {
-                        error!("Failed to create iterator: {}", err);
                     }
                 }
-
                 debug!("========================================================");
 
             }
