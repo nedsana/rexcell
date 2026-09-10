@@ -414,10 +414,18 @@ pub trait IRange {
             IterRowNextKind::Multiline => "Multiline".to_string(),
         }
     }
+    fn reset_iter(&mut self);
 }
 
 pub trait IRangeMut: IRange {
     fn get_sheet_mut(&mut self) -> &mut Worksheet;
+}
+
+pub trait LendingIterator
+{
+    type Item<'this> where Self: 'this;
+
+    fn next(&mut self) -> Option<Self::Item<'_>>;
 }
 
 // ==========================================
@@ -446,6 +454,53 @@ impl<S, TAG> RangeGeneric<S, TAG>
             current_row:    br,
             _tag:           PhantomData 
         }
+    }
+}
+
+impl<S, TAG> Iterator for RangeGeneric<S, TAG>
+where
+    Self: IRange,
+{
+    type Item = Range;
+
+    fn next(&mut self) -> Option<Self::Item>
+    {
+        let mut ret: Option<Self::Item> = None;
+
+        let (_, er, bc, ec, _, _) = range_ops::range_bounds(self.get_range());
+
+        if self.current_row <= er
+        {
+            ret = Some(range_ops::make_range_from_indexes(bc, self.current_row, ec, self.current_row));
+
+            self.current_row += 1;
+        }
+        ret
+    }
+}
+
+impl<S, TAG> LendingIterator for RangeGeneric<S, TAG>
+where
+    Self: IRange,
+{
+    type Item<'this> = &'this mut Self where Self: 'this;
+
+    fn next(&mut self) -> Option<Self::Item<'_>>
+    {
+        let mut ret: Option<Self::Item<'_>> = None;
+
+        // let (_, er, bc, ec, _, _) = range_ops::range_bounds(self.get_range());
+        let (_, er, _, _, _, _) = range_ops::range_bounds(self.get_range());
+
+        if self.current_row <= er
+        {
+            // ret = Some(range_ops::make_range_from_indexes(bc, self.current_row, ec, self.current_row));
+
+            self.current_row += 1;
+
+            ret = Some(self);
+        }
+        ret
     }
 }
 
@@ -488,6 +543,11 @@ where
     }
 
     fn get_type(&self) -> IterRowNextKind { IterRowNextKind::Basic }
+
+    fn reset_iter(&mut self)
+    {
+        self.current_row = *self.get_range().get_coordinate_start_row().unwrap().get_num();
+    }
 }
 
 // Explicit mutable interface
@@ -499,24 +559,6 @@ impl<'a> IRangeMut for RangeBasicMut<'a> {
 
 impl<S> PartialEq for RangeGeneric<S, TagRangeBasic> {
     fn eq(&self, _other: &Self) -> bool { false }
-}
-
-impl<'a> Iterator for RangeBasic<'a> 
-{
-    type Item = Range;
-
-    fn next(&mut self) -> Option<Self::Item> 
-    {
-        let mut ret: Option<Self::Item> = None;
-
-        let (_, er, bc, ec, _, _) = range_ops::range_bounds(self.get_range()); //(brow, erow, bcol, ecol, rows, cols)
-        if self.current_row <= er 
-        {
-            ret = Some(range_ops::make_range_from_indexes(bc, self.current_row, ec, self.current_row));
-            self.current_row += 1;
-        }
-        ret
-    }
 }
 
 // ----------------------  RangeMergedCells ----------------------
@@ -546,7 +588,12 @@ where
         compare_cell_impl(self, col_this, row_this, other, col_other, row_other, strict)
     }
 
-    fn get_type(&self) -> IterRowNextKind { IterRowNextKind::Basic }
+    fn get_type(&self) -> IterRowNextKind { IterRowNextKind::Merged }
+
+    fn reset_iter(&mut self)
+    {
+        self.current_row = *self.get_range().get_coordinate_start_row().unwrap().get_num();
+    }
 }
 
 // Explicit mutable interface
@@ -558,24 +605,6 @@ impl<'a> IRangeMut for RangeMergedCellsMut<'a> {
 
 impl<S> PartialEq for RangeGeneric<S, TagRangeMergedCells> {
     fn eq(&self, _other: &Self) -> bool { false }
-}
-
-impl<'a> Iterator for RangeMergedCells<'a> 
-{
-    type Item = Range;
-
-    fn next(&mut self) -> Option<Self::Item> 
-    {
-        let mut ret: Option<Self::Item> = None;
-
-        let (_, er, bc, ec, _, _) = range_ops::range_bounds(self.get_range()); //(brow, erow, bcol, ecol, rows, cols)
-        if self.current_row <= er 
-        {
-            ret = Some(range_ops::make_range_from_indexes(bc, self.current_row, ec, self.current_row));
-            self.current_row += 1;
-        }
-        ret
-    }
 }
 
 // ----------------------  RangeMultiline ----------------------
@@ -605,7 +634,12 @@ where
         compare_cell_impl(self, col_this, row_this, other, col_other, row_other, strict)
     }
 
-    fn get_type(&self) -> IterRowNextKind { IterRowNextKind::Basic }
+    fn get_type(&self) -> IterRowNextKind { IterRowNextKind::Multiline }
+
+    fn reset_iter(&mut self)
+    {
+        self.current_row = *self.get_range().get_coordinate_start_row().unwrap().get_num();
+    }
 }
 
 // Explicit mutable interface
@@ -617,24 +651,6 @@ impl<'a> IRangeMut for RangeMultilineMut<'a> {
 
 impl<S> PartialEq for RangeGeneric<S, TagRangeMultiline> {
     fn eq(&self, _other: &Self) -> bool { false }
-}
-
-impl<'a> Iterator for RangeMultiline<'a> 
-{
-    type Item = Range;
-
-    fn next(&mut self) -> Option<Self::Item> 
-    {
-        let mut ret: Option<Self::Item> = None;
-
-        let (_, er, bc, ec, _, _) = range_ops::range_bounds(self.get_range()); //(brow, erow, bcol, ecol, rows, cols)
-        if self.current_row <= er 
-        {
-            ret = Some(range_ops::make_range_from_indexes(bc, self.current_row, ec, self.current_row));
-            self.current_row += 1;
-        }
-        ret
-    }
 }
 
 // ==========================================
@@ -729,6 +745,14 @@ impl<'a> IRange for RangeType<'a> {
             RangeType::Multiline(r) => r.get_type(),
         }
     }
+
+    fn reset_iter(&mut self) {
+        match self {
+            RangeType::Basic(r) => r.reset_iter(),
+            RangeType::Merged(r) => r.reset_iter(),
+            RangeType::Multiline(r) => r.reset_iter(),
+        }
+    }
 }
 
 impl<'a> IRange for RangeTypeMut<'a> {
@@ -779,14 +803,76 @@ impl<'a> IRange for RangeTypeMut<'a> {
             RangeTypeMut::Multiline(r) => r.get_type(),
         }
     }
+
+    fn reset_iter(&mut self) {
+        match self {
+            RangeTypeMut::Basic(r) => r.reset_iter(),
+            RangeTypeMut::Merged(r) => r.reset_iter(),
+            RangeTypeMut::Multiline(r) => r.reset_iter(),
+        }
+    }
 }
 
 impl<'a> IRangeMut for RangeTypeMut<'a> {
     fn get_sheet_mut(&mut self) -> &mut Worksheet {
         match self {
-            RangeTypeMut::Basic(r)     => r.get_sheet_mut(),
-            RangeTypeMut::Merged(r)  => r.get_sheet_mut(),
-            RangeTypeMut::Multiline(r) => r.get_sheet_mut(),
+            RangeTypeMut::Basic(r)      => r.get_sheet_mut(),
+            RangeTypeMut::Merged(r)     => r.get_sheet_mut(),
+            RangeTypeMut::Multiline(r)  => r.get_sheet_mut(),
+        }
+    }
+}
+
+impl<'a> Iterator for RangeType<'a>
+{
+    type Item = Range;
+
+    fn next(&mut self) -> Option<Self::Item>
+    {
+        match self
+        {
+            RangeType::Basic(r)     => Iterator::next(r),
+            RangeType::Merged(r)    => Iterator::next(r),
+            RangeType::Multiline(r) => Iterator::next(r),
+        }
+    }
+}
+
+impl<'a> Iterator for RangeTypeMut<'a>
+{
+    type Item = Range;
+
+    fn next(&mut self) -> Option<Self::Item>
+    {
+        match self
+        {
+            RangeTypeMut::Basic(r)     => Iterator::next(r),
+            RangeTypeMut::Merged(r)    => Iterator::next(r),
+            RangeTypeMut::Multiline(r) => Iterator::next(r),
+        }
+    }
+}
+
+impl<'a> LendingIterator for RangeTypeMut<'a>
+{
+    type Item<'this> = &'this mut RangeTypeMut<'a> where Self: 'this;
+
+    fn next(&mut self) -> Option<Self::Item<'_>>
+    {
+        let internal_has_next = match self
+        {
+            RangeTypeMut::Basic(r)     => LendingIterator::next(r).is_some(),
+            RangeTypeMut::Merged(r)    => LendingIterator::next(r).is_some(),
+            RangeTypeMut::Multiline(r) => LendingIterator::next(r).is_some(),
+        };
+
+        if internal_has_next
+        {
+            Some(self)
+        }
+        else
+        {
+            None
         }
     }
 }

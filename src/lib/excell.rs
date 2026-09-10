@@ -1,10 +1,12 @@
 // use std::process;
 use umya_spreadsheet::*;
 use std::collections::HashMap;
+use std::iter::Iterator;
 use crate::range_types::*;
 use log::{debug, info, warn, error};
 use super::common;
 use super::range_ops;
+use super::range_types;
 
 pub fn get_ref_map_by_indexes(sheet: &Worksheet, col_key: u32, col_value: u32) -> HashMap<String, String> {
     let mut ref_map: HashMap<String, String> = HashMap::new();
@@ -558,6 +560,16 @@ pub fn get_anaysis_data(
                 {
                     info!("Range {}:[{}] skipping none numeric leading data type!", fit.get_sheet().get_name(), range_ops::range_to_string(fit.get_range()));
                     continue;
+                }
+
+                while let Some(tmp) = Iterator::next(&mut fit)
+                {
+                    info!("Tmp Range {}:[{}] sub-range:{}", fit.get_sheet().get_name(), range_ops::range_to_string(fit.get_range()), range_ops::range_to_string(&tmp));
+                }
+                fit.reset_iter();
+                while let Some(tmp) = range_types::LendingIterator::next(&mut fit)
+                {
+                    info!("Tmp Range Mut {}:[{}]", tmp.get_sheet().get_name(), range_ops::range_to_string(tmp.get_range()));
                 }
 
                 let filtered_cell_value = fit.get_sheet().get_cell_value((fsrch_col, fbr)).get_value();
