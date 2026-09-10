@@ -179,8 +179,12 @@ pub fn apply_key_value_data_by_strings(
         return Err(common::ERROR_DEST_COL_NOT_DEFINED.to_string());
     }
 
+    debug!("apply_key_value_data_by_strings(rtbl:{}, utbl:{}, col_key:{}, col_upd:{}", rtbl.get_name().to_string(), utbl.get_name().to_string(), col_key, cols_upd);
+
     for col_upd in cols_upd.split(',') 
     {
+        debug!("apply_key_value_data_by_indexes(rtbl:{}, utbl:{}, col_key:{}, col_upd:{}", rtbl.get_name().to_string(), utbl.get_name().to_string(), col_key, col_upd);
+
         if let Err(err) = apply_key_value_data_by_indexes(rtbl, utbl, range_ops::column_to_index(col_key), range_ops::column_to_index(col_upd)) 
         {
             error!("{}", err);
@@ -823,7 +827,7 @@ pub fn execute(cfg: &common::Config) -> Result<(), String>
             // Load the analysis Excel file
             let analysis_path = std::path::Path::new(&cfg.analysis_file);
             let result = reader::xlsx::read(analysis_path);
-            let mut abook = match result
+            let abook = match result
             {
                 Ok(bk) => bk,
                 Err(err) => {
@@ -832,8 +836,8 @@ pub fn execute(cfg: &common::Config) -> Result<(), String>
                 }
             };
 
-            // Get the update sheet
-            let result = abook.get_sheet_by_name_mut(&cfg.analysis_table);
+            // Get the analysis sheet
+            let result = abook.get_sheet_by_name(&cfg.analysis_table);
             let atbl = match result
             {
                 Some(tbl) => tbl,
@@ -844,12 +848,14 @@ pub fn execute(cfg: &common::Config) -> Result<(), String>
                 }
             };
 
+            //create new sheet for the filtered data
             let mut fotbl = Worksheet::default();
             fotbl.set_name(cfg.new_sheet_name.clone());
 
+            //loop over the sheets, where the data is present and adapt the filter sheet
             for utbln in cfg.tgt_upd_table.split(',') 
             {
-                // Get the update sheet
+                // Get the sheet with initial data
                 let result = ubook.get_sheet_by_name_mut(&utbln);
                 let utbl = match result
                 {
@@ -861,7 +867,7 @@ pub fn execute(cfg: &common::Config) -> Result<(), String>
                     }
                 };
 
-                // Create new table with unique values from cfg.tgt_src_col.When repetition is found, accumulate the values in cfg.tgt_dest_col.
+                //Filter (accumulate or append values) the data from initial sheet to filter sheet
                 let r = filter_sheet_by_col_and_accum(utbl, &mut fotbl, &cfg.tgt_src_col, &cfg.tgt_dest_col);
                 if !r 
                 {
@@ -876,7 +882,7 @@ pub fn execute(cfg: &common::Config) -> Result<(), String>
                 }
             }
 
-            //The entries are filtered in a new sheet. Now get the needed values from analysis table
+            //The entries are filtered in the filter sheet. Now get the needed values from analysis table and update the filter sheet.
             if false == get_anaysis_data(atbl, 
                 &"A".to_string(), 
                 &"B".to_string(), 
@@ -894,8 +900,38 @@ pub fn execute(cfg: &common::Config) -> Result<(), String>
                 return Err(format!("Failed to process analysis data from {}:{}", cfg.analysis_file, cfg.analysis_table));
             }
 
-            //Add the extra sheet to the book
+            //Now get the data from the filtered sheet and apply it to the initial sheets
+            for utbln in cfg.tgt_upd_table.split(',') 
+            {
+                // Get the update sheet
+                let result = ubook.get_sheet_by_name_mut(&utbln);
+                let utbl = match result
+                {
+                    Some(tbl) => tbl,
+                    None => 
+                    {
+                        error!("{}:{}", common::ERROR_UPDATE_SHEET_NOT_FOUND, utbln);
+                        return Err(format!("{}:{}", common::ERROR_UPDATE_SHEET_NOT_FOUND, utbln));
+                    }
+                };
+                
+                if let Err(err) = apply_key_value_data_by_strings(&fotbl, utbl, &"C".to_string(), &"B,F".to_string())
+                {
+                    error!("{}:{}", common::MESSAGE_NO_KEY_VALUE_MAPPING, err);
+                    return Err(format!("{}:{}", common::MESSAGE_NO_KEY_VALUE_MAPPING, err));
+                }
+            }
+
+            //Add the filter sheet to the book
             let result = ubook.add_sheet(fotbl);
+            if let Err(err) = result
+            {
+                error!("{}:{}", common::ERROR_FAILED_TO_ADD_SHEET, err);
+                return Err(format!("{}:{}", common::ERROR_FAILED_TO_ADD_SHEET, err));
+            };
+
+            //Add the analysis sheet to the book
+            let result = ubook.add_sheet(atbl.clone());
             if let Err(err) = result
             {
                 error!("{}:{}", common::ERROR_FAILED_TO_ADD_SHEET, err);
