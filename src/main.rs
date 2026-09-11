@@ -1,7 +1,7 @@
 use clap::Parser;
 use rexcell::common;
 use rexcell::excell;
-use log::{debug, info, error};
+use log::{error};
 
 #[derive(Parser, Debug)]
 #[command(name = common::APP_NAME)]
