@@ -173,7 +173,7 @@ impl GuiApp
         // let ctx_clone = _cc.egui_ctx.clone();
 
         //Init the fern logger
-        fern::Dispatch::new()
+        let res = fern::Dispatch::new()
             .format(|out, message, record| 
             {
                 let level_str = format!("{:<5}", record.level().to_string());
@@ -191,8 +191,11 @@ impl GuiApp
                 let _ = log_tx.send(format!("{}\n", record.args()));
                 // ctx_clone.request_repaint(); // Should Wake-up GUI, but actually blocks GUI
             }))
-            .apply()
-            .unwrap();
+            .apply();
+
+        if let Err(err) = res {
+            panic!("{} {}", common::ERROR_FAILED_TO_CREATE_LOGGER, err);
+        }
 
         info!("Logging setup complete!");
 

@@ -21,7 +21,8 @@ pub const TGT_DEST_COL_ACCUM_HELP: &str = "Columns to accumulate, on filter matc
 pub const TGT_DEST_COL_HELP: &str = "Column to update";
 pub const TGT_UPDATE_SHEET_HELP: &str = "Update tables. Comma-separated list.";
 pub const NEW_SHEET_NAME_HELP: &str = "Name of the new sheet";
-pub const ANALYSIS_FILE_HELP: &str = "Excel file with analysis";
+pub const ANALYSIS_FILE_HELP: &str = "Excel file with analysis data";
+pub const ANALYSIS_TABLE_HELP: &str = "Table with analysis data";
 
 pub const TGT_DEFAULT_EXCEL_FILE: &str = "";
 pub const TGT_DEFAULT_SRC_COL: &str = "C";
@@ -29,7 +30,8 @@ pub const TGT_DEFAULT_DST_COL: &str = "B,F";
 pub const TGT_DEFAULT_ACC_COL: &str = "E";
 pub const TGT_DEFAULT_TABLE: &str = "";
 pub const TGT_DEFAULT_NEW_SHEET_NAME: &str = "Prices";
-
+pub const TGT_DEFAULT_ANALYSIS_FILE: &str = "";
+pub const TGT_DEFAULT_ANALYSIS_TABLE: &str = "";
 
 pub const REF_FILE_HELP: &str = "Excel file, with reference data";
 pub const REF_SHEET_HELP: &str = "Reference table name";
@@ -39,7 +41,6 @@ pub const REF_DEFAULT_EXCEL_FILE: &str = "";
 pub const REF_DEFAULT_SRC_COL: &str = "C";
 pub const REF_DEFAULT_DST_COL: &str = "B,F";
 pub const REF_DEFAULT_TABLE: &str = "";
-
 
 pub const INPLACE_HELP: &str = "Overwrite the input file instead of creating a new one";
 
@@ -59,6 +60,9 @@ pub const ARG_LONG_VALUE_COL: &str = "ref-col-value";
 pub const ARG_LONG_INPLACE: &str = "inplace";
 pub const ARG_LONG_LIST_SHEETS: &str = "list-sheets";
 pub const ARG_LONG_NEW_SHEET_NAME: &str = "new-sheet-name";
+pub const ARG_LONG_ANALYSIS_FILE: &str = "anlysis-file";
+pub const ARG_LONG_ANALYSIS_TABLE: &str = "anlysis-table";
+
 
 
 pub const LABEL_FILE_BROWSER: &str = "File browser";
@@ -118,6 +122,7 @@ pub const MESSAGE_APPLIED_MAPPINGS: &str = "Updated {} lines in table/sheet {}!"
 pub const MESSAGE_DONE_SAVED: &str = "Done! The result is saved in '{}'";
 pub const NO_SHEETS_FOUND: &str = "No sheets found in the file";
 pub const ERROR_DEST_COL_NOT_DEFINED: &str = "Columns to update are not defined";
+pub const ERROR_FAILED_TO_CREATE_LOGGER: &str = "Failed to create logger!";
 
 //to do: make these constants configurable
 pub const MAX_COL: u32 = 8;
