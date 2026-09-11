@@ -524,9 +524,15 @@ pub fn accumulate_ranges(
 
             if cell_b.is_some() && cell_a.is_some()
             {
+                let (Some(c_a), Some(c_b)) = (cell_a.as_ref(), cell_b.as_ref()) else {
+                    error!("Failed to read cells - missinga data!");
+                    return false;
+                };
+
                 // Compare the pivot cells to determine if they are the sames
-                let val_a = cell_a.as_ref().unwrap().get_value();
-                let val_b = cell_b.as_ref().unwrap().get_value();
+                let val_a = c_a.get_value();
+                let val_b = c_b.get_value();
+
                 if cmp_strs(&val_a, &val_b) 
                 {
                     info!("Pivot {}:[{}:'{}'] EQUALS TO {}:[{}:'{}']!", sheet_a.get_name(), range_to_string(range_a), val_a, sheet_b.get_name(), range_to_string(range_b), val_b);
@@ -545,8 +551,18 @@ pub fn accumulate_ranges(
             }
             else 
             {
-                info!("Pivot {}:[{}:'{}'] NOT FOUND IN {}:[{}]!", sheet_a.get_name(), range_to_string(range_a), 
-                    cell_a.as_ref().unwrap().get_value(), sheet_b.get_name(), range_to_string(range_b));
+                match cell_a.as_ref()
+                {
+                    Some(c_a) =>
+                    {
+                        info!("Pivot {}:[{}:'{}'] NOT FOUND IN {}:[{}]!", sheet_a.get_name(), range_to_string(range_a), 
+                            c_a.get_value(), sheet_b.get_name(), range_to_string(range_b)); 
+                    }
+                    None => 
+                    {
+                        info!("Pivot {}:[{}] not accessible!", sheet_a.get_name(), range_to_string(range_a)); 
+                    }
+                }
             }
 
             break; //for row_offset_a in &rows_offsets_a 
@@ -588,19 +604,24 @@ pub fn accumulate_ranges(
 
         if !cell_a.is_none() && !cell_b.is_none() 
         {
-            let cell_a_coord = cell_a.as_ref().unwrap().get_coordinate();
+            let (Some(c_a), Some(c_b)) = (cell_a.as_ref(), cell_b.as_ref()) else {
+                error!("Failed to read cells - data unavailable!");
+                return false;
+            };
+
+            let cell_a_coord = c_a.get_coordinate();
             let coord_a = (cell_a_coord.get_col_num().clone(), cell_a_coord.get_row_num().clone());
 
-            let cell_b_coord = cell_b.as_ref().unwrap().get_coordinate();
+            let cell_b_coord = c_b.get_coordinate();
             let coord_b = (cell_b_coord.get_col_num().clone(), cell_b_coord.get_row_num().clone());
 
-            if cell_a.as_ref().unwrap().get_data_type() == "n" && cell_b.as_ref().unwrap().get_data_type() == "n" 
+            if c_a.get_data_type() == "n" && c_b.get_data_type() == "n" 
             {
                 info!("Accumulating {}:{} to {}:{}", sheet_a.get_name(), coords_to_str(coord_a.0, coord_a.1), 
                         sheet_b.get_name(), coords_to_str(coord_b.0, coord_b.1));
 
-                let val_a = cell_a.as_ref().unwrap().get_value().parse::<f64>().unwrap_or(0.0);
-                let val_b = cell_b.as_ref().unwrap().get_value().parse::<f64>().unwrap_or(0.0);
+                let val_a = c_a.get_value().parse::<f64>().unwrap_or(0.0);
+                let val_b = c_b.get_value().parse::<f64>().unwrap_or(0.0);
                 let sum: f64 = val_a + val_b;
 
                 let q_cell_dst = sheet_b.get_cell_mut(coord_b);

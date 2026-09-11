@@ -522,6 +522,11 @@ pub fn apply_calculations(
 {
     for scalc in calcs
     {
+        if 0 == scalc.len()
+        {
+            continue;
+        }
+
         match build_operator_tree::<DefaultNumericTypes>(scalc)
         {
             Ok(expr) => 
