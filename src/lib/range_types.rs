@@ -390,6 +390,18 @@ where
     res
 }
 
+fn reset_iter_impl<S, TAG>(this: &mut RangeGeneric<S, TAG>) 
+where
+    RangeGeneric<S, TAG>: IRange,
+{
+    this.current_row = 1;
+
+    if let Some(rbr) = this.get_range().get_coordinate_start_row() 
+    {
+        this.current_row = *rbr.get_num();
+    }
+}
+
 // ==========================================
 // TRAIT
 // ==========================================
@@ -448,7 +460,12 @@ impl<S, TAG> RangeGeneric<S, TAG>
 {
     pub fn new(p_range: Range, p_sheet: S) -> Self 
     {
-        let br = *p_range.get_coordinate_start_row().unwrap().get_num();
+        let mut br = 1;
+        if let Some(rbr) = p_range.get_coordinate_start_row() 
+        {
+            br = *rbr.get_num();
+        }
+
         Self { 
             range:          p_range, 
             sheet:          p_sheet, 
@@ -551,7 +568,7 @@ where
 
     fn reset_iter(&mut self)
     {
-        self.current_row = *self.get_range().get_coordinate_start_row().unwrap().get_num();
+        reset_iter_impl(self);
     }
 }
 
@@ -597,7 +614,7 @@ where
 
     fn reset_iter(&mut self)
     {
-        self.current_row = *self.get_range().get_coordinate_start_row().unwrap().get_num();
+        reset_iter_impl(self);
     }
 }
 
@@ -643,7 +660,7 @@ where
 
     fn reset_iter(&mut self)
     {
-        self.current_row = *self.get_range().get_coordinate_start_row().unwrap().get_num();
+        reset_iter_impl(self);
     }
 }
 

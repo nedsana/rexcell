@@ -554,7 +554,10 @@ pub fn apply_calculations(
                         }
                     }
 
-                    context.set_value(scalc_col.into(), Value::Float(cell_val)).unwrap();
+                    if let Err(err) = context.set_value(scalc_col.into(), Value::Float(cell_val)) 
+                    {
+                        return Err(format!("Failed to assign '{}'='{}'! {}", scalc_col, cell_val, err));
+                    }
                 }
 
                 match expr.eval_empty_with_context_mut(&mut context)
@@ -1039,7 +1042,11 @@ pub fn execute(cfg: &common::Config) -> Result<(), String>
 
     if cfg.command == common::Command::CmdFilterSheets || cfg.command == common::Command::CmdUpdateSheets || cfg.command == common::Command::CmdAutocompleteSheets
     {
-        let mut outfile = target_path.to_str().unwrap().to_string();
+        let Some(val) = target_path.to_str() else 
+        {
+            return Err(format!("Target path not found!"))
+        };
+        let mut outfile = val.to_string();
 
         // Save changes
         if cfg.inplace 
