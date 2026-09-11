@@ -617,12 +617,16 @@ pub fn accumulate_ranges(
 
             if c_a.get_data_type() == "n" && c_b.get_data_type() == "n" 
             {
-                info!("Accumulating {}:{} to {}:{}", sheet_a.get_name(), coords_to_str(coord_a.0, coord_a.1), 
-                        sheet_b.get_name(), coords_to_str(coord_b.0, coord_b.1));
+                let type_a = c_a.get_data_type();
+                let type_b = c_b.get_data_type();
 
                 let val_a = c_a.get_value().parse::<f64>().unwrap_or(0.0);
                 let val_b = c_b.get_value().parse::<f64>().unwrap_or(0.0);
                 let sum: f64 = val_a + val_b;
+
+                info!("Accumulating {}:{} [type:'{}' value:'{}'] to {}:{} [type:'{}' value:'{}'] SUM:{}", 
+                        sheet_a.get_name(), coords_to_str(coord_a.0, coord_a.1), type_a, val_a,
+                        sheet_b.get_name(), coords_to_str(coord_b.0, coord_b.1), type_b, val_b, sum);
 
                 let q_cell_dst = sheet_b.get_cell_mut(coord_b);
                 q_cell_dst.set_value_number(sum);
@@ -631,8 +635,15 @@ pub fn accumulate_ranges(
             }
             else
             {
-                error!("Can't accumulate none-numeric values {}:{} to {}:{}", sheet_a.get_name(), coords_to_str(coord_a.0, coord_a.1), 
-                        sheet_b.get_name(), coords_to_str(coord_b.0, coord_b.1));
+                let type_a = c_a.get_data_type();
+                let type_b = c_b.get_data_type();
+
+                let val_a = c_a.get_value();
+                let val_b = c_b.get_value();
+
+                error!("Can't accumulate none-numeric values {}:{} [type:'{}' value:'{}'] to {}:{} [type:'{}' value:'{}']", 
+                        sheet_a.get_name(), coords_to_str(coord_a.0, coord_a.1), type_a, val_a,
+                        sheet_b.get_name(), coords_to_str(coord_b.0, coord_b.1), type_b, val_b);
             }
         }
     } //for row_offset_a in &rows_offsets_a 
