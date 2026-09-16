@@ -250,38 +250,40 @@ pub fn find_missing_entries(find_where: & dyn IRange, find_what: & dyn IRange, c
     let mut res = Vec::new();
     if range_ops::same_types(find_what, find_where)
     {
-        let (brow_in, erow_in, _, ecol_in, _, _) = range_ops::range_bounds(find_what.get_range());
-        let (brow_it, erow_it, _, _, _, _) = range_ops::range_bounds(find_where.get_range());
-
-        for cmp_col in cmp_cols //to do ... what should happen if we have multiple compare columns
+        if let (Some((brow_in, erow_in, _, ecol_in, _, _)), 
+                Some((brow_it, erow_it, _, _, _, _))) = (range_ops::range_bounds(find_what.get_range()), 
+                                                          range_ops::range_bounds(find_where.get_range())) 
         {
-            let bcol_in = *cmp_col;
-            let bcol_it = *cmp_col;
-
-            for row_in in (brow_in+1)..=erow_in
+            for cmp_col in cmp_cols //to do ... what should happen if we have multiple compare columns
             {
-                let entry_in = find_what.get_sheet().get_cell_value((bcol_in, row_in)).get_value();
+                let bcol_in = *cmp_col;
+                let bcol_it = *cmp_col;
 
-                let mut found_cnt = false;
-
-                for row_it in (brow_it+1)..=erow_it
+                for row_in in (brow_in+1)..=erow_in
                 {
-                    let entry_it = find_where.get_sheet().get_cell_value((bcol_it, row_it)).get_value();
+                    let entry_in = find_what.get_sheet().get_cell_value((bcol_in, row_in)).get_value();
 
-                    // info!("COMPARE {}:[{}:row{} '{}'] to {}:[{}:row{} '{}']!", 
-                    //     find_where.get_sheet().get_name(), range_ops::range_to_string(find_where.get_range()), row_it, entry_it,
-                    //     find_what.get_sheet().get_name(), range_ops::range_to_string(find_what.get_range()), row_in, entry_in);
+                    let mut found_cnt = false;
 
-                    if range_ops::cmp_strs(&entry_it, &entry_in) 
+                    for row_it in (brow_it+1)..=erow_it
                     {
-                        found_cnt = true;
-                        break;
-                    }
-                }
+                        let entry_it = find_where.get_sheet().get_cell_value((bcol_it, row_it)).get_value();
 
-                if !found_cnt
-                {
-                    res.push(range_ops::make_range_from_indexes(1, row_in, ecol_in, row_in));
+                        // info!("COMPARE {}:[{}:row{} '{}'] to {}:[{}:row{} '{}']!", 
+                        //     find_where.get_sheet().get_name(), range_ops::range_to_string(find_where.get_range()), row_it, entry_it,
+                        //     find_what.get_sheet().get_name(), range_ops::range_to_string(find_what.get_range()), row_in, entry_in);
+
+                        if range_ops::cmp_strs(&entry_it, &entry_in) 
+                        {
+                            found_cnt = true;
+                            break;
+                        }
+                    }
+
+                    if !found_cnt
+                    {
+                        res.push(range_ops::make_range_from_indexes(1, row_in, ecol_in, row_in));
+                    }
                 }
             }
         }
@@ -297,111 +299,126 @@ pub fn find_missing_entries(find_where: & dyn IRange, find_what: & dyn IRange, c
  * Scan the workseet to find if there are ranges (Multiline or Merged), with same header, but with more rows than the provided range_out.
  * @return - return temporary Worksheet which contain a single IRange entry (Basic, Merged or Multiline) with all rows which should belong to it.
  */
-pub fn make_largest_range<'a>(range_in: &'a dyn IRange, sheet_in: &'a Worksheet, cmp_cols: &'a Vec<u32>, acc_cols: &'a Vec<u32>) -> Worksheet
+pub fn make_largest_range<'a>(range_in: &'a dyn IRange, sheet_in: &'a Worksheet, cmp_cols: &'a Vec<u32>, acc_cols: &'a Vec<u32>) -> Worksheet //DELETE_ME: Think of Option/Result return value
 {
-    let (_, _, _, _, rows_in, cols_in) = range_ops::range_bounds(range_in.get_range());
-   
     let mut tmp_sheet = Worksheet::default();
     tmp_sheet.set_name("TMP_SHEET");
 
-    //Add the input range to the temporary sheet. Any rows, which belong to this group will be appened
-    if range_ops::append_range(sheet_in, range_in.get_range(), &mut tmp_sheet, acc_cols) 
+    if let Some((_, _, _, _, rows_in, cols_in)) = range_ops::range_bounds(range_in.get_range())
     {
-        info!("Appended range {}:[{}] to {}", sheet_in.get_name(), range_ops::range_to_string(range_in.get_range()), tmp_sheet.get_name());
-
-        let mut range_tmp = make_range_inst_mut(range_in.get_type(), range_ops::make_range_from_indexes(1, 1, cols_in, rows_in), &mut tmp_sheet);
-
-        match range_ops::IterRow::new(sheet_in, common::MAX_ROW, common::MAX_COL, 1, true, "-", range_ops::Offsets::default())
+        //Add the input range to the temporary sheet. Any rows, which belong to this group will be appened
+        if range_ops::append_range(sheet_in, range_in.get_range(), &mut tmp_sheet, acc_cols) 
         {
-            Ok(iter_sheet) =>
+            info!("Appended range {}:[{}] to {}", sheet_in.get_name(), range_ops::range_to_string(range_in.get_range()), tmp_sheet.get_name());
+
+            let mut range_tmp = make_range_inst_mut(range_in.get_type(), range_ops::make_range_from_indexes(1, 1, cols_in, rows_in), &mut tmp_sheet);
+
+            match range_ops::IterRow::new(sheet_in, common::MAX_ROW, common::MAX_COL, 1, true, "-", range_ops::Offsets::default())
             {
-                for it in iter_sheet 
+                Ok(iter_sheet) =>
                 {
-                    if range_ops::same_types(&range_tmp, &it)
+                    for it in iter_sheet 
                     {
-                        let (brow_in, _, _, _, rows_in, _) = range_ops::range_bounds(range_tmp.get_range());
-                        let (brow_it, _, _, _, rows_it, _) = range_ops::range_bounds(it.get_range());
-
-                        for cmp_col in cmp_cols //to do ... what should happen if we have multiple compare columns
+                        if range_ops::same_types(&range_tmp, &it)
                         {
-                            let bcol_in = *cmp_col;
-                            let bcol_it = *cmp_col;
-
-                            //check if the first line of the range_in matches the first line of the current range in the sheets
-                            let hdr_in = range_tmp.get_sheet().get_cell_value((bcol_in, brow_in)).get_value();
-                            let hdr_it = it.get_sheet().get_cell_value((bcol_it, brow_it)).get_value();
-
-                            if range_ops::cmp_strs(&hdr_in, &hdr_it) 
+                            if let (Some((brow_in, _, _, _, rows_in, _)), 
+                                    Some((brow_it, _, _, _, rows_it, _))) = (range_ops::range_bounds(range_tmp.get_range()), range_ops::range_bounds(it.get_range()))
                             {
-                                if rows_it > rows_in 
+                                for cmp_col in cmp_cols //to do ... what should happen if we have multiple compare columns
                                 {
-                                    let missing_entries = find_missing_entries(&range_tmp, &it, cmp_cols);
-                                    for missing_entry in missing_entries 
+                                    let bcol_in = *cmp_col;
+                                    let bcol_it = *cmp_col;
+
+                                    //check if the first line of the range_in matches the first line of the current range in the sheets
+                                    let hdr_in = range_tmp.get_sheet().get_cell_value((bcol_in, brow_in)).get_value();
+                                    let hdr_it = it.get_sheet().get_cell_value((bcol_it, brow_it)).get_value();
+
+                                    if range_ops::cmp_strs(&hdr_in, &hdr_it) 
                                     {
-                                        let (brow_me, _, _, _, _, _) = range_ops::range_bounds(&missing_entry);
-
-                                        if range_ops::append_range(it.get_sheet(), &missing_entry, &mut range_tmp.get_sheet_mut(), acc_cols)
+                                        if rows_it > rows_in 
                                         {
-                                            let (br, er, bc, ec, _, _) = range_ops::range_bounds(range_tmp.get_range());
-
-                                            range_tmp = make_range_inst_mut(range_in.get_type(), range_ops::make_range_from_indexes(bc, br, ec, er+1), &mut tmp_sheet);
-                                        
-                                            if range_in.get_type() == IterRowNextKind::Merged
+                                            let missing_entries = find_missing_entries(&range_tmp, &it, cmp_cols);
+                                            for missing_entry in missing_entries 
                                             {
-                                                let mrange = range_ops::make_range_from_indexes(1, 1, 1, er+1);
+                                                if let Some((brow_me, _, _, _, _, _)) = range_ops::range_bounds(&missing_entry)
+                                                {
+                                                    if range_ops::append_range(it.get_sheet(), &missing_entry, &mut range_tmp.get_sheet_mut(), acc_cols)
+                                                    {
+                                                        if let Some((br, er, bc, ec, _, _)) = range_ops::range_bounds(range_tmp.get_range())
+                                                        {
+                                                            range_tmp = make_range_inst_mut(range_in.get_type(), range_ops::make_range_from_indexes(bc, br, ec, er+1), &mut tmp_sheet);
 
-                                                info!("Appended missing range {}:[{}:'{}'] to {}. Merging {}!", it.get_sheet().get_name(), range_ops::range_to_string(&missing_entry), 
-                                                    it.get_sheet().get_cell_value((bcol_it, brow_me)).get_value(), range_tmp.get_sheet().get_name(), range_ops::range_to_string(range_tmp.get_range()));
+                                                            if range_in.get_type() == IterRowNextKind::Merged
+                                                            {
+                                                                let mrange = range_ops::make_range_from_indexes(1, 1, 1, er+1);
 
-                                                range_tmp.get_sheet_mut().get_merge_cells_mut().clear();
-                                                range_tmp.get_sheet_mut().add_merge_cells(mrange.get_range());
-                                            }
-                                            else
-                                            {
-                                                info!("Appended missing range {}:[{}:'{}'] to {}", it.get_sheet().get_name(), range_ops::range_to_string(&missing_entry), 
-                                                    it.get_sheet().get_cell_value((bcol_it, brow_me)).get_value(), range_tmp.get_sheet().get_name());
+                                                                info!("Appended missing range {}:[{}:'{}'] to {}. Merging {}!", it.get_sheet().get_name(), range_ops::range_to_string(&missing_entry), 
+                                                                    it.get_sheet().get_cell_value((bcol_it, brow_me)).get_value(), range_tmp.get_sheet().get_name(), range_ops::range_to_string(range_tmp.get_range()));
+
+                                                                range_tmp.get_sheet_mut().get_merge_cells_mut().clear();
+                                                                range_tmp.get_sheet_mut().add_merge_cells(mrange.get_range());
+                                                            }
+                                                            else
+                                                            {
+                                                                info!("Appended missing range {}:[{}:'{}'] to {}", it.get_sheet().get_name(), range_ops::range_to_string(&missing_entry), 
+                                                                    it.get_sheet().get_cell_value((bcol_it, brow_me)).get_value(), range_tmp.get_sheet().get_name());
+                                                            }
+                                                        }
+                                                        else
+                                                        {
+                                                            error!("Can't get append-range dimentions!");
+                                                        }
+                                                    }
+                                                    else
+                                                    {
+                                                        error!("Failed to append missing range {}:[{}] to {}!", it.get_sheet().get_name(), 
+                                                            range_ops::range_to_string(&missing_entry), range_tmp.get_sheet().get_name());
+                                                    }
+                                                }
+                                                else
+                                                {
+                                                    error!("Can't get missing-range dimentions!");
+                                                }
                                             }
                                         }
-                                        else
+                                        else 
                                         {
-                                            error!("Failed to append missing range {}:[{}] to {}!", it.get_sheet().get_name(), 
-                                                range_ops::range_to_string(&missing_entry), range_tmp.get_sheet().get_name());
+                                            // info!("{}[{}:'{}'] VS {}[{}:'{}']. KEEPING!", 
+                                            //         range_tmp.get_sheet().get_name(), range_ops::range_to_string(range_tmp.get_range()), hdr_in, 
+                                            //         it.get_sheet().get_name() ,range_ops::range_to_string(it.get_range()), hdr_it);
                                         }
                                     }
-                                }
-                                else 
-                                {
-                                    // info!("{}[{}:'{}'] VS {}[{}:'{}']. KEEPING!", 
-                                    //         range_tmp.get_sheet().get_name(), range_ops::range_to_string(range_tmp.get_range()), hdr_in, 
-                                    //         it.get_sheet().get_name() ,range_ops::range_to_string(it.get_range()), hdr_it);
+                                    else
+                                    {
+                                        // info!("{}[{}:'{}'] DEFFERENT FROM {}[{}:'{}'].",
+                                        //         range_tmp.get_sheet().get_name(), range_ops::range_to_string(range_tmp.get_range()), hdr_in, 
+                                        //         it.get_sheet().get_name() ,range_ops::range_to_string(it.get_range()), hdr_it);
+                                    }
                                 }
                             }
                             else
                             {
-                                // info!("{}[{}:'{}'] DEFFERENT FROM {}[{}:'{}'].",
-                                //         range_tmp.get_sheet().get_name(), range_ops::range_to_string(range_tmp.get_range()), hdr_in, 
-                                //         it.get_sheet().get_name() ,range_ops::range_to_string(it.get_range()), hdr_it);
+                                error!("Can't get range dimentions!"); 
                             }
                         }
+                        else
+                        {
+                        //    error!("Types mismatch: {}:{} {}:{}", range_ops::range_to_string(range_tmp.get_range()), range_tmp.get_type_name(), 
+                        //                                                                 range_ops::range_to_string(it.get_range()), it.get_type_name()); 
+                        }
                     }
-                    else
-                    {
-                    //    error!("Types mismatch: {}:{} {}:{}", range_ops::range_to_string(range_tmp.get_range()), range_tmp.get_type_name(), 
-                    //                                                                 range_ops::range_to_string(it.get_range()), it.get_type_name()); 
-                    }
+                },
+                Err(err) =>
+                {
+                    error!("Failed to create iterator: {}", err);
                 }
-            },
-            Err(err) =>
-            {
-                error!("Failed to create iterator: {}", err);
             }
         }
+        else
+        {
+            error!("Failed to append range {}:[{}] to {}!", sheet_in.get_name(), range_ops::range_to_string(range_in.get_range()), tmp_sheet.get_name());
+        }
     }
-    else
-    {
-        error!("Failed to append range {}:[{}] to {}!", sheet_in.get_name(), range_ops::range_to_string(range_in.get_range()), tmp_sheet.get_name());
-    }
-
     tmp_sheet
 }
 
@@ -433,76 +450,83 @@ pub fn filter_sheet_by_col_and_accum(
         {
             for it in iter_sheet 
             {
-                let (brow_it, _, _, _, _, _) = range_ops::range_bounds(it.get_range());
-                if "n" != it.get_sheet().get_cell_value((1, brow_it)).get_data_type().to_string()
+                if let Some((brow_it, _, _, _, _, _)) = range_ops::range_bounds(it.get_range())
                 {
-                    info!("Range {}:[{}] skipping none numeric leading data type!", it.get_sheet().get_name(), range_ops::range_to_string(it.get_range()));
-                    continue;
+                    if "n" != it.get_sheet().get_cell_value((1, brow_it)).get_data_type().to_string()
+                    {
+                        info!("Range {}:[{}] skipping none numeric leading data type!", it.get_sheet().get_name(), range_ops::range_to_string(it.get_range()));
+                        continue;
+                    }
+                    else
+                    {
+                        info!("Processing range '{}:[{}]'!", it.get_sheet().get_name(), range_ops::range_to_string(it.get_range()));
+                    }
+
+                    loop 
+                    {
+                        if let Some(found_range) = find_range_in_sheet(&it, sheet_out, &cmp_cols)
+                        { //accumulating
+                            let found_range_clone = found_range.get_range().clone();
+                            drop(found_range);
+
+                            info!("Range {} already exists in sheet {}! Accumulating data!", range_ops::range_to_string(it.get_range()), sheet_out.get_name());
+
+                            if range_ops::accumulate_ranges(sheet_in, it.get_range(), sheet_out, &found_range_clone, &cmp_cols, &acc_cols)
+                            {
+                                info!("Accumulated in-range '{}' to out-range '{}'!", range_ops::range_to_string(it.get_range()), range_ops::range_to_string(&found_range_clone));
+                            }
+
+                            break; //exit the internal loop
+                        }
+                        else
+                        { //appending
+                            let sheet_largest_range = make_largest_range(&it, sheet_in, &cmp_cols, &acc_cols);
+
+                            match range_ops::IterRow::new(&sheet_largest_range, max_row, max_col, 1, true, "-", range_ops::Offsets::default()) 
+                            {
+                                Ok(iter_sheet_largest_range) => 
+                                {
+                                    // // temporary file for debugging
+                                    // let mut tmp_ssheet = umya_spreadsheet::new_file(); //DELETE_ME
+                                    // _ = tmp_ssheet.add_sheet(sheet_largest_range.clone()); //DELETE_ME
+                                    // let tmpfname = format!("TMP_SHEET_{}.xlsx", range_ops::range_to_string(it.get_range()));
+                                    // _ = writer::xlsx::write(&tmp_ssheet, std::path::Path::new(&tmpfname)); //DELETE_ME
+                                    // // process::exit(1);
+
+                                    let mut loop_cnt = 0;
+                                    for it_slr in iter_sheet_largest_range
+                                    {
+                                        if 0 == loop_cnt
+                                        {
+                                            res = range_ops::append_range(it_slr.get_sheet(), &it_slr.get_range(), sheet_out, &acc_cols);
+
+                                            info!("Appended range {}:[{}] to {}: {}", it_slr.get_sheet().get_name(), range_ops::range_to_string(it_slr.get_range()), sheet_out.get_name(), res);
+                                        }
+                                        loop_cnt += 1;
+                                    }
+                                    if 1 < loop_cnt
+                                    {
+                                        error!("Only one largest range expected! Found {}!", loop_cnt);
+                                    }
+                                },
+                                Err(err) => 
+                                {
+                                    error!("Failed to create iterator: {}", err);
+                                }
+                            }
+                            //NOTE: no 'beak' here, because we've appended a range with zeroed numeric cells. The next loop should find this appended range and should update its values properly!
+                        } //appending
+                    }
+
+                    debug!("========================================================");
+                    // process::exit(1);
+                    // return res;
                 }
                 else
                 {
-                    info!("Processing range '{}:[{}]'!", it.get_sheet().get_name(), range_ops::range_to_string(it.get_range()));
+                    error!("Failed to get range dimenstions!");
+                    break;
                 }
-
-                loop 
-                {
-                    if let Some(found_range) = find_range_in_sheet(&it, sheet_out, &cmp_cols)
-                    { //accumulating
-                        let found_range_clone = found_range.get_range().clone();
-                        drop(found_range);
-
-                        info!("Range {} already exists in sheet {}! Accumulating data!", range_ops::range_to_string(it.get_range()), sheet_out.get_name());
-
-                        if range_ops::accumulate_ranges(sheet_in, it.get_range(), sheet_out, &found_range_clone, &cmp_cols, &acc_cols)
-                        {
-                            info!("Accumulated in-range '{}' to out-range '{}'!", range_ops::range_to_string(it.get_range()), range_ops::range_to_string(&found_range_clone));
-                        }
-
-                        break; //exit the internal loop
-                    }
-                    else
-                    { //appending
-                        let sheet_largest_range = make_largest_range(&it, sheet_in, &cmp_cols, &acc_cols);
-
-                        match range_ops::IterRow::new(&sheet_largest_range, max_row, max_col, 1, true, "-", range_ops::Offsets::default()) 
-                        {
-                            Ok(iter_sheet_largest_range) => 
-                            {
-                                // // temporary file for debugging
-                                // let mut tmp_ssheet = umya_spreadsheet::new_file(); //DELETE_ME
-                                // _ = tmp_ssheet.add_sheet(sheet_largest_range.clone()); //DELETE_ME
-                                // let tmpfname = format!("TMP_SHEET_{}.xlsx", range_ops::range_to_string(it.get_range()));
-                                // _ = writer::xlsx::write(&tmp_ssheet, std::path::Path::new(&tmpfname)); //DELETE_ME
-                                // // process::exit(1);
-
-                                let mut loop_cnt = 0;
-                                for it_slr in iter_sheet_largest_range
-                                {
-                                    if 0 == loop_cnt
-                                    {
-                                        res = range_ops::append_range(it_slr.get_sheet(), &it_slr.get_range(), sheet_out, &acc_cols);
-
-                                        info!("Appended range {}:[{}] to {}: {}", it_slr.get_sheet().get_name(), range_ops::range_to_string(it_slr.get_range()), sheet_out.get_name(), res);
-                                    }
-                                    loop_cnt += 1;
-                                }
-                                if 1 < loop_cnt
-                                {
-                                    error!("Only one largest range expected! Found {}!", loop_cnt);
-                                }
-                            },
-                            Err(err) => 
-                            {
-                                error!("Failed to create iterator: {}", err);
-                            }
-                        }
-                        //NOTE: no 'beak' here, because we've appended a range with zeroed numeric cells. The next loop should find this appended range and should update its values properly!
-                    } //appending            
-                }
-
-                debug!("========================================================");
-                // process::exit(1);
-                // return res;
             }
             info!("Finished filtering loop, exiting");
         }
@@ -511,7 +535,7 @@ pub fn filter_sheet_by_col_and_accum(
             error!("Failed to create iterator: {}", err);
         }
     }
-    return res;
+    res
 }
 
 pub fn apply_calculations(
@@ -650,121 +674,137 @@ pub fn get_anaysis_data(
         {
             while let Some(mut fit) = range_ops::LendingIterator::next(&mut filtered_sheet_it)
             {
-                let (ffbr, _, _, _, _, _) = range_ops::range_bounds(fit.get_range()); //(brow, erow, bcol, ecol, rows, cols)
-
-                if "n" != fit.get_sheet().get_cell_value((1, ffbr)).get_data_type().to_string()
+                if let Some((ffbr, _, _, _, _, _)) = range_ops::range_bounds(fit.get_range()) //(brow, erow, bcol, ecol, rows, cols)
                 {
-                    info!("Range {}:[{}] skipping none numeric leading data type!", fit.get_sheet().get_name(), range_ops::range_to_string(fit.get_range()));
-                    continue;
-                }
-
-                while let Some(fitr) = Iterator::next(&mut fit) //loop over the rows of the iterator's range
-                {
-                    // info!("Tmp Range {}:[{}] sub-range:{}", fit.get_sheet().get_name(), range_ops::range_to_string(fit.get_range()), range_ops::range_to_string(&fitr));
-
-                    let (fbr, _fer, _fbc, _fec, _, _) = range_ops::range_bounds(&fitr); //(brow, erow, bcol, ecol, rows, cols)
-
-                    let filtered_cell_value = fit.get_sheet().get_cell_value((fsrch_col, fbr)).get_value();
-
-                    match range_ops::IterRow::new(analysis_sheet, max_row, max_col, 1, false, analysis_srch_pat, range_ops::Offsets::new(0,0,-1,-1))
+                    if "n" != fit.get_sheet().get_cell_value((1, ffbr)).get_data_type().to_string()
                     {
-                        Ok(analysis_sheet_it) => 
+                        info!("Range {}:[{}] skipping none numeric leading data type!", fit.get_sheet().get_name(), range_ops::range_to_string(fit.get_range()));
+                        continue;
+                    }
+
+                    while let Some(fitr) = Iterator::next(&mut fit) //loop over the rows of the iterator's range
+                    {
+                        // info!("Tmp Range {}:[{}] sub-range:{}", fit.get_sheet().get_name(), range_ops::range_to_string(fit.get_range()), range_ops::range_to_string(&fitr));
+
+                        if let Some((fbr, _fer, _fbc, _fec, _, _)) = range_ops::range_bounds(&fitr) //(brow, erow, bcol, ecol, rows, cols)
                         {
-                            let mut found_analysis_entry = false;
-                            let mut found_analysis_value = false;
+                            let filtered_cell_value = fit.get_sheet().get_cell_value((fsrch_col, fbr)).get_value();
 
-                            let mut analysis_data_to_copy: Vec<CellValue> = Vec::new();
-
-                            for ait in analysis_sheet_it
+                            match range_ops::IterRow::new(analysis_sheet, max_row, max_col, 1, false, analysis_srch_pat, range_ops::Offsets::new(0,0,-1,-1))
                             {
-                                let (abr, aer, _, _, _, _) = range_ops::range_bounds(ait.get_range()); //(brow, erow, bcol, ecol, rows, cols)
-
-                                let analysis_cell_value = ait.get_sheet().get_cell_value((aloop_col, abr)).get_value();
-
-                                if range_ops::cmp_strs(&filtered_cell_value, &analysis_cell_value)
+                                Ok(analysis_sheet_it) => 
                                 {
-                                    info!("Found analysis section for '{}:[{}:'{}']'", ait.get_sheet().get_name(), range_ops::coords_to_str(aloop_col, abr), analysis_cell_value);
+                                    let mut found_analysis_entry = false;
+                                    let mut found_analysis_value = false;
 
-                                    for ar in (abr..=aer).rev() //loop backwards and get the last analysis_term_pat entry
+                                    let mut analysis_data_to_copy: Vec<CellValue> = Vec::new();
+
+                                    for ait in analysis_sheet_it
                                     {
-                                        let cell_value = ait.get_sheet().get_cell_value((asrch_col, ar)).get_value();
-
-                                        // info!("Scanning '{}:[{}:'{}']'", ait.get_sheet().get_name(), range_ops::coords_to_str(asrch_col, ar), cell_value);
-
-                                        if range_ops::cmp_strs(analysis_term_pat, &cell_value)
+                                        if let Some((abr, aer, _, _, _, _)) = range_ops::range_bounds(ait.get_range()) //(brow, erow, bcol, ecol, rows, cols)
                                         {
-                                            found_analysis_entry = true;
-                                            found_analysis_value = true;
+                                            let analysis_cell_value = ait.get_sheet().get_cell_value((aloop_col, abr)).get_value();
 
-                                            for cpcol in &acols_copy_src
+                                            if range_ops::cmp_strs(&filtered_cell_value, &analysis_cell_value)
                                             {
-                                                if *cpcol == aloop_col
+                                                info!("Found analysis section for '{}:[{}:'{}']'", ait.get_sheet().get_name(), range_ops::coords_to_str(aloop_col, abr), analysis_cell_value);
+
+                                                for ar in (abr..=aer).rev() //loop backwards and get the last analysis_term_pat entry
                                                 {
-                                                    analysis_data_to_copy.push(ait.get_sheet().get_cell_value((*cpcol, abr+1)).clone());
+                                                    let cell_value = ait.get_sheet().get_cell_value((asrch_col, ar)).get_value();
+
+                                                    // info!("Scanning '{}:[{}:'{}']'", ait.get_sheet().get_name(), range_ops::coords_to_str(asrch_col, ar), cell_value);
+
+                                                    if range_ops::cmp_strs(analysis_term_pat, &cell_value)
+                                                    {
+                                                        found_analysis_entry = true;
+                                                        found_analysis_value = true;
+
+                                                        for cpcol in &acols_copy_src
+                                                        {
+                                                            if *cpcol == aloop_col
+                                                            {
+                                                                analysis_data_to_copy.push(ait.get_sheet().get_cell_value((*cpcol, abr+1)).clone());
+                                                            }
+                                                            else
+                                                            {
+                                                                analysis_data_to_copy.push(ait.get_sheet().get_cell_value((*cpcol, ar)).clone());
+                                                            }
+                                                        }
+                                                        break;
+                                                    }
                                                 }
-                                                else
-                                                {
-                                                    analysis_data_to_copy.push(ait.get_sheet().get_cell_value((*cpcol, ar)).clone());
-                                                }
+                                                break;
                                             }
+                                        }
+                                        else
+                                        {
+                                            error!("Failed to get analysis range dimensions!");
                                             break;
                                         }
                                     }
-                                    break;
-                                }
-                            }
 
-                            if false == found_analysis_entry
-                            {
-                                error!("Failed to find analysis section for '{}:[{}:'{}']'", fit.get_sheet().get_name(), range_ops::coords_to_str(fsrch_col, fbr), filtered_cell_value);
-                            }
-                            else
-                            {
-                                if true == found_analysis_value
-                                {
-                                    //copy the values from analysis table to filtered table
-                                    for (col_dst, data_to_copy) in fcols_copy_dst.iter().zip(analysis_data_to_copy.iter())
+                                    if false == found_analysis_entry
                                     {
-                                        let mut s_data_to_copy = data_to_copy.get_value().to_string();
-                                        if let Some(last_part) = s_data_to_copy.split(':').last() 
-                                        {
-                                            s_data_to_copy = last_part.trim().to_string();
-                                        }
-
-                                        info!("Setting value:{} for '{}:[{}:'{}']'", s_data_to_copy, fit.get_sheet().get_name(), range_ops::coords_to_str(*col_dst, fbr), filtered_cell_value);
-
-                                        let dst_cell_desc = fit.get_sheet_mut().get_cell_mut((*col_dst, fbr));
-
-                                        dst_cell_desc.set_value(s_data_to_copy);
+                                        error!("Failed to find analysis section for '{}:[{}:'{}']'", fit.get_sheet().get_name(), range_ops::coords_to_str(fsrch_col, fbr), filtered_cell_value);
                                     }
-
-                                    //apply calculations in the filtered table
-                                    match apply_calculations(fit.get_sheet_mut(), fbr, &fcalculations)
+                                    else
                                     {
-                                        Ok(_) =>
+                                        if true == found_analysis_value
                                         {
-                                            res = true;
+                                            //copy the values from analysis table to filtered table
+                                            for (col_dst, data_to_copy) in fcols_copy_dst.iter().zip(analysis_data_to_copy.iter())
+                                            {
+                                                let mut s_data_to_copy = data_to_copy.get_value().to_string();
+                                                if let Some(last_part) = s_data_to_copy.split(':').last() 
+                                                {
+                                                    s_data_to_copy = last_part.trim().to_string();
+                                                }
+
+                                                info!("Setting value:{} for '{}:[{}:'{}']'", s_data_to_copy, fit.get_sheet().get_name(), range_ops::coords_to_str(*col_dst, fbr), filtered_cell_value);
+
+                                                let dst_cell_desc = fit.get_sheet_mut().get_cell_mut((*col_dst, fbr));
+
+                                                dst_cell_desc.set_value(s_data_to_copy);
+                                            }
+
+                                            //apply calculations in the filtered table
+                                            match apply_calculations(fit.get_sheet_mut(), fbr, &fcalculations)
+                                            {
+                                                Ok(_) =>
+                                                {
+                                                    res = true;
+                                                }
+                                                Err(err) => 
+                                                {
+                                                    error!("Failed to apply calculation expressions: {}", err);
+                                                }
+                                            }
                                         }
-                                        Err(err) => 
+                                        else
                                         {
-                                            error!("Failed to apply calculation expressions: {}", err);
+                                            error!("Failed to find analysis value for '{}:[{}:'{}']'", fit.get_sheet().get_name(), range_ops::coords_to_str(fsrch_col, fbr), filtered_cell_value);
                                         }
                                     }
-                                }
-                                else
+                                },
+                                Err(err) => 
                                 {
-                                    error!("Failed to find analysis value for '{}:[{}:'{}']'", fit.get_sheet().get_name(), range_ops::coords_to_str(fsrch_col, fbr), filtered_cell_value);
+                                    error!("Failed to create iterator: {}", err);
                                 }
                             }
-                        },
-                        Err(err) => 
+                        }
+                        else
                         {
-                            error!("Failed to create iterator: {}", err);
+                            error!("Failed to get current filter range dimenstions!");
+                            break;
                         }
                     }
+                    debug!("========================================================");
                 }
-                debug!("========================================================");
-
+                else
+                {
+                    error!("Failed to get analysis range dimenstions!");
+                }
             }
             info!("Finished analysis loop, exiting");
         },

@@ -721,30 +721,41 @@ fn iter_row_next_impl_shared<'a>(
         {
             // info!("Found merged cells range '{}'", range_to_string(&merged_cells));
 
-            let (_, merged_end_row, _, _, _, _) = range_bounds(merged_cells);
-            cells_range = make_range_from_indexes(pivot_col, *current_row, pivot_col + max_col, merged_end_row);
-
-            let (_, _, _, _, range_rows, _) = range_bounds(&cells_range);
-
-            *current_row += range_rows; //should 'current_row' be affected by the range offset
-
-            match offset_range(&cells_range, offsets)
+            if let Some((_, merged_end_row, _, _, _, _)) = range_bounds(merged_cells)
             {
-                Ok(cells_offset_range) =>
+                cells_range = make_range_from_indexes(pivot_col, *current_row, pivot_col + max_col, merged_end_row);
+
+                if let Some((_, _, _, _, range_rows, _)) = range_bounds(&cells_range)
                 {
-                    ret = Some((cells_offset_range, range_types::IterRowNextKind::Merged));
+                    *current_row += range_rows; //should 'current_row' be affected by the range offset
+
+                    match offset_range(&cells_range, offsets)
+                    {
+                        Ok(cells_offset_range) =>
+                        {
+                            ret = Some((cells_offset_range, range_types::IterRowNextKind::Merged));
+                        }
+                        Err(err) =>
+                        {
+                            if is_first_line
+                            {
+                                ret = Some((cells_range, range_types::IterRowNextKind::Merged));
+                            }
+                            else
+                            {
+                                error!("Offset error! {} Using none-offset merged range!", err);
+                            }
+                        }
+                    }
                 }
-                Err(err) =>
+                else
                 {
-                    if is_first_line
-                    {
-                        ret = Some((cells_range, range_types::IterRowNextKind::Merged));
-                    }
-                    else
-                    {
-                        error!("Offset error! {} Using none-offset merged range!", err);
-                    }
+                    error!("Invalid range created from merged cells!");
                 }
+            }
+            else
+            {
+                error!("Invalid range bounds of merged cells!");
             }
         } 
         else if let Some(src_cell) = sheet.get_cell((pivot_col, *current_row)) //will return None if the cell is empty!
@@ -754,41 +765,160 @@ fn iter_row_next_impl_shared<'a>(
             
             cells_range = make_range_from_indexes(pivot_col, *current_row, pivot_col + max_col, *current_row);
 
-            if pivot_numeric
+            if let Some((_, _, _, _, rows, _)) = range_bounds(&cells_range)
             {
-                if first_cell_data_type == "n" 
+                if pivot_numeric
                 {
-                    let mut range_rows = {
-                        let (_, _, _, _, rows, _) = range_bounds(&cells_range);
-                        rows
-                    };
-                    let mut multiline = false;
-
-                    let next_row = *current_row + 1;
-                    for nrow in next_row..=max_row 
+                    if first_cell_data_type == "n" 
                     {
-                        if let Some(next_cell) = sheet.get_cell((pivot_col, nrow)) 
-                        {
-                            let next_cell_value = next_cell.get_value().clone();
-                            let next_cell_data_type = next_cell.get_data_type().to_string();
-                            let pattern_found = pivot_re.is_match(&next_cell_value); //search for rows staring with symbol '-'
+                        let mut range_rows = rows;
+                        let mut multiline = false;
 
-                            if next_cell_data_type == "s" && pattern_found
+                        let next_row = *current_row + 1;
+                        for nrow in next_row..=max_row 
+                        {
+                            if let Some(next_cell) = sheet.get_cell((pivot_col, nrow)) 
                             {
-                                cells_range = make_range_from_indexes(pivot_col, *current_row, pivot_col + max_col, nrow);
-                                let (_, _, _, _, new_range_rows, _) = range_bounds(&cells_range);
-                                range_rows = new_range_rows;
-                                multiline = true;
+                                let next_cell_value = next_cell.get_value().clone();
+                                let next_cell_data_type = next_cell.get_data_type().to_string();
+                                let pattern_found = pivot_re.is_match(&next_cell_value); //search for rows staring with symbol '-'
+
+                                if next_cell_data_type == "s" && pattern_found
+                                {
+                                    cells_range = make_range_from_indexes(pivot_col, *current_row, pivot_col + max_col, nrow);
+
+                                    if let Some((_, _, _, _, new_range_rows, _)) = range_bounds(&cells_range)
+                                    {
+                                        range_rows = new_range_rows;
+                                        multiline = true;
+                                    }
+                                    else
+                                    {
+                                        error!("Created invalid multiline range! Wrong end bounds!");
+                                    }
+                                }
+                                else
+                                {
+                                    // info!("Next row {}: [numeric:{}; pattern '{}' found:{}]", nrow, next_cell_data_type, pivot_re.as_str(), pattern_found);
+                                    break;
+                                }
                             }
-                            else
+                        }
+
+                        *current_row += range_rows; //should 'current_row' be affected by the range offset
+
+                        match offset_range(&cells_range, offsets)
+                        {
+                            Ok(cells_offset_range) =>
                             {
-                                // info!("Next row {}: [numeric:{}; pattern '{}' found:{}]", nrow, next_cell_data_type, pivot_re.as_str(), pattern_found);
-                                break;
+                                if multiline 
+                                {
+                                    // info!("Range [{}]: from multiline cells! current_row={}", range_to_string(&cells_offset_range), current_row);
+                                    ret = Some((cells_offset_range, range_types::IterRowNextKind::Multiline));
+                                } 
+                                else 
+                                {
+                                    // info!("Range [{}]: from regular cells! current_row={}", range_to_string(&cells_offset_range), current_row);
+                                    ret = Some((cells_offset_range, range_types::IterRowNextKind::Basic));
+                                }
+                            }
+                            Err(err) =>
+                            {
+                                if is_first_line
+                                {
+                                    if multiline 
+                                    {
+                                        // info!("Range [{}]: from multiline cells! current_row={}", range_to_string(&cells_range), current_row);
+                                        ret = Some((cells_range, range_types::IterRowNextKind::Multiline));
+                                    } 
+                                    else 
+                                    {
+                                        // info!("Range [{}]: from regular cells! current_row={}", range_to_string(&cells_range), current_row);
+                                        ret = Some((cells_range, range_types::IterRowNextKind::Basic));
+                                    }
+                                }
+                                else
+                                {
+                                    error!("Offset error! {} Using none-offset multiline range!", err);
+                                }
+                            }
+                        }
+                    } 
+                    else 
+                    {
+                        // info!("Current row {} starts with unexpected type:'{}'! {}", *current_row, first_cell_data_type, range_to_string(&cells_range));
+
+                        *current_row += 1; //should 'current_row' be affected by the range offset
+
+                        match offset_range(&cells_range, offsets)
+                        {
+                            Ok(cells_offset_range) =>
+                            {
+                                ret = Some((cells_offset_range, range_types::IterRowNextKind::Basic));
+                            }
+                            Err(err) =>
+                            {
+                                if is_first_line
+                                {
+                                    ret = Some((cells_range, range_types::IterRowNextKind::Basic));
+                                }
+                                else
+                                {
+                                    error!("Offset error! {} Using none-offset basic range!", err);
+                                }
                             }
                         }
                     }
+                }
+                else
+                {
+                    let mut multiline = false;
+                    if pivot_re.is_match(&first_cell_value)
+                    {
+                        multiline  = true;
 
-                    *current_row += range_rows; //should 'current_row' be affected by the range offset
+                        let mut range_rows = rows;
+
+                        let mut pattern_found = false;
+                        let next_row = *current_row + 1;
+                        for nrow in next_row..=max_row //loop untill the next pattern is found
+                        {
+                            if let Some(next_cell) = sheet.get_cell((pivot_col, nrow)) 
+                            {
+                                if pivot_re.is_match(&next_cell.get_value().clone())
+                                {
+                                    cells_range = make_range_from_indexes(pivot_col, *current_row, pivot_col + max_col, nrow-1); //this includes the row with matched pattern, so remove one line
+
+                                    if let Some((_, _, _, _, new_range_rows, _)) = range_bounds(&cells_range)
+                                    {
+                                        range_rows    = new_range_rows; //pattern found, overwrite range_rows
+                                        pattern_found = true;
+                                    }
+                                    else
+                                    {
+                                        error!("Created invalid multiline range! Wrong end bounds!");
+                                    }
+                                    break;
+                                }
+                                else
+                                {
+                                    range_rows += 1; //count the next row we've searched.
+                                }
+                            }
+                        }
+
+                        if false == pattern_found //we've not detected next pattern, so get all of the left lines
+                        {
+                            let last_row = *current_row + range_rows;
+                            cells_range = make_range_from_indexes(pivot_col, *current_row, pivot_col + max_col, last_row);
+                        }
+
+                        *current_row += range_rows; //should 'current_row' be affected by the range offset
+                    }
+                    else 
+                    {
+                        *current_row += 1; //should 'current_row' be affected by the range offset
+                    }
 
                     match offset_range(&cells_range, offsets)
                     {
@@ -822,32 +952,7 @@ fn iter_row_next_impl_shared<'a>(
                             }
                             else
                             {
-                                error!("Offset error! {} Using none-offset multiline range!", err);
-                            }
-                        }
-                    }
-                } 
-                else 
-                {
-                    // info!("Current row {} starts with unexpected type:'{}'! {}", *current_row, first_cell_data_type, range_to_string(&cells_range));
-
-                    *current_row += 1; //should 'current_row' be affected by the range offset
-
-                    match offset_range(&cells_range, offsets)
-                    {
-                        Ok(cells_offset_range) =>
-                        {
-                            ret = Some((cells_offset_range, range_types::IterRowNextKind::Basic));
-                        }
-                        Err(err) =>
-                        {
-                            if is_first_line
-                            {
-                                ret = Some((cells_range, range_types::IterRowNextKind::Basic));
-                            }
-                            else
-                            {
-                                error!("Offset error! {} Using none-offset basic range!", err);
+                                error!("Offset error! {} Using none-offset multiline range for none-numeric pivot!", err);
                             }
                         }
                     }
@@ -855,86 +960,7 @@ fn iter_row_next_impl_shared<'a>(
             }
             else
             {
-                let mut multiline = false;
-                if pivot_re.is_match(&first_cell_value)
-                {
-                    multiline  = true;
-
-                    let mut range_rows = {
-                        let (_, _, _, _, rows, _) = range_bounds(&cells_range);
-                        rows
-                    };
-
-                    let mut pattern_found = false;
-                    let next_row = *current_row + 1;
-                    for nrow in next_row..=max_row //loop untill the next pattern is found
-                    {
-                        if let Some(next_cell) = sheet.get_cell((pivot_col, nrow)) 
-                        {
-                            if pivot_re.is_match(&next_cell.get_value().clone())
-                            {
-                                cells_range = make_range_from_indexes(pivot_col, *current_row, pivot_col + max_col, nrow-1); //this includes the row with matched pattern, so remove one line
-                                let (_, _, _, _, new_range_rows, _) = range_bounds(&cells_range);
-                                range_rows    = new_range_rows; //pattern found, overwrite range_rows
-                                pattern_found = true;
-                                break;
-                            }
-                            else
-                            {
-                                range_rows += 1; //count the next row we've searched.
-                            }
-                        }
-                    }
-
-                    if false == pattern_found //we've not detected next pattern, so get all of the left lines
-                    {
-                        let last_row = *current_row + range_rows;
-                        cells_range = make_range_from_indexes(pivot_col, *current_row, pivot_col + max_col, last_row);
-                    }
-
-                    *current_row += range_rows; //should 'current_row' be affected by the range offset
-                }
-                else 
-                {
-                    *current_row += 1; //should 'current_row' be affected by the range offset
-                }
-
-                match offset_range(&cells_range, offsets)
-                {
-                    Ok(cells_offset_range) =>
-                    {
-                        if multiline 
-                        {
-                            // info!("Range [{}]: from multiline cells! current_row={}", range_to_string(&cells_offset_range), current_row);
-                            ret = Some((cells_offset_range, range_types::IterRowNextKind::Multiline));
-                        } 
-                        else 
-                        {
-                            // info!("Range [{}]: from regular cells! current_row={}", range_to_string(&cells_offset_range), current_row);
-                            ret = Some((cells_offset_range, range_types::IterRowNextKind::Basic));
-                        }
-                    }
-                    Err(err) =>
-                    {
-                        if is_first_line
-                        {
-                            if multiline 
-                            {
-                                // info!("Range [{}]: from multiline cells! current_row={}", range_to_string(&cells_range), current_row);
-                                ret = Some((cells_range, range_types::IterRowNextKind::Multiline));
-                            } 
-                            else 
-                            {
-                                // info!("Range [{}]: from regular cells! current_row={}", range_to_string(&cells_range), current_row);
-                                ret = Some((cells_range, range_types::IterRowNextKind::Basic));
-                            }
-                        }
-                        else
-                        {
-                            error!("Offset error! {} Using none-offset multiline range for none-numeric pivot!", err);
-                        }
-                    }
-                }
+                error!("Created invalid multiline range! Wrong start bounds!");
             }
         } 
         else 

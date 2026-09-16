@@ -69,61 +69,64 @@ where
     let range_a = this.get_range();
     let range_b = other.get_range();
 
-    let (brow_a, erow_a, bcol_a, _ecol_a, rows_a, cols_a) = range_ops::range_bounds(range_a);
-    let (brow_b, erow_b, bcol_b, _ecol_b, rows_b, cols_b) = range_ops::range_bounds(range_b);
-
-    if strict && (rows_a != rows_b || cols_a != cols_b) {
-        error!("Size missmatch! Range A:[{}, len:{}] != Range B:[{}, len:{}]", //label, 
-            range_ops::range_to_string(range_a), rows_a, range_ops::range_to_string(range_b), rows_b);
-        return false;
-    }
-
-    let cols_a_offsets: Vec<u32> = (0..=cols_a).collect();
-    let cols_b_offsets: Vec<u32> = (0..=cols_b).collect();
-    let allowed_rows: Vec<u32> = o_use_rows.unwrap_or_default();
-    let allowed_cols: Vec<u32> = o_use_cols.unwrap_or_default();
-
-    let _str_allowed_rows = allowed_rows.iter().map(|r| r.to_string()).collect::<Vec<String>>().join(",");
-    let _str_allowed_cols = allowed_cols.iter().map(|c| c.to_string()).collect::<Vec<String>>().join(",");
-
-    let mut row_match = 0;
-    let mut col_match: u32;
-
-    for row_num_a in brow_a..=erow_a {
-        if allowed_rows.len() > 0 && !allowed_rows.contains(&row_num_a) {
-            continue;
+    if let ( Some((brow_a, erow_a, bcol_a, _ecol_a, rows_a, cols_a)), 
+             Some((brow_b, erow_b, bcol_b, _ecol_b, rows_b, cols_b)) ) = (range_ops::range_bounds(range_a), 
+                                                                                                        range_ops::range_bounds(range_b)) 
+    {
+        if strict && (rows_a != rows_b || cols_a != cols_b) {
+            error!("Size missmatch! Range A:[{}, len:{}] != Range B:[{}, len:{}]", //label, 
+                range_ops::range_to_string(range_a), rows_a, range_ops::range_to_string(range_b), rows_b);
+            return false;
         }
 
-        for row_num_b in brow_b..=erow_b {
-            if allowed_rows.len() > 0 && !allowed_rows.contains(&row_num_b) {
+        let cols_a_offsets: Vec<u32> = (0..=cols_a).collect();
+        let cols_b_offsets: Vec<u32> = (0..=cols_b).collect();
+        let allowed_rows: Vec<u32> = o_use_rows.unwrap_or_default();
+        let allowed_cols: Vec<u32> = o_use_cols.unwrap_or_default();
+
+        let _str_allowed_rows = allowed_rows.iter().map(|r| r.to_string()).collect::<Vec<String>>().join(",");
+        let _str_allowed_cols = allowed_cols.iter().map(|c| c.to_string()).collect::<Vec<String>>().join(",");
+
+        let mut row_match = 0;
+        let mut col_match: u32;
+
+        for row_num_a in brow_a..=erow_a {
+            if allowed_rows.len() > 0 && !allowed_rows.contains(&row_num_a) {
                 continue;
             }
 
-            col_match = 0;
-            for (col_a_offset, col_b_offset) in cols_a_offsets.iter().zip(cols_b_offsets.iter()) {
-                let col_num_a = bcol_a + col_a_offset;
-                let col_num_b = bcol_b + col_b_offset;
-
-                if allowed_cols.len() > 0 && !allowed_cols.contains(&col_num_a) && !allowed_cols.contains(&col_num_b) {
-                    col_match += 1;
+            for row_num_b in brow_b..=erow_b {
+                if allowed_rows.len() > 0 && !allowed_rows.contains(&row_num_b) {
                     continue;
                 }
 
-                if this.compare_cell(col_num_a, row_num_a, other, col_num_b, row_num_b, strict) {
-                    col_match += 1;
+                col_match = 0;
+                for (col_a_offset, col_b_offset) in cols_a_offsets.iter().zip(cols_b_offsets.iter()) {
+                    let col_num_a = bcol_a + col_a_offset;
+                    let col_num_b = bcol_b + col_b_offset;
+
+                    if allowed_cols.len() > 0 && !allowed_cols.contains(&col_num_a) && !allowed_cols.contains(&col_num_b) {
+                        col_match += 1;
+                        continue;
+                    }
+
+                    if this.compare_cell(col_num_a, row_num_a, other, col_num_b, row_num_b, strict) {
+                        col_match += 1;
+                    }
+                }
+
+                if col_match == cols_a {
+                    row_match += 1;
                 }
             }
-
-            if col_match == cols_a {
-                row_match += 1;
-            }
         }
-    }
 
-    if !strict && row_match != rows_a {
-        return false;
+        if !strict && row_match != rows_a {
+            return false;
+        }
+        return true;
     }
-    true
+    false
 }
 
 fn compare_merged_range_impl<T>(
@@ -139,79 +142,82 @@ where
     let range_a = this.get_range();
     let range_b = other.get_range();
 
-    let (brow_a, erow_a, bcol_a, _ecol_a, rows_a, cols_a) = range_ops::range_bounds(range_a);
-    let (brow_b, erow_b, bcol_b, _ecol_b, rows_b, cols_b) = range_ops::range_bounds(range_b);
-
-    if rows_a != rows_b || cols_a != cols_b
+    if let ( Some((brow_a, erow_a, bcol_a, _ecol_a, rows_a, cols_a)), 
+             Some((brow_b, erow_b, bcol_b, _ecol_b, rows_b, cols_b)) ) = (range_ops::range_bounds(range_a), 
+                                                                                                        range_ops::range_bounds(range_b)) 
     {
-        error!("Size missmatch! Range {}:[{}] != Range {}:[{}]", //label, 
-                this.get_sheet().get_name(), range_ops::range_to_string(range_a),
-                other.get_sheet().get_name(), range_ops::range_to_string(range_b));
+        if rows_a != rows_b || cols_a != cols_b
+        {
+            error!("Size missmatch! Range {}:[{}] != Range {}:[{}]", //label, 
+                    this.get_sheet().get_name(), range_ops::range_to_string(range_a),
+                    other.get_sheet().get_name(), range_ops::range_to_string(range_b));
 
-        return false;
-    }
-
-    let cols_a_offsets: Vec<u32> = (0..=(cols_a-1)).collect();
-    let cols_b_offsets: Vec<u32> = (0..=(cols_b-1)).collect();
-    let allowed_rows: Vec<u32> = o_use_rows.unwrap_or_default();
-    let allowed_cols: Vec<u32> = o_use_cols.unwrap_or_default();
-
-    let _str_allowed_rows = allowed_rows.iter().map(|r| r.to_string()).collect::<Vec<String>>().join(",");
-    let _str_allowed_cols = allowed_cols.iter().map(|c| c.to_string()).collect::<Vec<String>>().join(",");
-
-    let mut row_match = 0;
-    let mut col_match: u32;
-
-    for row_num_a in brow_a..=erow_a {
-        if allowed_rows.len() > 0 && !allowed_rows.contains(&row_num_a) {
-            continue;
+            return false;
         }
 
-        for row_num_b in brow_b..=erow_b {
-            if allowed_rows.len() > 0 && !allowed_rows.contains(&row_num_b) {
+        let cols_a_offsets: Vec<u32> = (0..=(cols_a-1)).collect();
+        let cols_b_offsets: Vec<u32> = (0..=(cols_b-1)).collect();
+        let allowed_rows: Vec<u32> = o_use_rows.unwrap_or_default();
+        let allowed_cols: Vec<u32> = o_use_cols.unwrap_or_default();
+
+        let _str_allowed_rows = allowed_rows.iter().map(|r| r.to_string()).collect::<Vec<String>>().join(",");
+        let _str_allowed_cols = allowed_cols.iter().map(|c| c.to_string()).collect::<Vec<String>>().join(",");
+
+        let mut row_match = 0;
+        let mut col_match: u32;
+
+        for row_num_a in brow_a..=erow_a {
+            if allowed_rows.len() > 0 && !allowed_rows.contains(&row_num_a) {
                 continue;
             }
 
-            col_match = 0;
-            for (col_a_offset, col_b_offset) in cols_a_offsets.iter().zip(cols_b_offsets.iter()) 
-            {
-                let col_num_a = bcol_a + col_a_offset;
-                let col_num_b = bcol_b + col_b_offset;
-
-                if allowed_cols.len() > 0 && !allowed_cols.contains(&col_num_a) && !allowed_cols.contains(&col_num_b) {
-                    col_match += 1;
+            for row_num_b in brow_b..=erow_b {
+                if allowed_rows.len() > 0 && !allowed_rows.contains(&row_num_b) {
                     continue;
                 }
 
-                if this.compare_cell(col_num_a, row_num_a, other, col_num_b, row_num_b, strict) {
-                    col_match += 1;
+                col_match = 0;
+                for (col_a_offset, col_b_offset) in cols_a_offsets.iter().zip(cols_b_offsets.iter()) 
+                {
+                    let col_num_a = bcol_a + col_a_offset;
+                    let col_num_b = bcol_b + col_b_offset;
+
+                    if allowed_cols.len() > 0 && !allowed_cols.contains(&col_num_a) && !allowed_cols.contains(&col_num_b) {
+                        col_match += 1;
+                        continue;
+                    }
+
+                    if this.compare_cell(col_num_a, row_num_a, other, col_num_b, row_num_b, strict) {
+                        col_match += 1;
+                    }
+                }
+
+                // info!("cols_a:{}, col_match:{}]", //label, 
+                //     cols_a, col_match);
+
+                if col_match == cols_a {
+                    row_match += 1;
                 }
             }
-
-            // info!("cols_a:{}, col_match:{}]", //label, 
-            //     cols_a, col_match);
-
-            if col_match == cols_a {
-                row_match += 1;
-            }
         }
-    }
 
-    // info!("rows_a:{}, row_match:{}]", //label, 
-    //         rows_a, row_match);
+        // info!("rows_a:{}, row_match:{}]", //label, 
+        //         rows_a, row_match);
 
-    if row_match != rows_a 
-    {
-        // info!("Range {}:[{}, len:{}] DIFFERS FROM Range {}:[{}, len:{}]", //label, 
+        if row_match != rows_a 
+        {
+            // info!("Range {}:[{}, len:{}] DIFFERS FROM Range {}:[{}, len:{}]", //label, 
+            //     this.get_sheet().get_name(), range_ops::range_to_string(range_a), rows_a, other.get_sheet().get_name(), range_ops::range_to_string(range_b), rows_b);
+
+            return false;
+        }
+
+        // info!("Range {}:[{}, len:{}] EQUALS TO Range {}:[{}, len:{}]", //label, 
         //     this.get_sheet().get_name(), range_ops::range_to_string(range_a), rows_a, other.get_sheet().get_name(), range_ops::range_to_string(range_b), rows_b);
 
-        return false;
+        return true
     }
-
-    // info!("Range {}:[{}, len:{}] EQUALS TO Range {}:[{}, len:{}]", //label, 
-    //     this.get_sheet().get_name(), range_ops::range_to_string(range_a), rows_a, other.get_sheet().get_name(), range_ops::range_to_string(range_b), rows_b);
-
-    true
+    false
 }
 
 fn compare_multiline_range_impl<T>(
@@ -227,93 +233,98 @@ where
     let range_this = this.get_range();
     let range_other = other.get_range();
 
-    let (brow_this, erow_this, bcol_this, _ecol_this, rows_this, cols_this) = range_ops::range_bounds(range_this);
-
-    let (brow_other, erow_other, bcol_other, _ecol_other, rows_other, cols_other) = range_ops::range_bounds(range_other);
-
-    let rows_cnt_this = rows_this + 1;
-    let cols_cnt_this = cols_this + 1;
-    let rows_cnt_other = rows_other + 1;
-    let cols_cnt_other = cols_other + 1;
-
-    // info!( "Range A:[{} Rows:{} Cols:{}] vs Range B:[{} Rows:{} Cols:{}]", //label,
-    //     range_ops::range_to_string(range_this), rows_cnt_this, cols_cnt_this,
-    //     range_ops::range_to_string(range_other), rows_cnt_other, cols_cnt_other);
-
-    if strict && (rows_cnt_this != rows_cnt_other || cols_cnt_this != cols_cnt_other) 
+    if let ( Some((brow_this, erow_this, bcol_this, _ecol_this, rows_this, cols_this)), 
+             Some((brow_other, erow_other, bcol_other, _ecol_other, rows_other, cols_other)) ) = (range_ops::range_bounds(range_this), 
+                                                                                                                                range_ops::range_bounds(range_other)) 
     {
-        error!("Size missmatch! Range A:[{}, len:{}] != Range B:[{}, len:{}]", //label,
-            range_ops::range_to_string(range_this), rows_cnt_this,
-            range_ops::range_to_string(range_other), rows_cnt_other);
-        return false;
-    }
+        // let (brow_this, erow_this, bcol_this, _ecol_this, rows_this, cols_this) = range_ops::range_bounds(range_this);
+        // let (brow_other, erow_other, bcol_other, _ecol_other, rows_other, cols_other) = range_ops::range_bounds(range_other);
 
-    let cols_cnt_this_offsets: Vec<u32> = (0..=(cols_cnt_this - 1)).collect();
-    let cols_cnt_other_offsets: Vec<u32> = (0..=(cols_cnt_other - 1)).collect();
-    let allowed_rows: Vec<u32> = o_use_rows.unwrap_or_default();
-    let allowed_cols: Vec<u32> = o_use_cols.unwrap_or_default();
+        let rows_cnt_this = rows_this + 1;
+        let cols_cnt_this = cols_this + 1;
+        let rows_cnt_other = rows_other + 1;
+        let cols_cnt_other = cols_other + 1;
 
-    let _str_allowed_rows = allowed_rows.iter().map(|r| range_ops::index_to_column(*r)).collect::<Vec<String>>().join(",");
-    let _str_allowed_cols = allowed_cols.iter().map(|c| range_ops::index_to_column(*c)).collect::<Vec<String>>().join(",");
+        // info!( "Range A:[{} Rows:{} Cols:{}] vs Range B:[{} Rows:{} Cols:{}]", //label,
+        //     range_ops::range_to_string(range_this), rows_cnt_this, cols_cnt_this,
+        //     range_ops::range_to_string(range_other), rows_cnt_other, cols_cnt_other);
 
-    let mut row_match = 0;
-    for row_num_a in brow_this..=erow_this 
-    {
-        if allowed_rows.len() > 0 && !allowed_rows.contains(&row_num_a) 
+        if strict && (rows_cnt_this != rows_cnt_other || cols_cnt_this != cols_cnt_other) 
         {
-            info!("A{} is not in the allowed row list: {}!", //label, 
-                row_num_a, _str_allowed_rows);
-            continue;
+            error!("Size missmatch! Range A:[{}, len:{}] != Range B:[{}, len:{}]", //label,
+                range_ops::range_to_string(range_this), rows_cnt_this,
+                range_ops::range_to_string(range_other), rows_cnt_other);
+            return false;
         }
 
-        for row_num_b in brow_other..=erow_other 
+        let cols_cnt_this_offsets: Vec<u32> = (0..=(cols_cnt_this - 1)).collect();
+        let cols_cnt_other_offsets: Vec<u32> = (0..=(cols_cnt_other - 1)).collect();
+        let allowed_rows: Vec<u32> = o_use_rows.unwrap_or_default();
+        let allowed_cols: Vec<u32> = o_use_cols.unwrap_or_default();
+
+        let _str_allowed_rows = allowed_rows.iter().map(|r| range_ops::index_to_column(*r)).collect::<Vec<String>>().join(",");
+        let _str_allowed_cols = allowed_cols.iter().map(|c| range_ops::index_to_column(*c)).collect::<Vec<String>>().join(",");
+
+        let mut row_match = 0;
+        for row_num_a in brow_this..=erow_this 
         {
-            if allowed_rows.len() > 0 && !allowed_rows.contains(&row_num_b) 
+            if allowed_rows.len() > 0 && !allowed_rows.contains(&row_num_a) 
             {
-                info!("B{} is not in the allowed row list: {}!", //label, 
-                    row_num_b, _str_allowed_rows);
+                info!("A{} is not in the allowed row list: {}!", //label, 
+                    row_num_a, _str_allowed_rows);
                 continue;
             }
 
-            let mut col_match = 0;
-            for (col_a_offset, col_b_offset) in cols_cnt_this_offsets.iter().zip(cols_cnt_other_offsets.iter()) 
+            for row_num_b in brow_other..=erow_other 
             {
-                let col_num_a = bcol_this + col_a_offset;
-                let col_num_b = bcol_other + col_b_offset;
-
-                if allowed_cols.len() > 0 && !allowed_cols.contains(&col_num_a) && !allowed_cols.contains(&col_num_b) 
+                if allowed_rows.len() > 0 && !allowed_rows.contains(&row_num_b) 
                 {
-                    // info!("{}{} or {}{} is not in the allowed column list: {}!", //label,
-                    //     range_ops::index_to_column(col_num_a), row_num_a,
-                    //     range_ops::index_to_column(col_num_b), row_num_b, _str_allowed_cols);
-                    col_match += 1;
+                    info!("B{} is not in the allowed row list: {}!", //label, 
+                        row_num_b, _str_allowed_rows);
                     continue;
                 }
 
-                if this.compare_cell(col_num_a, row_num_a, other, col_num_b, row_num_b, strict) 
+                let mut col_match = 0;
+                for (col_a_offset, col_b_offset) in cols_cnt_this_offsets.iter().zip(cols_cnt_other_offsets.iter()) 
                 {
-                    col_match += 1;
+                    let col_num_a = bcol_this + col_a_offset;
+                    let col_num_b = bcol_other + col_b_offset;
+
+                    if allowed_cols.len() > 0 && !allowed_cols.contains(&col_num_a) && !allowed_cols.contains(&col_num_b) 
+                    {
+                        // info!("{}{} or {}{} is not in the allowed column list: {}!", //label,
+                        //     range_ops::index_to_column(col_num_a), row_num_a,
+                        //     range_ops::index_to_column(col_num_b), row_num_b, _str_allowed_cols);
+                        col_match += 1;
+                        continue;
+                    }
+
+                    if this.compare_cell(col_num_a, row_num_a, other, col_num_b, row_num_b, strict) 
+                    {
+                        col_match += 1;
+                    }
+                }
+
+                info!("Matching columns: {}/{} ! Returning {}", //label, 
+                    col_match, cols_cnt_this, col_match == cols_cnt_this);
+
+                if col_match == cols_cnt_this 
+                {
+                    row_match += 1;
                 }
             }
-
-            info!("Matching columns: {}/{} ! Returning {}", //label, 
-                col_match, cols_cnt_this, col_match == cols_cnt_this);
-
-            if col_match == cols_cnt_this 
-            {
-                row_match += 1;
-            }
         }
-    }
 
-    info!("Matching rows: {}/{} ! Returning {}", //label, 
-        row_match, rows_cnt_this, row_match == rows_cnt_this);
+        info!("Matching rows: {}/{} ! Returning {}", //label, 
+            row_match, rows_cnt_this, row_match == rows_cnt_this);
 
-    if !strict && row_match != rows_cnt_this 
-    {
-        return false;
+        if !strict && row_match != rows_cnt_this 
+        {
+            return false;
+        }
+        return true;
     }
-    true
+    false
 }
 
 fn contains_impl<T>(
@@ -331,53 +342,55 @@ where
         let _cmp_rows: Vec<u32> = o_use_rows.unwrap_or_default(); //not used for now
         let cmp_cols: Vec<u32> = o_use_cols.unwrap_or_default();
 
-        let (brow_t, erow_t, _, _, _, _) = range_ops::range_bounds(this.get_range());
-        let (brow_o, erow_o, _, _, rows_o, _) = range_ops::range_bounds(other.get_range());
-
-        for cmp_col in cmp_cols.iter() 
+        if let (Some((brow_t, erow_t, _, _, _, _)), 
+                Some((brow_o, erow_o, _, _, rows_o, _)) ) = (range_ops::range_bounds(this.get_range()), 
+                                                                            range_ops::range_bounds(other.get_range())) 
         {
-            let bcol_t = *cmp_col;
-            let bcol_o = *cmp_col;
-
-            //check if the first line of the range_in matches the first line of the current range in the sheets
-            let hdr_t = this.get_sheet().get_cell_value((bcol_t, brow_t)).get_value();
-            let hdr_o = other.get_sheet().get_cell_value((bcol_o, brow_o)).get_value();
-
-            if range_ops::cmp_strs(&hdr_t, &hdr_o)
+            for cmp_col in cmp_cols.iter() 
             {
-                let mut found_cnt = 1; //the header is already the same, so start form 1
+                let bcol_t = *cmp_col;
+                let bcol_o = *cmp_col;
 
-                //check if the rest of the items in 'other' are present in 'this'
-                for row_o in (brow_o+1)..=erow_o
+                //check if the first line of the range_in matches the first line of the current range in the sheets
+                let hdr_t = this.get_sheet().get_cell_value((bcol_t, brow_t)).get_value();
+                let hdr_o = other.get_sheet().get_cell_value((bcol_o, brow_o)).get_value();
+
+                if range_ops::cmp_strs(&hdr_t, &hdr_o)
                 {
-                    let entry_o = other.get_sheet().get_cell_value((bcol_o, row_o)).get_value();
+                    let mut found_cnt = 1; //the header is already the same, so start form 1
 
-                    for row_t in (brow_t+1)..=erow_t
+                    //check if the rest of the items in 'other' are present in 'this'
+                    for row_o in (brow_o+1)..=erow_o
                     {
-                        let entry_t = this.get_sheet().get_cell_value((bcol_t, row_t)).get_value();
+                        let entry_o = other.get_sheet().get_cell_value((bcol_o, row_o)).get_value();
 
-                        info!("COMPARE \"{}:[{} {}{}='{}']\" to \"{}:[{} {}{}='{}']\"", //label,
-                            other.get_sheet().get_name(), range_ops::range_to_string(other.get_range()), range_ops::index_to_column(bcol_o), row_o, entry_o,
-                            this.get_sheet().get_name(),  range_ops::range_to_string(this.get_range()),  range_ops::index_to_column(bcol_t), row_t, entry_t);
-
-                        if range_ops::cmp_strs(&entry_t, &entry_o) 
+                        for row_t in (brow_t+1)..=erow_t
                         {
-                            found_cnt += 1;
-                            break;
+                            let entry_t = this.get_sheet().get_cell_value((bcol_t, row_t)).get_value();
+
+                            info!("COMPARE \"{}:[{} {}{}='{}']\" to \"{}:[{} {}{}='{}']\"", //label,
+                                other.get_sheet().get_name(), range_ops::range_to_string(other.get_range()), range_ops::index_to_column(bcol_o), row_o, entry_o,
+                                this.get_sheet().get_name(),  range_ops::range_to_string(this.get_range()),  range_ops::index_to_column(bcol_t), row_t, entry_t);
+
+                            if range_ops::cmp_strs(&entry_t, &entry_o) 
+                            {
+                                found_cnt += 1;
+                                break;
+                            }
                         }
                     }
-                }
 
-                info!("Found {}/{} entries!", //label, 
-                    found_cnt, rows_o);
-                res = found_cnt == rows_o
-            }
-            else 
-            {
-                info!("\"{}[{} {}{}='{}']\" DEFFERS FROM \"{}[{} {}{}='{}']\"", //label,
-                        other.get_sheet().get_name(), range_ops::range_to_string(other.get_range()), range_ops::index_to_column(bcol_o), brow_o, hdr_o,
-                        this.get_sheet().get_name(),  range_ops::range_to_string(this.get_range()),  range_ops::index_to_column(bcol_t), brow_t, hdr_t);
-                break;
+                    info!("Found {}/{} entries!", //label, 
+                        found_cnt, rows_o);
+                    res = found_cnt == rows_o
+                }
+                else 
+                {
+                    info!("\"{}[{} {}{}='{}']\" DEFFERS FROM \"{}[{} {}{}='{}']\"", //label,
+                            other.get_sheet().get_name(), range_ops::range_to_string(other.get_range()), range_ops::index_to_column(bcol_o), brow_o, hdr_o,
+                            this.get_sheet().get_name(),  range_ops::range_to_string(this.get_range()),  range_ops::index_to_column(bcol_t), brow_t, hdr_t);
+                    break;
+                }
             }
         }
     }
@@ -485,14 +498,16 @@ where
     {
         let mut ret: Option<Self::Item> = None;
 
-        let (_, er, bc, ec, _, _) = range_ops::range_bounds(self.get_range());
-
-        if self.current_row <= er
+        if let Some((_, er, bc, ec, _, _)) = range_ops::range_bounds(self.get_range())
         {
-            ret = Some(range_ops::make_range_from_indexes(bc, self.current_row, ec, self.current_row));
+            if self.current_row <= er
+            {
+                ret = Some(range_ops::make_range_from_indexes(bc, self.current_row, ec, self.current_row));
 
-            self.current_row += 1;
+                self.current_row += 1;
+            }
         }
+
         ret
     }
 }
@@ -511,17 +526,18 @@ where
     {
         let mut ret: Option<Self::Item<'_>> = None;
 
-        // let (_, er, bc, ec, _, _) = range_ops::range_bounds(self.get_range());
-        let (_, er, _, _, _, _) = range_ops::range_bounds(self.get_range());
-
-        if self.current_row <= er
+        if let Some((_, er, _, _, _, _)) = range_ops::range_bounds(self.get_range())
         {
-            // ret = Some(range_ops::make_range_from_indexes(bc, self.current_row, ec, self.current_row));
+            if self.current_row <= er
+            {
+                // ret = Some(range_ops::make_range_from_indexes(bc, self.current_row, ec, self.current_row));
 
-            self.current_row += 1;
+                self.current_row += 1;
 
-            ret = Some(self);
+                ret = Some(self);
+            }
         }
+
         ret
     }
 }
