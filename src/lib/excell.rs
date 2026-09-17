@@ -822,7 +822,7 @@ pub fn execute(cfg: &common::Config) -> Result<(), String>
     let mut res_error: String = String::new();
     let mut count_updated = 0;
 
-    // debug!("Cfg:{}", cfg);
+    debug!("Cfg:{}", cfg);
 
     // Load the update Excel file
     let target_path = std::path::Path::new(&cfg.tgt_file);
@@ -883,8 +883,8 @@ pub fn execute(cfg: &common::Config) -> Result<(), String>
                     }
                 };
 
-                // Create new table with unique values from cfg.tgt_src_col.When repetition is found, accumulate the values in cfg.tgt_dest_col.
-                let r = filter_sheet_by_col_and_accum(utbl, &mut fotbl, &cfg.tgt_src_col, &cfg.tgt_dest_col);
+                // Create new table with unique values from cfg.tgt_src_col.When repetition is found, accumulate the values in cfg.tgt_acc_col.
+                let r = filter_sheet_by_col_and_accum(utbl, &mut fotbl, &cfg.tgt_src_col, &cfg.tgt_acc_col);
                 if !r 
                 {
                     error!("{}:{}", common::ERROR_FAILED_FILTER_SHEET, utbln);
@@ -1003,7 +1003,7 @@ pub fn execute(cfg: &common::Config) -> Result<(), String>
                 };
 
                 //Filter (accumulate or append values) the data from initial sheet to filter sheet
-                let r = filter_sheet_by_col_and_accum(utbl, &mut fotbl, &cfg.tgt_src_col, &cfg.tgt_dest_col);
+                let r = filter_sheet_by_col_and_accum(utbl, &mut fotbl, &cfg.tgt_src_col, &cfg.tgt_acc_col);
                 if !r 
                 {
                     error!("{}:{}", common::ERROR_FAILED_FILTER_SHEET, utbln);
@@ -1019,14 +1019,14 @@ pub fn execute(cfg: &common::Config) -> Result<(), String>
 
             //The entries are filtered in the filter sheet. Now get the needed values from analysis table and update the filter sheet.
             if false == get_anaysis_data(atbl, 
-                &cfg.analysis_col_srch ,//&"A".to_string(), 
-                &cfg.analysis_col_term, //&"B".to_string(), 
-                &cfg.analysis_cols_cp_src, //&"A,G".to_string(), 
-                &cfg.analysis_srch_pat, //&"Позиция: *, *Основание:(.*)".to_string(),
-                &cfg.analysis_term_pat, //&"Общо".to_string(), 
+                &cfg.analysis_col_srch,     //&"A".to_string(), 
+                &cfg.analysis_col_term,     //&"B".to_string(), 
+                &cfg.analysis_cols_cp_src,  //&"A,G".to_string(), 
+                &cfg.analysis_srch_pat,     //&"Позиция: *, *Основание:(.*)".to_string(),
+                &cfg.analysis_term_pat,     //&"Общо".to_string(), 
                 &mut fotbl, 
-                &"C".to_string(), 
-                &"B,F".to_string(), 
+                &cfg.tgt_src_col,       //&"C".to_string(), 
+                &cfg.tgt_dest_col, //&"B,F".to_string(), 
                 &"G=E*F".to_string()) //WARNING: hardcoded values!
             {
                 error!("Failed to process analysis data from {}:{}", cfg.analysis_file, cfg.analysis_table);

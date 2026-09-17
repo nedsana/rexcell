@@ -21,8 +21,11 @@ struct Args {
     #[arg(short = 's', long = common::ARG_LONG_SRC_COL, default_value = common::TGT_DEFAULT_SRC_COL, help = common::TGT_SRC_COL_HELP)]
     tgt_src_col: String,
 
-    #[arg(short = 'd', long = common::ARG_LONG_DEST_COL, default_value = common::TGT_DEFAULT_DST_COL, help = common::TGT_DEST_COL_ACCUM_HELP)]
+    #[arg(short = 'd', long = common::ARG_LONG_DEST_COL, default_value = common::TGT_DEFAULT_DST_COL, help = common::TGT_DEST_COL_COPY_HELP)]
     tgt_dest_col: String,
+
+    #[arg(short = 'c', long = common::ARG_LONG_ACCUM_COL, default_value = common::TGT_DEFAULT_ACC_COL, help = common::TGT_DEST_COL_ACCUM_HELP)]
+    tgt_accum_col: String,
 
 
 
@@ -90,24 +93,25 @@ fn main()
 
             // cargo run --bin rexcell -- -c cmd-filter-sheets -t ../Test_Excell.xlsx -u "Лист1,Лист2,Лист3" -s C -d E -n "Test"
             let cfg: common::Config = common::Config {
-                command: args.command,
-                tgt_file: args.tgt_file,
-                tgt_upd_table: args.tgt_upd_table,
-                tgt_src_col: args.tgt_src_col,
-                tgt_dest_col: args.tgt_dest_col,
-                ref_file: args.ref_file,
-                ref_table: args.ref_table,
-                ref_col_key: args.ref_col_key,
-                ref_col_value: args.ref_col_value,
-                new_sheet_name: args.new_sheet_name,
-                inplace: args.inplace,
-                analysis_file: args.analysis_file,
-                analysis_table: args.analysis_table,
-                analysis_col_srch:      "".to_string(),
-                analysis_col_term:      "".to_string(),
-                analysis_cols_cp_src: "".to_string(),
-                analysis_srch_pat:      "".to_string(),
-                analysis_term_pat:      "".to_string(),
+                command:                args.command,
+                tgt_file:               args.tgt_file,
+                tgt_upd_table:          args.tgt_upd_table,
+                tgt_src_col:            args.tgt_src_col,
+                tgt_dest_col:           args.tgt_dest_col,
+                tgt_acc_col:            args.tgt_accum_col,
+                ref_file:               args.ref_file,
+                ref_table:              args.ref_table,
+                ref_col_key:            args.ref_col_key,
+                ref_col_value:          args.ref_col_value,
+                new_sheet_name:         args.new_sheet_name,
+                inplace:                args.inplace,
+                analysis_file:          args.analysis_file,
+                analysis_table:         args.analysis_table,
+                analysis_col_srch:      "".to_string(), //to do ...
+                analysis_col_term:      "".to_string(), //to do ...
+                analysis_cols_cp_src:   "".to_string(), //to do ...
+                analysis_srch_pat:      "".to_string(), //to do ...
+                analysis_term_pat:      "".to_string(), //to do ...
             };
 
             let res = excell::execute(&cfg);

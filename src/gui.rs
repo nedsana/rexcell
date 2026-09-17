@@ -13,32 +13,35 @@ use log::{debug, info, error};
 
 #[derive(Debug, Clone)]
 struct TargetData {
-    path: String,
-    update_sheets: String,
-    src_col: String,
-    dest_col: String,
+    path:           String,
+    update_sheets:  String,
+    src_col:        String,
+    cols_accum:     String,
+    dest_col:       String,
     new_sheet_name: String,
 }
 
 impl Default for TargetData {
     fn default() -> Self {
         Self {
-            path: String::from(common::TGT_DEFAULT_EXCEL_FILE),
-            update_sheets: String::from(common::TGT_DEFAULT_TABLE),
-            src_col: String::from(common::TGT_DEFAULT_SRC_COL),
-            dest_col: String::from(common::TGT_DEFAULT_DST_COL),
+            path:           String::from(common::TGT_DEFAULT_EXCEL_FILE),
+            update_sheets:  String::from(common::TGT_DEFAULT_TABLE),
+            src_col:        String::from(common::TGT_DEFAULT_SRC_COL),
+            cols_accum:     String::from(common::TGT_DEFAULT_ACC_COL),
+            dest_col:       String::from(common::TGT_DEFAULT_DST_COL),
             new_sheet_name: String::from(common::TGT_DEFAULT_NEW_SHEET_NAME),
         }
     }
 }
 
 impl TargetData {
-    pub fn new(p_path: &String, p_update_sheets: &String, p_src_col: &String, p_dest_col: &String, p_new_sheet_name: &String) -> Self {
+    pub fn new(p_path: &String, p_update_sheets: &String, p_src_col: &String, p_cols_accum: &String, p_dest_col: &String, p_new_sheet_name: &String) -> Self {
         Self { 
-            path: String::from(p_path),
-            update_sheets: String::from(p_update_sheets),
-            src_col: String::from(p_src_col),
-            dest_col: String::from(p_dest_col),
+            path:           String::from(p_path),
+            update_sheets:  String::from(p_update_sheets),
+            src_col:        String::from(p_src_col),
+            cols_accum:     String::from(p_cols_accum),
+            dest_col:       String::from(p_dest_col),
             new_sheet_name: String::from(p_new_sheet_name),
         }
     }
@@ -156,6 +159,7 @@ impl Default for GuiApp
                                       &common::TGT_DEFAULT_TABLE.to_string(), 
                                       &common::TGT_DEFAULT_SRC_COL.to_string(), 
                                       &common::TGT_DEFAULT_ACC_COL.to_string(), 
+                                      &common::TGT_DEFAULT_DST_COL.to_string(), 
                                       &common::TGT_DEFAULT_NEW_SHEET_NAME.to_string()),
 
             cfg_update_ref: ReferencesData::new( &common::REF_DEFAULT_EXCEL_FILE.to_string(), 
@@ -279,6 +283,14 @@ impl GuiApp
 
             ui.add_space(4.0);
             ui.label(headers[5]);
+            ui.text_edit_singleline(&mut tgt_data.cols_accum);
+
+            // ui.add_space(4.0);
+            // ui.label("");
+            // ui.label("");
+
+            ui.add_space(4.0);
+            ui.label(headers[6]);
             ui.text_edit_singleline(&mut tgt_data.dest_col);
         });
     }
@@ -346,7 +358,7 @@ impl GuiApp
             ui.label(headers[10]);
             ui.text_edit_singleline(&mut self.analysis_data.analysis_sheet);
             
-            ui.add_space(4.0);
+            // ui.add_space(4.0);
             ui.columns(2, |columns|
             {
                 columns[0].add_space(4.0);
@@ -374,9 +386,9 @@ impl GuiApp
 
 }
 
-const FILTER_SECTION_HEADERS: [&str; 8] = [
+const FILTER_SECTION_HEADERS: [&str; 9] = [
     common::TGT_FILE_HELP, common::LABEL_FILE, common::BUTTON_BROWSE, 
-    common::LIST_SHEETS_TO_UPDATE, common::TGT_SRC_COL_HELP, common::TGT_DEST_COL_ACCUM_HELP, 
+    common::LIST_SHEETS_TO_UPDATE, common::TGT_SRC_COL_HELP, common::TGT_DEST_COL_ACCUM_HELP, common::TGT_DEST_COL_HELP,
     common::NEW_SHEET_NAME_HELP, common::BUTTON_FILTER_DATA
 ];
 
@@ -518,6 +530,7 @@ impl eframe::App for GuiApp
                             tgt_file:               self.cfg_filter.path.clone(), 
                             tgt_upd_table:          self.cfg_filter.update_sheets.clone(),
                             tgt_src_col:            self.cfg_filter.src_col.clone(),
+                            tgt_acc_col:            self.cfg_filter.cols_accum.clone(),
                             tgt_dest_col:           self.cfg_filter.dest_col.clone(),
 
                             ref_file:               self.cfg_update_ref.path.clone(),

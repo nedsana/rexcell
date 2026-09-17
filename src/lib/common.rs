@@ -18,17 +18,18 @@ pub const COMMAND_FILE_HELP: &str = "Command to execute.";
 
 pub const TGT_FILE_HELP: &str = "Excel file to update";
 pub const TGT_SRC_COL_HELP: &str = "Column to filter on";
+pub const TGT_DEST_COL_COPY_HELP: &str = "Columns to copy to";
 pub const TGT_DEST_COL_ACCUM_HELP: &str = "Columns to accumulate, on filter match";
-pub const TGT_DEST_COL_HELP: &str = "Column to update";
+pub const TGT_DEST_COL_HELP: &str = "Columns in the table, we copy data to.";
 pub const TGT_UPDATE_SHEET_HELP: &str = "Update tables. Comma-separated list.";
 pub const NEW_SHEET_NAME_HELP: &str = "Name of the new sheet";
 pub const ANALYSIS_FILE_HELP: &str = "Excel file with analysis data";
 pub const ANALYSIS_TABLE_HELP: &str = "Table with analysis data";
-pub const ANALYSIS_COL_SRCH_HELP: &str = "Column in analysis table, to find section begin pattern.";
-pub const ANALYSIS_COL_TERM_HELP: &str = "Column in analysis table, to find section end pattern.";
-pub const ANALYSIS_COLS_CP_SRC_HELP: &str = "Columns in analysis table, we copy data from.";
-pub const ANALYSIS_SRCH_PAT_HELP: &str = "Pattern to indicate section beginning";
-pub const ANALYSIS_TERM_PAT_HELP: &str = "Pattern to indicate section ending";
+pub const ANALYSIS_COL_SRCH_HELP: &str = "Column with 'Begin' pattern.";
+pub const ANALYSIS_COL_TERM_HELP: &str = "Column with 'End' pattern.";
+pub const ANALYSIS_COLS_CP_SRC_HELP: &str = "Columns to copy from.";
+pub const ANALYSIS_SRCH_PAT_HELP: &str = "'Begin' pattern";
+pub const ANALYSIS_TERM_PAT_HELP: &str = "'End' pattern";
 
 pub const TGT_DEFAULT_EXCEL_FILE: &str = "";
 pub const TGT_DEFAULT_SRC_COL: &str = "C";
@@ -66,6 +67,7 @@ pub const ARG_LONG_COMMAND: &str = "command";
 pub const ARG_LONG_TARGET_FILE: &str = "tgt-file";
 pub const ARG_LONG_SRC_COL: &str = "tgt-src-col";
 pub const ARG_LONG_DEST_COL: &str = "tgt-dest-col";
+pub const ARG_LONG_ACCUM_COL: &str = "tgt-accum-col";
 pub const ARG_LONG_UPDATE_SHEET: &str = "tgt-sheets";
 pub const ARG_LONG_REFERENCE_FILE: &str = "ref-file";
 pub const ARG_LONG_REFERENCE_SHEET: &str = "ref-sheet";
@@ -150,6 +152,7 @@ pub struct Config
     pub tgt_file:               String,
     pub tgt_upd_table:          String,
     pub tgt_src_col:            String,
+    pub tgt_acc_col:            String,
     pub tgt_dest_col:           String,
     
     pub ref_file:               String,
@@ -181,6 +184,7 @@ impl fmt::Display for Config
              tgt_file:             {}\n\
              tgt_upd_table:        {}\n\
              tgt_src_col:          {}\n\
+             tgt_acc_col:          {}\n\
              tgt_dest_col:         {}\n\
              [Reference Section]\n\
              ref_file:             {}\n\
@@ -203,6 +207,7 @@ impl fmt::Display for Config
             self.tgt_file,
             self.tgt_upd_table,
             self.tgt_src_col,
+            self.tgt_acc_col,
             self.tgt_dest_col,
             self.ref_file,
             self.ref_table,
