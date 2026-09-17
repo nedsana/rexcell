@@ -1,4 +1,5 @@
 use clap::{ValueEnum};
+use std::fmt;
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum, Debug)]
 pub enum Command {
@@ -23,6 +24,11 @@ pub const TGT_UPDATE_SHEET_HELP: &str = "Update tables. Comma-separated list.";
 pub const NEW_SHEET_NAME_HELP: &str = "Name of the new sheet";
 pub const ANALYSIS_FILE_HELP: &str = "Excel file with analysis data";
 pub const ANALYSIS_TABLE_HELP: &str = "Table with analysis data";
+pub const ANALYSIS_COL_SRCH_HELP: &str = "Column in analysis table, to find section begin pattern.";
+pub const ANALYSIS_COL_TERM_HELP: &str = "Column in analysis table, to find section end pattern.";
+pub const ANALYSIS_COLS_CP_SRC_HELP: &str = "Columns in analysis table, we copy data from.";
+pub const ANALYSIS_SRCH_PAT_HELP: &str = "Pattern to indicate section beginning";
+pub const ANALYSIS_TERM_PAT_HELP: &str = "Pattern to indicate section ending";
 
 pub const TGT_DEFAULT_EXCEL_FILE: &str = "";
 pub const TGT_DEFAULT_SRC_COL: &str = "C";
@@ -41,6 +47,14 @@ pub const REF_DEFAULT_EXCEL_FILE: &str = "";
 pub const REF_DEFAULT_SRC_COL: &str = "C";
 pub const REF_DEFAULT_DST_COL: &str = "B,F";
 pub const REF_DEFAULT_TABLE: &str = "";
+
+pub const ANA_DEFAULT_EXCEL_FILE:  &str = "";
+pub const ANA_DEFAULT_SHEET:       &str = "";
+pub const ANA_DEFAULT_COL_SRCH:    &str = "A";
+pub const ANA_DEFAULT_COL_TERM:    &str = "B";
+pub const ANA_DEFAULT_COLS_CP_SRC: &str = "A,G";
+pub const ANA_DEFAULT_SRCH_PAT:    &str = "Позиция: *, *Основание:(.*)";
+pub const ANA_DEFAULT_TERM_PAT:    &str = "Общо";
 
 pub const INPLACE_HELP: &str = "Overwrite the input file instead of creating a new one";
 
@@ -63,8 +77,6 @@ pub const ARG_LONG_NEW_SHEET_NAME: &str = "new-sheet-name";
 pub const ARG_LONG_ANALYSIS_FILE: &str = "anlysis-file";
 pub const ARG_LONG_ANALYSIS_TABLE: &str = "anlysis-table";
 
-
-
 pub const LABEL_FILE_BROWSER: &str = "File browser";
 pub const LABEL_FILE: &str = "File:";
 pub const LABEL_TARGET_TEXT_FIELD_1: &str = "Target Text field 1";
@@ -76,8 +88,10 @@ pub const LABEL_REFERENCE_TEXT_FIELD_3: &str = "Reference Text field 3";
 pub const LABEL_EXECUTION_RESULT: &str = "Execution result";
 pub const LABEL_NEW_SHEET: &str = "Unknown Items";
 pub const BUTTON_BROWSE: &str = "Browse";
-pub const BUTTON_RUN_UPDATES: &str = "Run the updates";
+pub const BUTTON_RUN_UNDEFINED: &str = "Undefined";
+pub const BUTTON_RUN_UPDATES: &str = "Update File";
 pub const BUTTON_FILTER_DATA: &str = "Filter Data";
+pub const BUTTON_APPLY_ANALYSIS: &str = "Apply Analysis";
 pub const WINDOW_TITLE: &str = "rexcell GUI";
 pub const PANEL_DESCRIPTION: &str = "The top section has two identical panels.";
 
@@ -93,8 +107,8 @@ pub const CMD_ARG_VALUE: &str = "-v";
 pub const CMD_ARG_INPLACE: &str = "-i";
 
 pub const TAB_LABEL_AUTOCOMPLETE: &str = "Autocomplete Tables";
-pub const TAB_LABEL_FILTER: &str = "Filter Tables";
-pub const TAB_LABEL_UPDATE: &str = "Update Tables";
+pub const TAB_LABEL_FILTER: &str = "Filter Tables [manual edit]";
+pub const TAB_LABEL_UPDATE: &str = "Update Tables [manual edit]";
 
 pub const DEFAULT_BOOL_FALSE: &str = "false";
 
@@ -150,23 +164,62 @@ pub struct Config
     pub analysis_table:         String,
     pub analysis_col_srch:      String,
     pub analysis_col_term:      String,
-    pub analysis_cols_copy_src: String,
+    pub analysis_cols_cp_src:   String,
     pub analysis_srch_pat:      String,
     pub analysis_term_pat:      String,
 }
 
-/*
-            if false == get_anaysis_data(atbl, 
-                &"A".to_string(), 
-                &"B".to_string(), 
-                &"A,G".to_string(), 
-                &"Позиция: *, *Основание:(.*)".to_string(),
-                &"Общо".to_string(), 
-                &mut fotbl, 
-                &"C".to_string(), 
-                &"B,F".to_string(), 
-                &"G=E*F".to_string()) //WARNING: hardcoded values!
- */
+impl fmt::Display for Config 
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result 
+    {
+        write!(
+            f,
+            "Config {{\n\
+             command:              {:?}\n\
+             [Filter Section]\n\
+             tgt_file:             {}\n\
+             tgt_upd_table:        {}\n\
+             tgt_src_col:          {}\n\
+             tgt_dest_col:         {}\n\
+             [Reference Section]\n\
+             ref_file:             {}\n\
+             ref_table:            {}\n\
+             ref_col_key:          {}\n\
+             ref_col_value:        {}\n\
+             [Analysis Section]\n\
+             analysis_file:        {}\n\
+             analysis_table:       {}\n\
+             analysis_col_srch:    {}\n\
+             analysis_col_term:    {}\n\
+             analysis_cols_cp_src: {}\n\
+             analysis_srch_pat:   '{}'\n\
+             analysis_term_pat:   '{}'\n\
+             [Options]\n\
+             new_sheet_name:       {}\n\
+             inplace:              {}
+            }}",
+            self.command,
+            self.tgt_file,
+            self.tgt_upd_table,
+            self.tgt_src_col,
+            self.tgt_dest_col,
+            self.ref_file,
+            self.ref_table,
+            self.ref_col_key,
+            self.ref_col_value,
+            self.analysis_file,
+            self.analysis_table,
+            self.analysis_col_srch,
+            self.analysis_col_term,
+            self.analysis_cols_cp_src,
+            self.analysis_srch_pat,
+            self.analysis_term_pat,
+            self.new_sheet_name,
+            if self.inplace { "Yes" } else { "No" }
+        )
+    }
+}
 
 pub fn formatted_applied_mappings(applied: usize) -> String {
     format!("Applied {} key-value mapping(s).", applied)

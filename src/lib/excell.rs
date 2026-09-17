@@ -627,7 +627,7 @@ pub fn apply_calculations(
  * analysis_sheet         - the sheet with analysis data
  * analysis_col_srch      - the column, from analysis sheet, we search to find the text from 'analysis_srch_pat' (beg range, holding all rows for this section)
  * analysis_col_term      - the column, from analysis sheet, we search to find the text from 'analysis_term_pat' (end range, holding all rows for this section)
- * analysis_cols_copy_src - the columns (comma separated), we want to copy to the filtered sheet
+ * analysis_cols_cp_src - the columns (comma separated), we want to copy to the filtered sheet
  * analysis_srch_pat      - the text we use to find the start of the section from analysis sheet
  * analysis_term_pat      - the text we use to find the end of the section from analysis sheet
  * filtered_sheet         - the sheet with filtered data
@@ -639,7 +639,7 @@ pub fn get_anaysis_data(
     analysis_sheet:          &Worksheet, 
     analysis_col_srch:       &String,
     analysis_col_term:       &String,
-    analysis_cols_copy_src:  &String,
+    analysis_cols_cp_src:  &String,
     analysis_srch_pat:       &String,
     analysis_term_pat:       &String,
     filtered_sheet:          &mut Worksheet,
@@ -656,7 +656,7 @@ pub fn get_anaysis_data(
     let aloop_col = range_ops::column_to_index(analysis_col_srch);
     let asrch_col = range_ops::column_to_index(analysis_col_term);
 
-    let acols_copy_src: Vec<u32> = analysis_cols_copy_src.split(',').map(|s| range_ops::column_to_index(s.trim())).collect();
+    let acols_copy_src: Vec<u32> = analysis_cols_cp_src.split(',').map(|s| range_ops::column_to_index(s.trim())).collect();
     let fcols_copy_dst: Vec<u32> = filtered_cols_copy_dst.split(',').map(|s| range_ops::column_to_index(s.trim())).collect();
     let fcalculations: Vec<String> = filtered_calculations.split(',').map(|s| s.trim().to_string()).collect();
 
@@ -822,7 +822,7 @@ pub fn execute(cfg: &common::Config) -> Result<(), String>
     let mut res_error: String = String::new();
     let mut count_updated = 0;
 
-    debug!("Cfg:{:?}", cfg); //DELETE_ME
+    debug!("Cfg:{}", cfg); //DELETE_ME
 
     // Load the update Excel file
     let target_path = std::path::Path::new(&cfg.tgt_file);
@@ -1021,7 +1021,7 @@ pub fn execute(cfg: &common::Config) -> Result<(), String>
             if false == get_anaysis_data(atbl, 
                 &cfg.analysis_col_srch ,//&"A".to_string(), 
                 &cfg.analysis_col_term, //&"B".to_string(), 
-                &cfg.analysis_cols_copy_src, //&"A,G".to_string(), 
+                &cfg.analysis_cols_cp_src, //&"A,G".to_string(), 
                 &cfg.analysis_srch_pat, //&"Позиция: *, *Основание:(.*)".to_string(),
                 &cfg.analysis_term_pat, //&"Общо".to_string(), 
                 &mut fotbl, 
