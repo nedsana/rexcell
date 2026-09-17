@@ -822,6 +822,8 @@ pub fn execute(cfg: &common::Config) -> Result<(), String>
     let mut res_error: String = String::new();
     let mut count_updated = 0;
 
+    debug!("Cfg:{:?}", cfg); //DELETE_ME
+
     // Load the update Excel file
     let target_path = std::path::Path::new(&cfg.tgt_file);
     let result = reader::xlsx::read(target_path);
@@ -1017,11 +1019,11 @@ pub fn execute(cfg: &common::Config) -> Result<(), String>
 
             //The entries are filtered in the filter sheet. Now get the needed values from analysis table and update the filter sheet.
             if false == get_anaysis_data(atbl, 
-                &"A".to_string(), 
-                &"B".to_string(), 
-                &"A,G".to_string(), 
-                &"Позиция: *, *Основание:(.*)".to_string(),
-                &"Общо".to_string(), 
+                &cfg.analysis_col_srch ,//&"A".to_string(), 
+                &cfg.analysis_col_term, //&"B".to_string(), 
+                &cfg.analysis_cols_copy_src, //&"A,G".to_string(), 
+                &cfg.analysis_srch_pat, //&"Позиция: *, *Основание:(.*)".to_string(),
+                &cfg.analysis_term_pat, //&"Общо".to_string(), 
                 &mut fotbl, 
                 &"C".to_string(), 
                 &"B,F".to_string(), 

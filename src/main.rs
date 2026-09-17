@@ -103,6 +103,11 @@ fn main()
                 inplace: args.inplace,
                 analysis_file: args.analysis_file,
                 analysis_table: args.analysis_table,
+                analysis_col_srch:      "".to_string(),
+                analysis_col_term:      "".to_string(),
+                analysis_cols_copy_src: "".to_string(),
+                analysis_srch_pat:      "".to_string(),
+                analysis_term_pat:      "".to_string(),
             };
 
             let res = excell::execute(&cfg);

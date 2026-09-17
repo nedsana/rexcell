@@ -291,6 +291,11 @@ impl GuiApp
                             inplace: true,
                             analysis_file: "".to_string(),
                             analysis_table: "".to_string(),
+                            analysis_col_srch:      "".to_string(),
+                            analysis_col_term:      "".to_string(),
+                            analysis_cols_copy_src: "".to_string(),
+                            analysis_srch_pat:      "".to_string(),
+                            analysis_term_pat:      "".to_string(),
                         };
                         
                         debug!("Start filtering!");
@@ -383,6 +388,11 @@ impl GuiApp
                             inplace: true,
                             analysis_file: "".to_string(),
                             analysis_table: "".to_string(),
+                            analysis_col_srch:      "".to_string(),
+                            analysis_col_term:      "".to_string(),
+                            analysis_cols_copy_src: "".to_string(),
+                            analysis_srch_pat:      "".to_string(),
+                            analysis_term_pat:      "".to_string(),
                         };
 
                         debug!("Start updating!");
@@ -495,20 +505,30 @@ impl GuiApp
                 if false == self.is_working.load(Ordering::SeqCst)
                 {
                     // cargo run --bin rexcell -- -c cmd-filter-sheets -t ../Test_Excell.xlsx -u "Лист1,Лист2,Лист3" -s C -d E -n "Test"
-                    let cfg: common::Config = common::Config {
-                        command: common::Command::CmdAutocompleteSheets,
-                        tgt_file: tgt_data.path.clone(), 
-                        tgt_upd_table: tgt_data.update_sheets.clone(),
-                        tgt_src_col: tgt_data.src_col.clone(),
-                        tgt_dest_col: tgt_data.dest_col.clone(),
-                        ref_file: "".to_string(),
-                        ref_table: "".to_string(),
-                        ref_col_key: "".to_string(),
-                        ref_col_value: "".to_string(),
-                        new_sheet_name: tgt_data.new_sheet_name.clone(),
-                        inplace: true,
-                        analysis_file: self.analysis_data.analysis_path.clone(),
-                        analysis_table: self.analysis_data.analysis_sheet.clone()
+                    let cfg: common::Config = common::Config 
+                    {
+                        command:                common::Command::CmdAutocompleteSheets,
+
+                        tgt_file:               tgt_data.path.clone(), 
+                        tgt_upd_table:          tgt_data.update_sheets.clone(),
+                        tgt_src_col:            tgt_data.src_col.clone(),
+                        tgt_dest_col:           tgt_data.dest_col.clone(),
+
+                        ref_file:               "".to_string(),
+                        ref_table:              "".to_string(),
+                        ref_col_key:            "".to_string(),
+                        ref_col_value:          "".to_string(),
+
+                        new_sheet_name:         tgt_data.new_sheet_name.clone(),
+                        inplace:                true,
+
+                        analysis_file:          self.analysis_data.analysis_path.clone(),
+                        analysis_table:         self.analysis_data.analysis_sheet.clone(),
+                        analysis_col_srch:      "A".to_string(),
+                        analysis_col_term:      "B".to_string(),
+                        analysis_cols_copy_src: "A,G".to_string(),
+                        analysis_srch_pat:      "Позиция: *, *Основание:(.*)".to_string(),
+                        analysis_term_pat:      "Общо".to_string(),
                     };
                     
                     debug!("Start autocomplete!");
@@ -549,7 +569,7 @@ const FILTER_SECTION_HEADERS: [&str; 8] = [common::TGT_FILE_HELP, common::LABEL_
 
 const AUTOCOMPLETE_SECTION_HEADERS: [&str; 11] = [common::TGT_FILE_HELP, common::LABEL_FILE, common::BUTTON_BROWSE, 
                                                  common::LIST_SHEETS_TO_UPDATE, common::TGT_SRC_COL_HELP, common::TGT_DEST_COL_ACCUM_HELP, common::NEW_SHEET_NAME_HELP, 
-                                                 common::ANALYSIS_FILE_HELP, common::LABEL_FILE, common::BUTTON_BROWSE,
+                                                 common::ANALYSIS_FILE_HELP, common::LABEL_FILE, common::ANALYSIS_TABLE_HELP,
                                                  common::BUTTON_FILTER_DATA];
 
 const UPDATE_SECTION_TGT_HEADERS: [&str; 6] = [common::TGT_FILE_HELP, common::LABEL_FILE, common::BUTTON_BROWSE, 

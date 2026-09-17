@@ -129,25 +129,44 @@ pub const MAX_COL: u32 = 8;
 pub const MAX_ROW: u32 = 1000;
 
 #[derive(Debug, Clone)]
-pub struct Config {
+pub struct Config 
+{
     pub command: Command,
 
-    pub tgt_file: String,
-    pub tgt_upd_table: String,
-    pub tgt_src_col: String,
-    pub tgt_dest_col: String,
+    pub tgt_file:               String,
+    pub tgt_upd_table:          String,
+    pub tgt_src_col:            String,
+    pub tgt_dest_col:           String,
     
-    pub ref_file: String,
-    pub ref_table: String,
-    pub ref_col_key: String,
-    pub ref_col_value: String,
+    pub ref_file:               String,
+    pub ref_table:              String,
+    pub ref_col_key:            String,
+    pub ref_col_value:          String,
     
-    pub new_sheet_name: String,
-    pub inplace: bool,
+    pub new_sheet_name:         String,
+    pub inplace:                bool,
 
-    pub analysis_file: String,
-    pub analysis_table: String
+    pub analysis_file:          String,
+    pub analysis_table:         String,
+    pub analysis_col_srch:      String,
+    pub analysis_col_term:      String,
+    pub analysis_cols_copy_src: String,
+    pub analysis_srch_pat:      String,
+    pub analysis_term_pat:      String,
 }
+
+/*
+            if false == get_anaysis_data(atbl, 
+                &"A".to_string(), 
+                &"B".to_string(), 
+                &"A,G".to_string(), 
+                &"Позиция: *, *Основание:(.*)".to_string(),
+                &"Общо".to_string(), 
+                &mut fotbl, 
+                &"C".to_string(), 
+                &"B,F".to_string(), 
+                &"G=E*F".to_string()) //WARNING: hardcoded values!
+ */
 
 pub fn formatted_applied_mappings(applied: usize) -> String {
     format!("Applied {} key-value mapping(s).", applied)
