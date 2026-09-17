@@ -7,6 +7,7 @@ use std::sync::mpsc;
 use std::thread;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::Instant;
 
 use log::{debug, info, error};
 
@@ -402,6 +403,8 @@ impl eframe::App for GuiApp
 {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) 
     {
+        let drawing_time = Instant::now();
+
         const MAX_HEIGHT: f32 = 400.0;
         const SCALE_FACTOR: f32 = 1.0;
         ctx.set_pixels_per_point(SCALE_FACTOR);
@@ -410,13 +413,18 @@ impl eframe::App for GuiApp
 
         let mut exec_cmd = common::Command::CmdUndefined;
 
+        let queue_time = Instant::now();
         //Get current logs and copy them to buffer
+        let mut msg_cntr = 0;
         while let Ok(new_log) = self.log_rx.try_recv() 
         {
+            msg_cntr += 1;
             self.log_buffer.push_str(&new_log);
         }
+        let qt = queue_time.elapsed().as_micros();
         let all_lines: Vec<&str> = self.log_buffer.lines().collect();
-        println!("LOG BUFFER CHARS:{} LINES:{}", self.log_buffer.len(), all_lines.len());
+        let lines_cnt = all_lines.len();
+        let log_buffer_len = self.log_buffer.len();
 
         egui::CentralPanel::default().show(ctx, |ui| 
         {
@@ -563,6 +571,14 @@ impl eframe::App for GuiApp
                     ui.label(common::LABEL_EXECUTION_RESULT);
                     ui.add_space(4.0);
 
+                    // let max_visible_lines = 64;
+                    // let all_lines: Vec<&str> = self.log_buffer.lines().collect();
+                    // let start_idx = all_lines.len().saturating_sub(max_visible_lines);
+                    // let mut visible_text = all_lines[start_idx..].join("\n");
+                    // let buffer = &mut visible_text;
+
+                    let buffer = &mut self.log_buffer;
+
                     egui::ScrollArea::vertical()
                         .id_source("execution_result_scroll") 
                         .max_height(MAX_HEIGHT * SCALE_FACTOR) 
@@ -572,7 +588,7 @@ impl eframe::App for GuiApp
                         .show(ui, |ui| 
                         {
                             ui.add(
-                                egui::TextEdit::multiline(&mut self.log_buffer)
+                                egui::TextEdit::multiline(buffer /*&mut self.log_buffer*/)
                                     .desired_rows(16)
                                     .desired_width(f32::INFINITY)
                                     .lock_focus(true)
@@ -587,6 +603,11 @@ impl eframe::App for GuiApp
                 }
             });
         });
+
+        let dt = drawing_time.elapsed().as_micros();
+        let qp = (100*qt)/dt;
+        println!("Redrawing:{}us; Queue :{}us for {} msgs; (Usage:{}%) LOG BUFFER CHARS:{} LINES:{}", 
+            dt, qt, msg_cntr, qp, log_buffer_len, lines_cnt);
     }
 
 }

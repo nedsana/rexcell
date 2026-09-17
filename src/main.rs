@@ -150,6 +150,10 @@ Lits the existing sheets in target file ../Test_Excell.xlsx
 Execute autoupdate:
 RUST_BACKTRACE=1 cargo run --bin rexcell -- -c cmd-autocomplete-sheets -t "./Ref_Files/Test_Excell_T1.xlsx" -u "КСС_ОП1" -s "C" -d "B,F" -n "Prices" -i -a "./Ref_Files/Test_Excell_T1_Analysis.xlsx" -o "Analysis" >OUT
 
+Real test:
+RUST_BACKTRACE=1 cargo run --bin rexcell -- -c cmd-autocomplete-sheets -t "./Ref_Files/Test_Twins.xlsx" -u "Ф200,Ф160,Ф 125,Ф 90" -s "C" -d "B,F" -n "Prices" -i -a "./Ref_Files/ОП № 2-КСС Близнаци(ЕВРОКАНАЛ) ().xlsx" -o "Анализи" >OUT
+RUST_BACKTRACE=1 cargo run --bin rexcell -- -c cmd-filter-sheets -t "./Ref_Files/Test_Twins.xlsx" -u "Ф200,Ф160,Ф 125,Ф 90" -s "C" -d "E" -n "Prices" >OUT
+
 dev@ned-dev:~/Projects/Razni/rexcell$ ls Ref_Files/
 '5.1.1. КСС1_Горун_Прил. 2.1 - Евроканал.xlsx'   Test_Excell_T1_Analysis.xlsx   Test_Range_Merged.xlsx                   'КСС етап 2(53337467) - ЕВРОКАНАЛ 2.04.2026.xlsx'
 '5.1.1. КСС1_Горун_Прил. 2.1.xlsx'               Test_Excell_T1_small.xlsx      Test_Range_Multiline.xlsx                'ОП № 2-КСС Близнаци(ЕВРОКАНАЛ) ().xlsx'
