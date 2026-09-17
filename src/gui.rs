@@ -414,12 +414,9 @@ impl eframe::App for GuiApp
         while let Ok(new_log) = self.log_rx.try_recv() 
         {
             self.log_buffer.push_str(&new_log);
-            
-            // // Optional: limit the log buffer size, as this can delay the gui
-            // if self.log_buffer.len() > 10_000 {
-            //     self.log_buffer = self.log_buffer.chars().skip(2000).collect();
-            // }
         }
+        let all_lines: Vec<&str> = self.log_buffer.lines().collect();
+        println!("LOG BUFFER CHARS:{} LINES:{}", self.log_buffer.len(), all_lines.len());
 
         egui::CentralPanel::default().show(ctx, |ui| 
         {
@@ -503,6 +500,8 @@ impl eframe::App for GuiApp
                 {
                     if false == self.is_working.load(Ordering::SeqCst)
                     {
+                        self.log_buffer.clear();
+
                         // cargo run --bin rexcell -- -c cmd-filter-sheets -t ../Test_Excell.xlsx -u "Лист1,Лист2,Лист3" -s C -d E -n "Test"
                         let cfg: common::Config = common::Config 
                         {
@@ -569,7 +568,9 @@ impl eframe::App for GuiApp
                         .max_height(MAX_HEIGHT * SCALE_FACTOR) 
                         .auto_shrink([false; 2]) 
                         .stick_to_bottom(true)
-                        .show(ui, |ui| {
+
+                        .show(ui, |ui| 
+                        {
                             ui.add(
                                 egui::TextEdit::multiline(&mut self.log_buffer)
                                     .desired_rows(16)
@@ -590,10 +591,21 @@ impl eframe::App for GuiApp
 
 }
 
-fn main() {
-    let options = NativeOptions::default();
-    eframe::run_native(common::WINDOW_TITLE, options, 
-        Box::new(|cc| Box::new(GuiApp::new(cc)))).expect(common::ERROR_FAILED_TO_START_GUI);
+fn main() 
+{
+    let mut options = NativeOptions::default();
+    options.renderer = eframe::Renderer::Glow; //more stable backend
+    options.vsync = true;
+
+    eframe::run_native(
+        common::WINDOW_TITLE, 
+        options, 
+        Box::new(|cc| 
+            {
+                cc.egui_ctx.set_embed_viewports(true); //set reactive mode, otherwise will repaint all the time
+
+                Box::new(GuiApp::new(cc))
+            })).expect(common::ERROR_FAILED_TO_START_GUI);
 }
 
 // RUST_BACKTRACE=1 cargo run --bin gui >OUT

@@ -822,7 +822,7 @@ pub fn execute(cfg: &common::Config) -> Result<(), String>
     let mut res_error: String = String::new();
     let mut count_updated = 0;
 
-    debug!("Cfg:{}", cfg); //DELETE_ME
+    // debug!("Cfg:{}", cfg);
 
     // Load the update Excel file
     let target_path = std::path::Path::new(&cfg.tgt_file);
