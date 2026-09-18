@@ -169,10 +169,11 @@ pub fn apply_key_value_data_by_indexes(
 }
 
 pub fn apply_key_value_data_by_strings(
-    rtbl: &Worksheet,
-    utbl: &mut Worksheet,
-    col_key: &String,
-    cols_upd: &String,
+    rtbl:       &Worksheet,
+    utbl:       &mut Worksheet,
+    col_key:    &String,
+    cols_upd:   &String,
+    row_calc:  &String,
 ) -> Result<(), String>
 {
     if cols_upd.len() == 0 
@@ -189,6 +190,20 @@ pub fn apply_key_value_data_by_strings(
             return Err(format!("{}", err));
         }
     }
+
+    let row_calcs: Vec<String> = row_calc.split(',').map(|s| s.trim().to_string()).collect();
+    let utbl_max_row = common::MAX_ROW; //utbl.get_highest_row();
+    for utbl_row in 1..=utbl_max_row //loop over the update table rows   
+    {
+        debug!("Applying: {} to {} row:{}", row_calc, utbl.get_name(), utbl_row);
+
+        if let Err(err) = apply_calculations(utbl, utbl_row, &row_calcs)
+        {
+            error!("Applying calculations: {}", err);
+            return Err(format!("Applying calculations: {}", err));
+        }
+    }
+
     Ok(())
 }
 
@@ -575,7 +590,17 @@ pub fn apply_calculations(
                             if calc_col_val.get_data_type() == "n" && let Some(num) = calc_col_val.get_value_number()
                             {
                                 cell_val = num;
-                            } 
+                            }
+                            else if calc_col_val.is_formula()
+                            {
+                                error!("Found formula '{}' on {}:{}", calc_col_val.get_formula().to_string(), sheet.get_name(), range_ops::coords_to_str(calc_col, row));
+                                cell_val = calc_col_val.get_cell_value().get_value_number().unwrap_or(0.0);
+                            }
+                            else
+                            {
+                                error!("Unexpeced cell type '{}' on {}:{}", calc_col_val.get_data_type(), sheet.get_name(), range_ops::coords_to_str(calc_col, row));
+                                // return Err(format!("Unexpeced cell type '{}' on {}:{}", calc_col_val.get_data_type(), sheet.get_name(), range_ops::coords_to_str(calc_col, row)));
+                            }
                         }
                         None => 
                         {
@@ -585,7 +610,11 @@ pub fn apply_calculations(
 
                     if let Err(err) = context.set_value(scalc_col.into(), Value::Float(cell_val)) 
                     {
-                        return Err(format!("Failed to assign '{}'='{}'! {}", scalc_col, cell_val, err));
+                        return Err(format!("Failed to assign '{}{}'='{}'! {}", scalc_col, row, cell_val, err));
+                    }
+                    else //DELETE_ME
+                    {
+                        debug!("assigned: '{}{}'='{}'", scalc_col, row, cell_val);
                     }
                 }
 
@@ -606,6 +635,8 @@ pub fn apply_calculations(
                         let dst_cell_total_price = sheet.get_cell_mut((dst_col, row));
 
                         dst_cell_total_price.set_value_number(final_f64);
+
+                        debug!("Writing: '{}:{}'='{}'", sheet.get_name(), range_ops::coords_to_str(dst_col, row), final_f64);
                     }
                     Err(err) => 
                     {
@@ -949,7 +980,7 @@ pub fn execute(cfg: &common::Config) -> Result<(), String>
                     }
                 };
                 
-                if let Err(err) = apply_key_value_data_by_strings(rtbl, utbl, &cfg.tgt_src_col, &cfg.tgt_dest_col)
+                if let Err(err) = apply_key_value_data_by_strings(rtbl, utbl, &cfg.tgt_src_col, &cfg.tgt_dest_col, &"".to_string())
                 {
                     error!("{}:{}", common::MESSAGE_NO_KEY_VALUE_MAPPING, err);
                     return Err(format!("{}:{}", common::MESSAGE_NO_KEY_VALUE_MAPPING, err));
@@ -1048,7 +1079,7 @@ pub fn execute(cfg: &common::Config) -> Result<(), String>
                     }
                 };
                 
-                if let Err(err) = apply_key_value_data_by_strings(&fotbl, utbl, &cfg.tgt_src_col, &cfg.tgt_dest_col)
+                if let Err(err) = apply_key_value_data_by_strings(&fotbl, utbl, &cfg.tgt_src_col, &cfg.tgt_dest_col, &cfg.tgt_calcs)
                 {
                     error!("{}:{}", common::MESSAGE_NO_KEY_VALUE_MAPPING, err);
                     return Err(format!("{}:{}", common::MESSAGE_NO_KEY_VALUE_MAPPING, err));
