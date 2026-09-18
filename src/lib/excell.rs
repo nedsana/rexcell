@@ -1027,7 +1027,7 @@ pub fn execute(cfg: &common::Config) -> Result<(), String>
                 &mut fotbl, 
                 &cfg.tgt_src_col,       //&"C".to_string(), 
                 &cfg.tgt_dest_col, //&"B,F".to_string(), 
-                &"G=E*F".to_string()) //WARNING: hardcoded values!
+                &cfg.tgt_calcs)     //&"G=E*F"
             {
                 error!("Failed to process analysis data from {}:{}", cfg.analysis_file, cfg.analysis_table);
                 return Err(format!("Failed to process analysis data from {}:{}", cfg.analysis_file, cfg.analysis_table));
@@ -1048,7 +1048,7 @@ pub fn execute(cfg: &common::Config) -> Result<(), String>
                     }
                 };
                 
-                if let Err(err) = apply_key_value_data_by_strings(&fotbl, utbl, &"C".to_string(), &"B,F".to_string())
+                if let Err(err) = apply_key_value_data_by_strings(&fotbl, utbl, &cfg.tgt_src_col, &cfg.tgt_dest_col)
                 {
                     error!("{}:{}", common::MESSAGE_NO_KEY_VALUE_MAPPING, err);
                     return Err(format!("{}:{}", common::MESSAGE_NO_KEY_VALUE_MAPPING, err));

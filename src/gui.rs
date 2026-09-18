@@ -18,6 +18,7 @@ struct TargetData {
     src_col:        String,
     cols_accum:     String,
     dest_col:       String,
+    calcs:          String,
     new_sheet_name: String,
 }
 
@@ -29,19 +30,21 @@ impl Default for TargetData {
             src_col:        String::from(common::TGT_DEFAULT_SRC_COL),
             cols_accum:     String::from(common::TGT_DEFAULT_ACC_COL),
             dest_col:       String::from(common::TGT_DEFAULT_DST_COL),
+            calcs:          String::from(common::TGT_DEFAULT_CALCS),
             new_sheet_name: String::from(common::TGT_DEFAULT_NEW_SHEET_NAME),
         }
     }
 }
 
 impl TargetData {
-    pub fn new(p_path: &String, p_update_sheets: &String, p_src_col: &String, p_cols_accum: &String, p_dest_col: &String, p_new_sheet_name: &String) -> Self {
+    pub fn new(p_path: &String, p_update_sheets: &String, p_src_col: &String, p_cols_accum: &String, p_dest_col: &String, p_calcs: &String, p_new_sheet_name: &String) -> Self {
         Self { 
             path:           String::from(p_path),
             update_sheets:  String::from(p_update_sheets),
             src_col:        String::from(p_src_col),
             cols_accum:     String::from(p_cols_accum),
             dest_col:       String::from(p_dest_col),
+            calcs:          String::from(p_calcs),
             new_sheet_name: String::from(p_new_sheet_name),
         }
     }
@@ -160,6 +163,7 @@ impl Default for GuiApp
                                       &common::TGT_DEFAULT_SRC_COL.to_string(), 
                                       &common::TGT_DEFAULT_ACC_COL.to_string(), 
                                       &common::TGT_DEFAULT_DST_COL.to_string(), 
+                                      &common::TGT_DEFAULT_CALCS.to_string(),
                                       &common::TGT_DEFAULT_NEW_SHEET_NAME.to_string()),
 
             cfg_update_ref: ReferencesData::new( &common::REF_DEFAULT_EXCEL_FILE.to_string(), 
@@ -292,6 +296,14 @@ impl GuiApp
             ui.add_space(4.0);
             ui.label(headers[6]);
             ui.text_edit_singleline(&mut tgt_data.dest_col);
+
+            ui.add_space(4.0);
+            ui.label(headers[7]);
+            ui.text_edit_singleline(&mut tgt_data.calcs);
+
+            ui.add_space(4.0);
+            ui.label(headers[8]);
+            ui.text_edit_singleline(&mut tgt_data.new_sheet_name);
         });
     }
 
@@ -386,9 +398,9 @@ impl GuiApp
 
 }
 
-const FILTER_SECTION_HEADERS: [&str; 9] = [
+const FILTER_SECTION_HEADERS: [&str; 10] = [
     common::TGT_FILE_HELP, common::LABEL_FILE, common::BUTTON_BROWSE, 
-    common::LIST_SHEETS_TO_UPDATE, common::TGT_SRC_COL_HELP, common::TGT_DEST_COL_ACCUM_HELP, common::TGT_DEST_COL_HELP,
+    common::LIST_SHEETS_TO_UPDATE, common::TGT_SRC_COL_HELP, common::TGT_DEST_COL_ACCUM_HELP, common::TGT_DEST_COL_HELP, common::TGT_DEST_CALCS_HELP,
     common::NEW_SHEET_NAME_HELP, common::BUTTON_FILTER_DATA
 ];
 
@@ -398,11 +410,6 @@ const AUTOCOMPLETE_SECTION_HEADERS: [&str; 17] = [
     common::ANALYSIS_FILE_HELP, common::LABEL_FILE, common::BUTTON_BROWSE, common::ANALYSIS_TABLE_HELP,
     common::ANALYSIS_COL_SRCH_HELP, common::ANALYSIS_COL_TERM_HELP, common::ANALYSIS_COLS_CP_SRC_HELP, common::ANALYSIS_SRCH_PAT_HELP, common::ANALYSIS_TERM_PAT_HELP,
     common::BUTTON_APPLY_ANALYSIS
-];
-
-const UPDATE_SECTION_TGT_HEADERS: [&str; 6] = [
-    common::TGT_FILE_HELP, common::LABEL_FILE, common::BUTTON_BROWSE, 
-    common::LIST_SHEETS_TO_UPDATE, common::REF_SRC_COL_HELP, common::TGT_DEST_COL_HELP
 ];
 
 const UPDATE_SECTION_REF_HEADERS: [&str; 7] = [
@@ -507,7 +514,7 @@ impl eframe::App for GuiApp
                         {
                             ui.columns(2, |columns| 
                             {
-                                self.draw_filter_section(&mut columns[0], &UPDATE_SECTION_TGT_HEADERS);
+                                self.draw_filter_section(&mut columns[0], &FILTER_SECTION_HEADERS);
 
                                 self.draw_cfg_update_ref(&mut columns[1], &UPDATE_SECTION_REF_HEADERS);
                             });
@@ -532,6 +539,7 @@ impl eframe::App for GuiApp
                             tgt_src_col:            self.cfg_filter.src_col.clone(),
                             tgt_acc_col:            self.cfg_filter.cols_accum.clone(),
                             tgt_dest_col:           self.cfg_filter.dest_col.clone(),
+                            tgt_calcs:              self.cfg_filter.calcs.clone(),
 
                             ref_file:               self.cfg_update_ref.path.clone(),
                             ref_table:              self.cfg_update_ref.reference_sheet.clone(),

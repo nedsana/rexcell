@@ -21,6 +21,7 @@ pub const TGT_SRC_COL_HELP: &str = "Column to filter on";
 pub const TGT_DEST_COL_COPY_HELP: &str = "Columns to copy to";
 pub const TGT_DEST_COL_ACCUM_HELP: &str = "Columns to accumulate, on filter match";
 pub const TGT_DEST_COL_HELP: &str = "Columns in the table, we copy data to.";
+pub const TGT_DEST_CALCS_HELP: &str = "Calculations to apply.";
 pub const TGT_UPDATE_SHEET_HELP: &str = "Update tables. Comma-separated list.";
 pub const NEW_SHEET_NAME_HELP: &str = "Name of the new sheet";
 pub const ANALYSIS_FILE_HELP: &str = "Excel file with analysis data";
@@ -39,6 +40,7 @@ pub const TGT_DEFAULT_TABLE: &str = "";
 pub const TGT_DEFAULT_NEW_SHEET_NAME: &str = "Prices";
 pub const TGT_DEFAULT_ANALYSIS_FILE: &str = "";
 pub const TGT_DEFAULT_ANALYSIS_TABLE: &str = "";
+pub const TGT_DEFAULT_CALCS: &str = "G=E*F";
 
 pub const REF_FILE_HELP: &str = "Excel file, with reference data";
 pub const REF_SHEET_HELP: &str = "Reference table name";
@@ -154,6 +156,7 @@ pub struct Config
     pub tgt_src_col:            String,
     pub tgt_acc_col:            String,
     pub tgt_dest_col:           String,
+    pub tgt_calcs:              String,
     
     pub ref_file:               String,
     pub ref_table:              String,
@@ -179,29 +182,30 @@ impl fmt::Display for Config
         write!(
             f,
             "Config {{\n\
-             command:              {:?}\n\
+                command:              {:?}\n\
              [Filter Section]\n\
-             tgt_file:             {}\n\
-             tgt_upd_table:        {}\n\
-             tgt_src_col:          {}\n\
-             tgt_acc_col:          {}\n\
-             tgt_dest_col:         {}\n\
+                tgt_file:             {}\n\
+                tgt_upd_table:        {}\n\
+                tgt_src_col:          {}\n\
+                tgt_acc_col:          {}\n\
+                tgt_dest_col:         {}\n\
+                tgt_calcs:            {}\n\
              [Reference Section]\n\
-             ref_file:             {}\n\
-             ref_table:            {}\n\
-             ref_col_key:          {}\n\
-             ref_col_value:        {}\n\
+                ref_file:             {}\n\
+                ref_table:            {}\n\
+                ref_col_key:          {}\n\
+                ref_col_value:        {}\n\
              [Analysis Section]\n\
-             analysis_file:        {}\n\
-             analysis_table:       {}\n\
-             analysis_col_srch:    {}\n\
-             analysis_col_term:    {}\n\
-             analysis_cols_cp_src: {}\n\
-             analysis_srch_pat:   '{}'\n\
-             analysis_term_pat:   '{}'\n\
+                analysis_file:        {}\n\
+                analysis_table:       {}\n\
+                analysis_col_srch:    {}\n\
+                analysis_col_term:    {}\n\
+                analysis_cols_cp_src: {}\n\
+                analysis_srch_pat:   '{}'\n\
+                analysis_term_pat:   '{}'\n\
              [Options]\n\
-             new_sheet_name:       {}\n\
-             inplace:              {}
+                new_sheet_name:       {}\n\
+                inplace:              {}
             }}",
             self.command,
             self.tgt_file,
@@ -209,6 +213,7 @@ impl fmt::Display for Config
             self.tgt_src_col,
             self.tgt_acc_col,
             self.tgt_dest_col,
+            self.tgt_calcs,
             self.ref_file,
             self.ref_table,
             self.ref_col_key,

@@ -99,6 +99,7 @@ fn main()
                 tgt_src_col:            args.tgt_src_col,
                 tgt_dest_col:           args.tgt_dest_col,
                 tgt_acc_col:            args.tgt_accum_col,
+                tgt_calcs:              "".to_string(), //to do ...
                 ref_file:               args.ref_file,
                 ref_table:              args.ref_table,
                 ref_col_key:            args.ref_col_key,
