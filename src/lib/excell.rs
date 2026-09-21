@@ -223,7 +223,7 @@ pub fn get_worksheet_names(path: &std::path::Path) -> Result<String, String> {
  */
 pub fn find_range_in_sheet<'a>(range: &'a dyn IRange, sheet: &'a Worksheet, cmp_cols: &'a Vec<u32>) -> Option<RangeType<'a>>
 {
-    match range_ops::IterRow::new(sheet, common::MAX_ROW, common::MAX_COL, 1, true, "-", range_ops::Offsets::default())
+    match range_ops::IterRow::new(sheet, common::MAX_ROW, common::MAX_COL, 1, true, common::REGEX_MULTILINE, range_ops::Offsets::default())
     {
         Ok(iter_sheet) =>
         {
@@ -321,7 +321,7 @@ pub fn make_largest_range<'a>(range_in: &'a dyn IRange, sheet_in: &'a Worksheet,
 
             let mut range_tmp = make_range_inst_mut(range_in.get_type(), range_ops::make_range_from_indexes(1, 1, cols_in, rows_in), &mut tmp_sheet);
 
-            match range_ops::IterRow::new(sheet_in, common::MAX_ROW, common::MAX_COL, 1, true, "-", range_ops::Offsets::default())
+            match range_ops::IterRow::new(sheet_in, common::MAX_ROW, common::MAX_COL, 1, true, common::REGEX_MULTILINE, range_ops::Offsets::default())
             {
                 Ok(iter_sheet) =>
                 {
@@ -452,7 +452,7 @@ pub fn filter_sheet_by_col_and_accum(
     let max_row = common::MAX_ROW; //sheet_in.get_highest_row();
     let max_col = common::MAX_COL; //sheet_in.get_highest_column();
 
-    match range_ops::IterRow::new(sheet_in, common::MAX_ROW, common::MAX_COL, 1, true, "-", range_ops::Offsets::default())
+    match range_ops::IterRow::new(sheet_in, common::MAX_ROW, common::MAX_COL, 1, true, common::REGEX_MULTILINE, range_ops::Offsets::default())
     {
         Ok(iter_sheet) =>
         {
@@ -460,16 +460,6 @@ pub fn filter_sheet_by_col_and_accum(
             {
                 if let Some((brow_it, _, _, _, _, _)) = range_ops::range_bounds(it.get_range())
                 {
-                    // if "n" != it.get_sheet().get_cell_value((1, brow_it)).get_data_type().to_string()
-                    // {
-                    //     info!("Range {}:[{}] skipping none numeric leading data type!", it.get_sheet().get_name(), range_ops::range_to_string(it.get_range()));
-                    //     continue;
-                    // }
-                    // else
-                    // {
-                    //     info!("Processing range '{}:[{}]'!", it.get_sheet().get_name(), range_ops::range_to_string(it.get_range()));
-                    // }
-
                     if "n" == it.get_sheet().get_cell_value((1, brow_it)).get_data_type().to_string()
                     {
                         info!("Processing range '{}:[{}]'!", it.get_sheet().get_name(), range_ops::range_to_string(it.get_range()));
@@ -494,7 +484,7 @@ pub fn filter_sheet_by_col_and_accum(
                             { //appending
                                 let sheet_largest_range = make_largest_range(&it, sheet_in, &cmp_cols, &acc_cols);
 
-                                match range_ops::IterRow::new(&sheet_largest_range, max_row, max_col, 1, true, "-", range_ops::Offsets::default()) 
+                                match range_ops::IterRow::new(&sheet_largest_range, max_row, max_col, 1, true, common::REGEX_MULTILINE, range_ops::Offsets::default()) 
                                 {
                                     Ok(iter_sheet_largest_range) => 
                                     {
@@ -664,7 +654,7 @@ pub fn get_anaysis_data(
 
     let fsrch_col = range_ops::column_to_index(filtered_col_srch);
 
-    match range_ops::IterRowMut::new(filtered_sheet, max_row, max_col, 1, true, "-", range_ops::Offsets::default())
+    match range_ops::IterRowMut::new(filtered_sheet, max_row, max_col, 1, true, common::REGEX_MULTILINE, range_ops::Offsets::default())
     {
         Ok(mut filtered_sheet_it) => 
         {
