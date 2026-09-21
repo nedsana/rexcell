@@ -8,9 +8,17 @@ use regex::Regex;
 //compare strings, ignoring white spaces (' ',\t, \n, \r)
 pub fn cmp_strs(s1: &str, s2: &str) -> bool 
 {
-    let words1 = s1.split_whitespace();
-    let words2 = s2.split_whitespace();
-    words1.eq(words2)
+    let clean1: String = s1.to_lowercase()
+                           .chars()
+                           .filter(|c| !c.is_whitespace())
+                           .collect();
+
+    let clean2: String = s2.to_lowercase()
+                           .chars()
+                           .filter(|c| !c.is_whitespace())
+                           .collect();
+
+    clean1 == clean2
 }
 
 pub fn column_to_index(col: &str) -> u32 

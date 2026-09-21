@@ -147,7 +147,7 @@ pub const REGEX_MULTILINE: &str = "^[ \t]*-[ \t]*(.*)$";
 
 //to do: make these constants configurable
 pub const MAX_COL: u32 = 8;
-pub const MAX_ROW: u32 = 1000;
+pub const MAX_ROW: u32 = 5000;
 
 #[derive(Debug, Clone)]
 pub struct Config 
