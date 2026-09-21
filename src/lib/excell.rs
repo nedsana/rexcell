@@ -6,7 +6,6 @@ use crate::range_types::*;
 use log::{debug, info, warn, error};
 use super::common;
 use super::range_ops;
-use evalexpr::*;
 
 
 pub fn get_ref_map_by_indexes(sheet: &Worksheet, col_key: u32, col_value: u32) -> HashMap<String, String> {
@@ -169,11 +168,10 @@ pub fn apply_key_value_data_by_indexes(
 }
 
 pub fn apply_key_value_data_by_strings(
-    rtbl:       &Worksheet,
-    utbl:       &mut Worksheet,
-    col_key:    &String,
-    cols_upd:   &String,
-    row_calc:  &String,
+    rtbl: &Worksheet,
+    utbl: &mut Worksheet,
+    col_key: &String,
+    cols_upd: &String,
 ) -> Result<(), String>
 {
     if cols_upd.len() == 0 
@@ -190,20 +188,6 @@ pub fn apply_key_value_data_by_strings(
             return Err(format!("{}", err));
         }
     }
-
-    let row_calcs: Vec<String> = row_calc.split(',').map(|s| s.trim().to_string()).collect();
-    let utbl_max_row = common::MAX_ROW; //utbl.get_highest_row();
-    for utbl_row in 1..=utbl_max_row //loop over the update table rows   
-    {
-        debug!("Applying: {} to {} row:{}", row_calc, utbl.get_name(), utbl_row);
-
-        if let Err(err) = apply_calculations(utbl, utbl_row, &row_calcs)
-        {
-            error!("Applying calculations: {}", err);
-            return Err(format!("Applying calculations: {}", err));
-        }
-    }
-
     Ok(())
 }
 
@@ -553,104 +537,64 @@ pub fn filter_sheet_by_col_and_accum(
     res
 }
 
+pub fn convert_to_excel_formula(user_formula: &str, row_num: u32) -> String 
+{
+    let mut excel_formula = String::with_capacity(user_formula.len() * 2);
+    let mut current_var = String::new();
+
+    for c in user_formula.chars() 
+    {
+        if c.is_ascii_alphabetic() 
+        {
+            current_var.push(c);
+        } 
+        else 
+        {
+            if !current_var.is_empty() 
+            {
+                excel_formula.push_str(&current_var);
+                excel_formula.push_str(&row_num.to_string());
+                current_var.clear();
+            }
+            excel_formula.push(c);
+        }
+    }
+
+    if !current_var.is_empty() 
+    {
+        excel_formula.push_str(&current_var);
+        excel_formula.push_str(&row_num.to_string());
+    }
+
+    excel_formula
+}
+
 pub fn apply_calculations(
     sheet:  &mut Worksheet, 
     row:    u32,
     calcs:  &Vec<String>
 ) -> Result<(), String> 
 {
+    let mut res :Result<(), String> = Ok(());
     for scalc in calcs
     {
-        if 0 == scalc.len()
+        if scalc.len() > 0
         {
-            continue;
-        }
-
-        match build_operator_tree::<DefaultNumericTypes>(scalc)
-        {
-            Ok(expr) => 
+            let eformula = convert_to_excel_formula(scalc, row);
+            if let Some((lhs, rhs)) = eformula.split_once('=') 
             {
-                let scalc_cols: Vec<&str> = expr.iter_variable_identifiers().collect();
-
-                let sdst_col = scalc_cols[0];
-                let dst_col = range_ops::column_to_index(sdst_col);
-
-                let mut context = HashMapContext::<DefaultNumericTypes>::new();
-
-                for scalc_col in scalc_cols
-                {
-                    let calc_col = range_ops::column_to_index(scalc_col);
-
-                    //get the columns from the formula
-                    let mut cell_val = 0.0;
-                    match sheet.get_cell((calc_col, row))
-                    {
-                        Some(calc_col_val) =>
-                        {
-                            if calc_col_val.get_data_type() == "n" && let Some(num) = calc_col_val.get_value_number()
-                            {
-                                cell_val = num;
-                            }
-                            else if calc_col_val.is_formula()
-                            {
-                                error!("Found formula '{}' on {}:{}", calc_col_val.get_formula().to_string(), sheet.get_name(), range_ops::coords_to_str(calc_col, row));
-                                cell_val = calc_col_val.get_cell_value().get_value_number().unwrap_or(0.0);
-                            }
-                            else
-                            {
-                                error!("Unexpeced cell type '{}' on {}:{}", calc_col_val.get_data_type(), sheet.get_name(), range_ops::coords_to_str(calc_col, row));
-                                // return Err(format!("Unexpeced cell type '{}' on {}:{}", calc_col_val.get_data_type(), sheet.get_name(), range_ops::coords_to_str(calc_col, row)));
-                            }
-                        }
-                        None => 
-                        {
-                            return Err(format!("Failed to read value from {}:{}", sheet.get_name(), range_ops::coords_to_str(calc_col, row)));
-                        }
-                    }
-
-                    if let Err(err) = context.set_value(scalc_col.into(), Value::Float(cell_val)) 
-                    {
-                        return Err(format!("Failed to assign '{}{}'='{}'! {}", scalc_col, row, cell_val, err));
-                    }
-                    else //DELETE_ME
-                    {
-                        debug!("assigned: '{}{}'='{}'", scalc_col, row, cell_val);
-                    }
-                }
-
-                match expr.eval_empty_with_context_mut(&mut context)
-                {
-                    Ok(()) =>
-                    {
-                        let final_f64: f64 = match context.get_value(sdst_col) 
-                        {
-                            Some(Value::Float(f)) => *f,
-                            Some(Value::Int(i)) => *i as f64,
-                            _ => {
-                                error!("Evaluating expression did not return a numer for '{}'!", sdst_col);
-                                0.0
-                            }
-                        };
-
-                        let dst_cell_total_price = sheet.get_cell_mut((dst_col, row));
-
-                        dst_cell_total_price.set_value_number(final_f64);
-
-                        debug!("Writing: '{}:{}'='{}'", sheet.get_name(), range_ops::coords_to_str(dst_col, row), final_f64);
-                    }
-                    Err(err) => 
-                    {
-                        return Err(format!("Evaluating expression failed '{}'! {}", scalc, err));
-                    }
-                }
-            },
-            Err(err) => 
+                debug!("LHS:{} = RHS:{}", lhs.trim(), rhs.trim());
+                let cell = sheet.get_cell_mut(lhs);
+                cell.set_formula(rhs);
+            }
+            else
             {
-                return Err(format!("Failed to create calculation expression '{}'! {}", scalc, err));
+                res = Err(format!("Missing sign '='!"));
+                break;
             }
         }
     }
-    Ok(())
+    res
 }
 
 /**
@@ -980,7 +924,7 @@ pub fn execute(cfg: &common::Config) -> Result<(), String>
                     }
                 };
                 
-                if let Err(err) = apply_key_value_data_by_strings(rtbl, utbl, &cfg.tgt_src_col, &cfg.tgt_dest_col, &"".to_string())
+                if let Err(err) = apply_key_value_data_by_strings(rtbl, utbl, &cfg.tgt_src_col, &cfg.tgt_dest_col)
                 {
                     error!("{}:{}", common::MESSAGE_NO_KEY_VALUE_MAPPING, err);
                     return Err(format!("{}:{}", common::MESSAGE_NO_KEY_VALUE_MAPPING, err));
@@ -1050,15 +994,15 @@ pub fn execute(cfg: &common::Config) -> Result<(), String>
 
             //The entries are filtered in the filter sheet. Now get the needed values from analysis table and update the filter sheet.
             if false == get_anaysis_data(atbl, 
-                &cfg.analysis_col_srch,     //&"A".to_string(), 
-                &cfg.analysis_col_term,     //&"B".to_string(), 
-                &cfg.analysis_cols_cp_src,  //&"A,G".to_string(), 
-                &cfg.analysis_srch_pat,     //&"Позиция: *, *Основание:(.*)".to_string(),
-                &cfg.analysis_term_pat,     //&"Общо".to_string(), 
+                &cfg.analysis_col_srch,                   //&"A".to_string(), 
+                &cfg.analysis_col_term,                   //&"B".to_string(), 
+                &cfg.analysis_cols_cp_src,                //&"A,G".to_string(), 
+                &cfg.analysis_srch_pat,                   //&"Позиция: *, *Основание:(.*)".to_string(),
+                &cfg.analysis_term_pat,                   //&"Общо".to_string(), 
                 &mut fotbl, 
                 &cfg.tgt_src_col,       //&"C".to_string(), 
                 &cfg.tgt_dest_col, //&"B,F".to_string(), 
-                &cfg.tgt_calcs)     //&"G=E*F"
+                &cfg.tgt_calcs)     //&"G=E*F".to_string()
             {
                 error!("Failed to process analysis data from {}:{}", cfg.analysis_file, cfg.analysis_table);
                 return Err(format!("Failed to process analysis data from {}:{}", cfg.analysis_file, cfg.analysis_table));
@@ -1079,7 +1023,7 @@ pub fn execute(cfg: &common::Config) -> Result<(), String>
                     }
                 };
                 
-                if let Err(err) = apply_key_value_data_by_strings(&fotbl, utbl, &cfg.tgt_src_col, &cfg.tgt_dest_col, &cfg.tgt_calcs)
+                if let Err(err) = apply_key_value_data_by_strings(&fotbl, utbl, &"C".to_string(), &"B,F".to_string())
                 {
                     error!("{}:{}", common::MESSAGE_NO_KEY_VALUE_MAPPING, err);
                     return Err(format!("{}:{}", common::MESSAGE_NO_KEY_VALUE_MAPPING, err));
