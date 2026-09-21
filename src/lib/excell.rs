@@ -90,10 +90,11 @@ pub fn reset_formulas(
 }
 
 pub fn apply_key_value_data_by_indexes(
-    rtbl: &Worksheet,
-    utbl: &mut Worksheet,
-    col_key: u32,
-    col_upd: u32,
+    rtbl:       &Worksheet,
+    utbl:       &mut Worksheet,
+    col_key:    u32,
+    col_upd:    u32,
+    calcs:      &String,
 ) -> Result<(), String> 
 {
     // info!("rtbl:{} utbl:{} col_key:{} col_upd:{}", rtbl.get_name(), utbl.get_name(), col_key, col_upd);
@@ -140,6 +141,13 @@ pub fn apply_key_value_data_by_indexes(
                         utbl.get_cell_mut((col_upd, utbl_row)).set_value(rtbl_upd_value.clone());
                     }
 
+                    //apply calculations after the update of the table
+                    if let Err(err_msg) = apply_calculations(utbl, utbl_row, &calcs) 
+                    {
+                        log::error!("Failed to apply formula for row {}: {}", utbl_row, err_msg);
+                        return Err(err_msg);
+                    }
+
                     info!("Updated '{} {}{}' with '{}' from '{} {}{}'!", 
                                         utbl.get_name(), range_ops::index_to_column(col_upd), utbl_row, rtbl_upd_value,
                                         rtbl.get_name(), range_ops::index_to_column(col_upd), rtbl_row);
@@ -168,10 +176,11 @@ pub fn apply_key_value_data_by_indexes(
 }
 
 pub fn apply_key_value_data_by_strings(
-    rtbl: &Worksheet,
-    utbl: &mut Worksheet,
-    col_key: &String,
-    cols_upd: &String,
+    rtbl:       &Worksheet,
+    utbl:       &mut Worksheet,
+    col_key:    &String,
+    cols_upd:   &String,
+    calcs:      &String,
 ) -> Result<(), String>
 {
     if cols_upd.len() == 0 
@@ -182,7 +191,7 @@ pub fn apply_key_value_data_by_strings(
 
     for col_upd in cols_upd.split(',') 
     {
-        if let Err(err) = apply_key_value_data_by_indexes(rtbl, utbl, range_ops::column_to_index(col_key), range_ops::column_to_index(col_upd)) 
+        if let Err(err) = apply_key_value_data_by_indexes(rtbl, utbl, range_ops::column_to_index(col_key), range_ops::column_to_index(col_upd), calcs) 
         {
             error!("{}", err);
             return Err(format!("{}", err));
@@ -572,18 +581,19 @@ pub fn convert_to_excel_formula(user_formula: &str, row_num: u32) -> String
 pub fn apply_calculations(
     sheet:  &mut Worksheet, 
     row:    u32,
-    calcs:  &Vec<String>
+    calcs:  &String
 ) -> Result<(), String> 
 {
     let mut res :Result<(), String> = Ok(());
-    for scalc in calcs
+    let fcalcs: Vec<String> = calcs.split(',').map(|s| s.trim().to_string()).collect();
+    for scalc in fcalcs
     {
         if scalc.len() > 0
         {
-            let eformula = convert_to_excel_formula(scalc, row);
+            let eformula = convert_to_excel_formula(&scalc, row);
             if let Some((lhs, rhs)) = eformula.split_once('=') 
             {
-                debug!("LHS:{} = RHS:{}", lhs.trim(), rhs.trim());
+                // debug!("LHS:{} = RHS:{}", lhs.trim(), rhs.trim());
                 let cell = sheet.get_cell_mut(lhs);
                 cell.set_formula(rhs);
             }
@@ -633,7 +643,6 @@ pub fn get_anaysis_data(
 
     let acols_copy_src: Vec<u32> = analysis_cols_cp_src.split(',').map(|s| range_ops::column_to_index(s.trim())).collect();
     let fcols_copy_dst: Vec<u32> = filtered_cols_copy_dst.split(',').map(|s| range_ops::column_to_index(s.trim())).collect();
-    let fcalculations: Vec<String> = filtered_calculations.split(',').map(|s| s.trim().to_string()).collect();
 
     if acols_copy_src.len() != fcols_copy_dst.len()
     {
@@ -744,17 +753,13 @@ pub fn get_anaysis_data(
                                             }
 
                                             //apply calculations in the filtered table
-                                            match apply_calculations(fit.get_sheet_mut(), fbr, &fcalculations)
+                                            if let Err(err_msg) = apply_calculations(fit.get_sheet_mut(), fbr, filtered_calculations) 
                                             {
-                                                Ok(_) =>
-                                                {
-                                                    res = true;
-                                                }
-                                                Err(err) => 
-                                                {
-                                                    error!("Failed to apply calculation expressions: {}", err);
-                                                }
+                                                log::error!("Failed to apply formula for row {}: {}", fbr, err_msg);
+                                                return false;
                                             }
+
+                                            res = true;
                                         }
                                         else
                                         {
@@ -924,7 +929,7 @@ pub fn execute(cfg: &common::Config) -> Result<(), String>
                     }
                 };
                 
-                if let Err(err) = apply_key_value_data_by_strings(rtbl, utbl, &cfg.tgt_src_col, &cfg.tgt_dest_col)
+                if let Err(err) = apply_key_value_data_by_strings(rtbl, utbl, &cfg.tgt_src_col, &cfg.tgt_dest_col, &"".to_string())
                 {
                     error!("{}:{}", common::MESSAGE_NO_KEY_VALUE_MAPPING, err);
                     return Err(format!("{}:{}", common::MESSAGE_NO_KEY_VALUE_MAPPING, err));
@@ -993,7 +998,8 @@ pub fn execute(cfg: &common::Config) -> Result<(), String>
             }
 
             //The entries are filtered in the filter sheet. Now get the needed values from analysis table and update the filter sheet.
-            if false == get_anaysis_data(atbl, 
+            if false == get_anaysis_data(
+                atbl, 
                 &cfg.analysis_col_srch,                   //&"A".to_string(), 
                 &cfg.analysis_col_term,                   //&"B".to_string(), 
                 &cfg.analysis_cols_cp_src,                //&"A,G".to_string(), 
@@ -1023,7 +1029,7 @@ pub fn execute(cfg: &common::Config) -> Result<(), String>
                     }
                 };
                 
-                if let Err(err) = apply_key_value_data_by_strings(&fotbl, utbl, &"C".to_string(), &"B,F".to_string())
+                if let Err(err) = apply_key_value_data_by_strings(&fotbl, utbl, &cfg.tgt_src_col, &cfg.tgt_dest_col, &cfg.tgt_calcs)
                 {
                     error!("{}:{}", common::MESSAGE_NO_KEY_VALUE_MAPPING, err);
                     return Err(format!("{}:{}", common::MESSAGE_NO_KEY_VALUE_MAPPING, err));
