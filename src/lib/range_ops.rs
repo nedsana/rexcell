@@ -913,6 +913,10 @@ fn iter_row_next_impl_shared<'a>(
                                     range_rows += 1; //count the next row we've searched.
                                 }
                             }
+                            else //sheet.get_cell() may return None if the cell is empty
+                            {
+                                range_rows += 1; //count the next row we've searched.
+                            }
                         }
 
                         if false == pattern_found //we've not detected next pattern, so get all of the left lines
