@@ -460,70 +460,82 @@ pub fn filter_sheet_by_col_and_accum(
             {
                 if let Some((brow_it, _, _, _, _, _)) = range_ops::range_bounds(it.get_range())
                 {
-                    if "n" != it.get_sheet().get_cell_value((1, brow_it)).get_data_type().to_string()
+                    // if "n" != it.get_sheet().get_cell_value((1, brow_it)).get_data_type().to_string()
+                    // {
+                    //     info!("Range {}:[{}] skipping none numeric leading data type!", it.get_sheet().get_name(), range_ops::range_to_string(it.get_range()));
+                    //     continue;
+                    // }
+                    // else
+                    // {
+                    //     info!("Processing range '{}:[{}]'!", it.get_sheet().get_name(), range_ops::range_to_string(it.get_range()));
+                    // }
+
+                    if "n" == it.get_sheet().get_cell_value((1, brow_it)).get_data_type().to_string()
                     {
-                        info!("Range {}:[{}] skipping none numeric leading data type!", it.get_sheet().get_name(), range_ops::range_to_string(it.get_range()));
-                        continue;
+                        info!("Processing range '{}:[{}]'!", it.get_sheet().get_name(), range_ops::range_to_string(it.get_range()));
+
+                        loop 
+                        {
+                            if let Some(found_range) = find_range_in_sheet(&it, sheet_out, &cmp_cols)
+                            { //accumulating
+                                let found_range_clone = found_range.get_range().clone();
+                                drop(found_range);
+
+                                info!("Range {} already exists in sheet {}! Accumulating data!", range_ops::range_to_string(it.get_range()), sheet_out.get_name());
+
+                                if range_ops::accumulate_ranges(sheet_in, it.get_range(), sheet_out, &found_range_clone, &cmp_cols, &acc_cols)
+                                {
+                                    info!("Accumulated in-range '{}' to out-range '{}'!", range_ops::range_to_string(it.get_range()), range_ops::range_to_string(&found_range_clone));
+                                }
+
+                                break; //exit the internal loop
+                            }
+                            else
+                            { //appending
+                                let sheet_largest_range = make_largest_range(&it, sheet_in, &cmp_cols, &acc_cols);
+
+                                match range_ops::IterRow::new(&sheet_largest_range, max_row, max_col, 1, true, "-", range_ops::Offsets::default()) 
+                                {
+                                    Ok(iter_sheet_largest_range) => 
+                                    {
+                                        // // temporary file for debugging
+                                        // let mut tmp_ssheet = umya_spreadsheet::new_file(); //DELETE_ME
+                                        // _ = tmp_ssheet.add_sheet(sheet_largest_range.clone()); //DELETE_ME
+                                        // let tmpfname = format!("TMP_SHEET_{}.xlsx", range_ops::range_to_string(it.get_range()));
+                                        // _ = writer::xlsx::write(&tmp_ssheet, std::path::Path::new(&tmpfname)); //DELETE_ME
+                                        // // process::exit(1);
+
+                                        let mut loop_cnt = 0;
+                                        for it_slr in iter_sheet_largest_range
+                                        {
+                                            if 0 == loop_cnt
+                                            {
+                                                res = range_ops::append_range(it_slr.get_sheet(), &it_slr.get_range(), sheet_out, &acc_cols);
+
+                                                info!("Appended range {}:[{}] to {}: {}", it_slr.get_sheet().get_name(), range_ops::range_to_string(it_slr.get_range()), sheet_out.get_name(), res);
+                                            }
+                                            loop_cnt += 1;
+                                        }
+                                        if 1 < loop_cnt
+                                        {
+                                            error!("Only one largest range expected! Found {}!", loop_cnt);
+                                            break; //exit the internal loop
+                                        }
+                                    },
+                                    Err(err) => 
+                                    {
+                                        error!("Failed to create iterator: {}", err);
+                                        break; //exit the internal loop
+                                    }
+                                }
+                                //NOTE: no 'beak' here, because we've appended a range with zeroed numeric cells. The next loop should find this appended range and should update its values properly!
+                            } //appending
+                        }
+
                     }
                     else
                     {
-                        info!("Processing range '{}:[{}]'!", it.get_sheet().get_name(), range_ops::range_to_string(it.get_range()));
-                    }
-
-                    loop 
-                    {
-                        if let Some(found_range) = find_range_in_sheet(&it, sheet_out, &cmp_cols)
-                        { //accumulating
-                            let found_range_clone = found_range.get_range().clone();
-                            drop(found_range);
-
-                            info!("Range {} already exists in sheet {}! Accumulating data!", range_ops::range_to_string(it.get_range()), sheet_out.get_name());
-
-                            if range_ops::accumulate_ranges(sheet_in, it.get_range(), sheet_out, &found_range_clone, &cmp_cols, &acc_cols)
-                            {
-                                info!("Accumulated in-range '{}' to out-range '{}'!", range_ops::range_to_string(it.get_range()), range_ops::range_to_string(&found_range_clone));
-                            }
-
-                            break; //exit the internal loop
-                        }
-                        else
-                        { //appending
-                            let sheet_largest_range = make_largest_range(&it, sheet_in, &cmp_cols, &acc_cols);
-
-                            match range_ops::IterRow::new(&sheet_largest_range, max_row, max_col, 1, true, "-", range_ops::Offsets::default()) 
-                            {
-                                Ok(iter_sheet_largest_range) => 
-                                {
-                                    // // temporary file for debugging
-                                    // let mut tmp_ssheet = umya_spreadsheet::new_file(); //DELETE_ME
-                                    // _ = tmp_ssheet.add_sheet(sheet_largest_range.clone()); //DELETE_ME
-                                    // let tmpfname = format!("TMP_SHEET_{}.xlsx", range_ops::range_to_string(it.get_range()));
-                                    // _ = writer::xlsx::write(&tmp_ssheet, std::path::Path::new(&tmpfname)); //DELETE_ME
-                                    // // process::exit(1);
-
-                                    let mut loop_cnt = 0;
-                                    for it_slr in iter_sheet_largest_range
-                                    {
-                                        if 0 == loop_cnt
-                                        {
-                                            res = range_ops::append_range(it_slr.get_sheet(), &it_slr.get_range(), sheet_out, &acc_cols);
-
-                                            info!("Appended range {}:[{}] to {}: {}", it_slr.get_sheet().get_name(), range_ops::range_to_string(it_slr.get_range()), sheet_out.get_name(), res);
-                                        }
-                                        loop_cnt += 1;
-                                    }
-                                    if 1 < loop_cnt
-                                    {
-                                        error!("Only one largest range expected! Found {}!", loop_cnt);
-                                    }
-                                },
-                                Err(err) => 
-                                {
-                                    error!("Failed to create iterator: {}", err);
-                                }
-                            }
-                            //NOTE: no 'beak' here, because we've appended a range with zeroed numeric cells. The next loop should find this appended range and should update its values properly!
-                        } //appending
+                        info!("Range {}:[{}] skipping none numeric leading data type!", it.get_sheet().get_name(), range_ops::range_to_string(it.get_range()));
                     }
 
                     debug!("========================================================");
@@ -662,7 +674,7 @@ pub fn get_anaysis_data(
                 {
                     if "n" != fit.get_sheet().get_cell_value((1, ffbr)).get_data_type().to_string()
                     {
-                        info!("Range {}:[{}] skipping none numeric leading data type!", fit.get_sheet().get_name(), range_ops::range_to_string(fit.get_range()));
+                        info!("Range {}:[{}] None numeric leading data type - skipping!", fit.get_sheet().get_name(), range_ops::range_to_string(fit.get_range()));
                         continue;
                     }
 
