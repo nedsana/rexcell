@@ -130,58 +130,30 @@ pub fn do_ranges_overlap(range_a: &Range, range_b: &Range) -> bool
     false
 }
 
-pub fn truncate_str(s: &str, max_chars: usize) -> &str 
+// Truncate to at most max_chars characters. If with_dots is true and the string was
+// actually truncated, "..." is appended; short strings are returned as-is, without dots.
+pub fn truncate_str(s: &str, max_chars: usize, with_dots: bool) -> String
 {
-    match s.char_indices().nth(max_chars) 
+    match s.char_indices().nth(max_chars)
     {
-        Some((idx, _)) => &s[..idx], // Ако низът е по-дълъг, режем до байтовия индекс на N-тия символ
-        None => s,                   // Ако е по-кратък, го връщаме цял
+        Some((idx, _)) => { // Longer than max_chars, cut it
+            let truncated = &s[..idx];
+            if with_dots { format!("{}...", truncated) } else { truncated.to_string() }
+        }
+        None => s.to_string(), // Shorter than max_chars, return it none-changed
     }
 }
 
-pub fn truncate_str_with_dots(s: &str, max_chars: usize) -> String 
-{
-    if s.chars().count() > max_chars 
-    {
-        let truncated = match s.char_indices().nth(max_chars) 
-        {
-            Some((idx, _)) => &s[..idx],
-            None => s,
-        };
-        format!("{}...", truncated)
-    } 
-    else 
-    {
-        s.to_string()
-    }
-}
-
-pub fn limit_str(s: &str, max_chars: usize) -> String 
+pub fn limit_str(s: &str, max_chars: usize) -> String
 {
     let count = s.chars().count();
-    if count == max_chars 
+    if count < max_chars
     {
-        s.to_string()
-    } 
-    else if count > max_chars 
-    {
-        // match s.char_indices().nth(max_chars) 
-        // {
-        //     Some((idx, _)) => s[..idx].to_string(),
-        //     None => s.to_string(),
-        // }
-        truncate_str_with_dots(s, max_chars)
-    } 
-    else 
-    {
-        let mut res = String::with_capacity(max_chars);
-        res.push_str(s);
-        for _ in 0..(max_chars - count) 
-        {
-            res.push(' ');
-        }
-        res
+        let mut res = String::from(s);
+        res.extend(std::iter::repeat(' ').take(max_chars - count));
+        return res;
     }
+    truncate_str(s, max_chars, true)
 }
 
 pub fn range_to_string(range: &Range) -> String
@@ -196,7 +168,7 @@ pub fn range_to_string(range: &Range) -> String
     format!("Invalid range!")
 }
 
-pub fn print_range_cells_0(sheet: &Worksheet, range: &Range) 
+pub fn print_range_cells(sheet: &Worksheet, range: &Range, truncate_len: Option<u32>) 
 {
     if let Some((rbeg, rend, cbeg, cend, _, _)) = range_bounds(range)
     {
@@ -205,23 +177,6 @@ pub fn print_range_cells_0(sheet: &Worksheet, range: &Range)
             umya_spreadsheet::helper::coordinate::coordinate_from_index(&cend, &rend)  // Returns "C10"
         );
 
-        for r in rbeg..=rend 
-        {
-            for c in cbeg..=cend 
-            {
-                let coord_str = umya_spreadsheet::helper::coordinate::coordinate_from_index(&c, &r);
-                let cell_value = sheet.get_cell_value((c, r)).get_value();
-                info!("Cell {}: {}", coord_str, cell_value);
-            }
-        }
-    }
-    error!("Invalid range from {}!", sheet.get_name())
-}
-
-pub fn print_range_cells_1(sheet: &Worksheet, range: &Range, truncate_len: Option<u32>) 
-{
-    if let Some((rbeg, rend, cbeg, cend, _, _)) = range_bounds(range)
-    {
         // choose separator: when truncate_len is provided, use that many spaces,
         // otherwise keep the original tab-based separator
         let sep = match truncate_len {
@@ -229,19 +184,19 @@ pub fn print_range_cells_1(sheet: &Worksheet, range: &Range, truncate_len: Optio
             None => "\t".to_string(),
         };
 
-        let mut coord_names = Vec::new();
+        // let mut coord_names = Vec::new();
         let mut cell_values = Vec::new();
 
         for r in rbeg..=rend 
         {
             for c in cbeg..=cend 
             {
-                let coord_str = umya_spreadsheet::helper::coordinate::coordinate_from_index(&c, &r);        
-                let _truncated = match truncate_len 
-                {
-                    Some(tlen) => coord_names.push(limit_str(&coord_str, tlen as usize)),
-                    None => coord_names.push(coord_str),
-                };
+                // let coord_str = umya_spreadsheet::helper::coordinate::coordinate_from_index(&c, &r);        
+                // let _truncated = match truncate_len 
+                // {
+                //     Some(tlen) => coord_names.push(limit_str(&coord_str, tlen as usize)),
+                //     None => coord_names.push(coord_str),
+                // };
 
                 let cell_value = sheet.get_cell_value((c, r)).get_value().to_string();
                 let _truncated = match truncate_len 
@@ -252,12 +207,16 @@ pub fn print_range_cells_1(sheet: &Worksheet, range: &Range, truncate_len: Optio
             }
 
             // info!("{}", coord_names.join(&sep));
+            // coord_names.clear();
+
             info!("{}", cell_values.join(&sep));
-            coord_names.clear();
             cell_values.clear();
         }
     }
-    error!("Invalid range from {}!", sheet.get_name())
+    else
+    {
+        error!("Invalid range from {}!", sheet.get_name())
+    }
 }
 
 pub fn comapre_cell(
@@ -1194,4 +1153,229 @@ impl LendingIterator for IterRowMut<'_>
 
 pub fn same_types(a: &dyn range_types::IRange, b: &dyn range_types::IRange) -> bool {
     a.get_type() == b.get_type()
+}
+
+/* ---------------------------------------------------------------------------------------- */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cmp_strs_identical() {
+        assert!(cmp_strs("abc", "abc"));
+        assert!(cmp_strs("", ""));
+        assert!(cmp_strs("Товар", "Товар"));
+    }
+
+    #[test]
+    fn cmp_strs_case_insensitive() {
+        assert!(cmp_strs("ABC", "abc"));
+        assert!(cmp_strs("aBc", "AbC"));
+        assert!(cmp_strs("АБВ", "абв"));
+        assert!(!cmp_strs("abc", "abd"));
+    }
+
+    #[test]
+    fn cmp_strs_ignores_whitespace() {
+        assert!(cmp_strs("a b c", "abc"));
+        assert!(cmp_strs("a\tb", "ab"));
+        assert!(cmp_strs("a\nb", "ab"));
+        assert!(cmp_strs("a\rb", "ab"));
+        assert!(cmp_strs("  x  ", "x"));
+        assert!(cmp_strs("   ", ""));
+    }
+
+    #[test]
+    fn cmp_strs_unicode() {
+        assert!(cmp_strs("a\u{00A0}b", "ab"));
+        assert!(cmp_strs("Товар 1 ", "товар1"));
+    }
+
+    #[test]
+    fn cmp_strs_non_whitespace_kept() {
+        assert!(!cmp_strs("a-b", "ab"));
+        assert!(!cmp_strs("a.b", "ab"));
+        assert!(!cmp_strs("abc", "ab"));
+    }
+
+    #[test]
+    fn column_to_index_known_values() {
+        assert_eq!(column_to_index("A"), 1);
+        assert_eq!(column_to_index("Z"), 26);
+        assert_eq!(column_to_index("AA"), 27);
+        assert_eq!(column_to_index("AB"), 28);
+        assert_eq!(column_to_index("AZ"), 52);
+        assert_eq!(column_to_index("BA"), 53);
+        assert_eq!(column_to_index("ZZ"), 702);
+        assert_eq!(column_to_index("AAA"), 703);
+        assert_eq!(column_to_index("ab"), 28);
+    }
+
+    #[test]
+    fn index_to_column_known_values() {
+        assert_eq!(index_to_column(1), "A");
+        assert_eq!(index_to_column(26), "Z");
+        assert_eq!(index_to_column(27), "AA");
+        assert_eq!(index_to_column(52), "AZ");
+        assert_eq!(index_to_column(53), "BA");
+        assert_eq!(index_to_column(702), "ZZ");
+        assert_eq!(index_to_column(703), "AAA");
+        assert_eq!(index_to_column(0), "");
+    }
+
+    #[test]
+    fn column_index_roundtrip() {
+        for i in 1..=1000u32 {
+            let col = index_to_column(i);
+            assert_eq!(column_to_index(&col), i);
+        }
+    }
+
+    #[test]
+    #[should_panic]
+    fn column_to_index_panic_on_non_letter() {
+        column_to_index("0");
+    }
+
+    #[test]
+    fn coords_to_str_known_values() {
+        assert_eq!(coords_to_str(1, 1), "A1");
+        assert_eq!(coords_to_str(26, 2), "Z2");
+        assert_eq!(coords_to_str(27, 1), "AA1");
+        assert_eq!(coords_to_str(1, 100), "A100");
+        assert_eq!(coords_to_str(703, 5), "AAA5");
+    }
+
+    #[test]
+    fn make_range_from_strings_basic() {
+        let r = make_range_from_strings("A1", "C3");
+        assert_eq!(r.get_range(), "A1:C3");
+        assert_eq!(*r.get_coordinate_start_col().unwrap().get_num(), 1);
+        assert_eq!(*r.get_coordinate_start_row().unwrap().get_num(), 1);
+        assert_eq!(*r.get_coordinate_end_col().unwrap().get_num(), 3);
+        assert_eq!(*r.get_coordinate_end_row().unwrap().get_num(), 3);
+    }
+
+    #[test]
+    fn make_range_from_strings_single_cell() {
+        let r = make_range_from_strings("B2", "B2");
+        assert_eq!(r.get_range(), "B2:B2");
+    }
+
+    #[test]
+    fn make_range_from_indexes_basic() {
+        let r = make_range_from_indexes(1, 1, 3, 3);
+        assert_eq!(r.get_range(), "A1:C3");
+    }
+
+    #[test]
+    fn make_range_from_indexes_multi_letter_cols() {
+        let r = make_range_from_indexes(27, 1, 28, 2);
+        assert_eq!(r.get_range(), "AA1:AB2");
+    }
+
+    #[test]
+    fn is_row_in_range_tests() {
+        let r = make_range_from_strings("A1", "C3");
+        assert!(is_row_in_range(1, &r));
+        assert!(is_row_in_range(2, &r));
+        assert!(is_row_in_range(3, &r));
+        assert!(!is_row_in_range(0, &r));
+        assert!(!is_row_in_range(4, &r));
+        assert!(!is_row_in_range(1, &Range::default()));
+    }
+
+    #[test]
+    fn is_col_in_range_tests() {
+        let r = make_range_from_strings("A1", "C3");
+        assert!(is_col_in_range(1, &r));
+        assert!(is_col_in_range(2, &r));
+        assert!(is_col_in_range(3, &r));
+        assert!(!is_col_in_range(0, &r));
+        assert!(!is_col_in_range(4, &r));
+        assert!(!is_col_in_range(1, &Range::default()));
+    }
+
+    #[test]
+    fn range_bounds_valid() {
+        // (brow, erow, bcol, ecol, rows, cols)
+        assert_eq!(range_bounds(&make_range_from_strings("A1", "C3")), Some((1, 3, 1, 3, 3, 3)));
+        assert_eq!(range_bounds(&make_range_from_strings("B2", "B2")), Some((2, 2, 2, 2, 1, 1)));
+        assert_eq!(range_bounds(&make_range_from_strings("AA10", "AC12")), Some((10, 12, 27, 29, 3, 3)));
+    }
+
+    #[test]
+    fn truncate_str_no_dots() {
+        assert_eq!(truncate_str("abcdef", 3, false), "abc");
+        assert_eq!(truncate_str("abcd", 4, false), "abcd");
+        assert_eq!(truncate_str("ab", 5, false), "ab");
+        assert_eq!(truncate_str("абвгд", 2, false), "аб"); // multibyte chars
+    }
+
+    #[test]
+    fn range_to_string_valid() {
+        assert_eq!(range_to_string(&make_range_from_strings("A1", "C3")), "A1:C3 (rows:3 cols:3)");
+        assert_eq!(range_to_string(&make_range_from_strings("B2", "B2")), "B2:B2 (rows:1 cols:1)");
+        assert_eq!(range_to_string(&make_range_from_strings("AA10", "AC12")), "AA10:AC12 (rows:3 cols:3)");
+    }
+
+    #[test]
+    fn range_to_string_invalid() {
+        assert_eq!(range_to_string(&Range::default()), "Invalid range!");
+        assert_eq!(range_to_string(&make_range_from_strings("A", "C")), "Invalid range!"); // no rows
+    }
+
+    #[test]
+    fn limit_str_tests() {
+        assert_eq!(limit_str("abcd", 4), "abcd");     // exact fit
+        assert_eq!(limit_str("abcdef", 3), "abc..."); // longer: truncate with dots
+        assert_eq!(limit_str("ab", 4), "ab  ");       // shorter: pad with spaces
+        assert_eq!(limit_str("", 3), "   ");          // empty: all spaces
+        assert_eq!(limit_str("аб", 3), "аб ");        // multibyte chars
+    }
+
+    #[test]
+    fn truncate_str_with_dots() {
+        assert_eq!(truncate_str("abcdef", 3, true), "abc...");
+        assert_eq!(truncate_str("abcd", 4, true), "abcd"); // exactly max: no truncation, no dots
+        assert_eq!(truncate_str("ab", 5, true), "ab");     // short: no dots
+    }
+
+    #[test]
+    #[should_panic]
+    fn range_bounds_inverted_cols_underflow() {
+        // Inverted range (start col 27 > end col 3): cols = 1 + ecol - bcol underflows u32.
+        // Known latent bug in range_bounds, documented until fixed.
+        range_bounds(&make_range_from_strings("AA10", "C12"));
+    }
+
+    #[test]
+    fn range_bounds_missing_coords() {
+        assert_eq!(range_bounds(&Range::default()), None);
+        // whole-column range has no rows
+        assert_eq!(range_bounds(&make_range_from_strings("A", "C")), None);
+    }
+
+    #[test]
+    fn is_range_in_range_tests() {
+        let main = make_range_from_strings("A1", "C3");
+        assert!(is_range_in_range(&make_range_from_strings("B2", "B2"), &main));
+        assert!(is_range_in_range(&main, &main));
+        assert!(!is_range_in_range(&make_range_from_strings("A1", "A2"), &make_range_from_strings("A2", "C3")));
+        assert!(!is_range_in_range(&make_range_from_strings("A1", "C4"), &main));
+        assert!(!is_range_in_range(&main, &make_range_from_strings("B2", "B2")));
+        assert!(!is_range_in_range(&main, &Range::default()));
+    }
+
+    #[test]
+    fn do_ranges_overlap_tests() {
+        let a = make_range_from_strings("A1", "C3");
+        assert!(do_ranges_overlap(&a, &make_range_from_strings("C3", "E5"))); // shared corner
+        assert!(do_ranges_overlap(&a, &make_range_from_strings("A1", "C3"))); // identical
+        assert!(do_ranges_overlap(&a, &make_range_from_strings("B2", "D4"))); // partial
+        assert!(!do_ranges_overlap(&a, &make_range_from_strings("D1", "E5"))); // adjacent col
+        assert!(!do_ranges_overlap(&a, &make_range_from_strings("A4", "C5"))); // adjacent row
+        assert!(!do_ranges_overlap(&a, &Range::default()));
+    }
 }
