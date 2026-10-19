@@ -2,6 +2,14 @@
 
 Rust CLI + eframe/egui GUI for updating Excel (`.xlsx`) files. Reads a target workbook and a reference/analysis workbook, matches rows by key column, copies/accumulates values, applies Excel formulas, and writes results.
 
+## Ground Rules
+- Never commit any changes and do not change 'Ref_Files' folder.
+- Answer short.
+- Always run `cargo check` after any code change, before saying work is done.
+- Do not change `MAX_ROW`/`MAX_COL` in `src/lib/common.rs` without asking.
+- The non-inplace default (`_new.xlsx` output) is a feature; never make `-i` required.
+- Try to keep changes small, less than 100 lines. Anything larger is considered major rework and must be discussed.
+
 ## Binaries (defined in Cargo.toml)
 
 - `cargo run --bin rexcell -- <args>` — CLI (`src/main.rs`)
@@ -51,3 +59,4 @@ Output: unless `-i` is given, results are written to `<target>_new.xlsx` (`NEW_F
 ## Logging
 
 `fern` logger at `Debug` level to stdout. GUI runs are typically launched as `cargo run --bin gui >OUT`; `OUT` is a captured log file in the repo root (not committed).
+
