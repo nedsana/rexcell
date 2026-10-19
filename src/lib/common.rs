@@ -78,8 +78,8 @@ pub const ARG_LONG_VALUE_COL: &str = "ref-col-value";
 pub const ARG_LONG_INPLACE: &str = "inplace";
 pub const ARG_LONG_LIST_SHEETS: &str = "list-sheets";
 pub const ARG_LONG_NEW_SHEET_NAME: &str = "new-sheet-name";
-pub const ARG_LONG_ANALYSIS_FILE: &str = "anlysis-file";
-pub const ARG_LONG_ANALYSIS_TABLE: &str = "anlysis-table";
+pub const ARG_LONG_ANALYSIS_FILE: &str = "analysis-file";
+pub const ARG_LONG_ANALYSIS_TABLE: &str = "analysis-table";
 
 pub const LABEL_FILE_BROWSER: &str = "File browser";
 pub const LABEL_FILE: &str = "File:";
