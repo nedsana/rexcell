@@ -1525,4 +1525,131 @@ mod tests {
             "Invalid range from T06!",
         ]);
     }
+
+    // ------------------------------------------------------------------
+    // comapre_cell: both sheets are written into one .xlsx and read back,
+    // the same round-trip pattern as the print_range_cells tests above.
+    // ------------------------------------------------------------------
+    use umya_spreadsheet::{RichText, TextElement, Font};
+
+    fn cmp_roundtrip(tag: &str, sheet_a: &Worksheet, sheet_b: &Worksheet) -> (Worksheet, Worksheet) {
+        let mut book = Spreadsheet::default();
+        book.add_sheet(sheet_a.clone()).unwrap();
+        book.add_sheet(sheet_b.clone()).unwrap();
+        let path = format!("/tmp/rexcell_test_cmp_{}.xlsx", tag);
+        umya_spreadsheet::writer::xlsx::write(&book, std::path::Path::new(&path)).unwrap();
+        let loaded = umya_spreadsheet::reader::xlsx::read(std::path::Path::new(&path)).unwrap();
+        (loaded.get_sheet_by_name(&format!("{}_A", tag)).unwrap().clone(),
+         loaded.get_sheet_by_name(&format!("{}_B", tag)).unwrap().clone())
+    }
+
+    fn cmp_str_sheet(name: &str, col: u32, row: u32, value: &str) -> Worksheet {
+        let mut sheet = Worksheet::default();
+        sheet.set_name(name);
+        let mut cell = Cell::default();
+        cell.set_coordinate((col, row));
+        let mut cv = CellValue::default();
+        cv.set_value_string(value);
+        cell.set_cell_value(cv);
+        sheet.set_cell(cell);
+        sheet
+    }
+
+    fn cmp_rich_sheet(name: &str, col: u32, row: u32, text: &str, bold: bool) -> Worksheet {
+        let mut te = TextElement::default();
+        te.set_text(text);
+        if bold {
+            let mut font = Font::default();
+            font.set_bold(true);
+            te.set_font(font);
+        }
+        let mut rt = RichText::default();
+        rt.add_rich_text_elements(te);
+        let mut sheet = Worksheet::default();
+        sheet.set_name(name);
+        let mut cell = Cell::default();
+        cell.set_coordinate((col, row));
+        cell.set_rich_text(rt);
+        sheet.set_cell(cell);
+        sheet
+    }
+
+    #[test]
+    fn test_0035_compare_cell_equal_strings() {
+        let (a, b) = cmp_roundtrip("CC01", &cmp_str_sheet("CC01_A", 1, 1, "hello"), &cmp_str_sheet("CC01_B", 2, 2, "hello"));
+        assert!(comapre_cell(&a, 1, 1, &b, 2, 2, true));
+    }
+
+    #[test]
+    fn test_0036_compare_cell_case_and_whitespace_insensitive() {
+        let (a, b) = cmp_roundtrip("CC02", &cmp_str_sheet("CC02_A", 1, 1, "ABC\tX"), &cmp_str_sheet("CC02_B", 1, 1, "abc x"));
+        assert!(comapre_cell(&a, 1, 1, &b, 1, 1, true));
+    }
+
+    #[test]
+    fn test_0037_compare_cell_different_strings() {
+        let (a, b) = cmp_roundtrip("CC03", &cmp_str_sheet("CC03_A", 1, 1, "abc"), &cmp_str_sheet("CC03_B", 1, 1, "abd"));
+        assert!(!comapre_cell(&a, 1, 1, &b, 1, 1, true));
+        assert!(!comapre_cell(&a, 1, 1, &b, 1, 1, false));
+    }
+
+    #[test]
+    fn test_0038_compare_cell_both_missing() {
+        let (a, b) = cmp_roundtrip("CC04", &cmp_str_sheet("CC04_A", 1, 1, "x"), &cmp_str_sheet("CC04_B", 1, 1, "y"));
+        assert!(comapre_cell(&a, 5, 5, &b, 5, 5, true)); // neither sheet has a cell at (5,5)
+    }
+
+    #[test]
+    fn test_0039_compare_cell_one_missing() {
+        let (a, b) = cmp_roundtrip("CC05", &cmp_str_sheet("CC05_A", 1, 1, "x"), &cmp_str_sheet("CC05_B", 1, 1, "y"));
+        assert!(!comapre_cell(&a, 1, 1, &b, 5, 5, true));
+        assert!(!comapre_cell(&a, 1, 1, &b, 5, 5, false));
+    }
+
+    fn cmp_num_sheet(name: &str, col: u32, row: u32, value: f64) -> Worksheet {
+        let mut sheet = Worksheet::default();
+        sheet.set_name(name);
+        let mut cell = Cell::default();
+        cell.set_coordinate((col, row));
+        cell.set_value_number(value);
+        sheet.set_cell(cell);
+        sheet
+    }
+
+    #[test]
+    fn test_0040_compare_cell_numbers_equal() {
+        let (a, b) = cmp_roundtrip("CC06", &cmp_num_sheet("CC06_A", 1, 1, 1.5), &cmp_num_sheet("CC06_B", 1, 1, 1.5));
+        assert!(comapre_cell(&a, 1, 1, &b, 1, 1, true));
+    }
+
+    #[test]
+    fn test_0041_compare_cell_number_vs_same_string() {
+        let (a, b) = cmp_roundtrip("CC06B", &cmp_num_sheet("CC06B_A", 1, 1, 1.5), &cmp_str_sheet("CC06B_B", 1, 1, "1.5"));
+        assert!(comapre_cell(&a, 1, 1, &b, 1, 1, true)); // compared as rendered text
+    }
+
+    #[test]
+    fn test_0042_compare_cell_rich_text_equal_strict() {
+        let (a, b) = cmp_roundtrip("CC07", &cmp_rich_sheet("CC07_A", 1, 1, "text", false), &cmp_rich_sheet("CC07_B", 1, 1, "text", false));
+        assert!(comapre_cell(&a, 1, 1, &b, 1, 1, true));
+    }
+
+    #[test]
+    fn test_0043_compare_cell_rich_text_mismatch_strict() {
+        let (a, b) = cmp_roundtrip("CC08", &cmp_rich_sheet("CC08_A", 1, 1, "text", false), &cmp_rich_sheet("CC08_B", 1, 1, "text", true));
+        assert!(!comapre_cell(&a, 1, 1, &b, 1, 1, true)); // same text, different formatting
+    }
+
+    #[test]
+    fn test_0044_compare_cell_rich_text_mismatch_not_strict() {
+        let (a, b) = cmp_roundtrip("CC09", &cmp_rich_sheet("CC09_A", 1, 1, "text", false), &cmp_rich_sheet("CC09_B", 1, 1, "text", true));
+        assert!(comapre_cell(&a, 1, 1, &b, 1, 1, false));
+    }
+
+    #[test]
+    fn test_0045_compare_cell_plain_vs_rich() {
+        let (a, b) = cmp_roundtrip("CC10", &cmp_str_sheet("CC10_A", 1, 1, "text"), &cmp_rich_sheet("CC10_B", 1, 1, "text", false));
+        assert!(!comapre_cell(&a, 1, 1, &b, 1, 1, true)); // rich present on one side only
+        assert!(comapre_cell(&a, 1, 1, &b, 1, 1, false));
+    }
 }
