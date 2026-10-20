@@ -1652,4 +1652,131 @@ mod tests {
         assert!(!comapre_cell(&a, 1, 1, &b, 1, 1, true)); // rich present on one side only
         assert!(comapre_cell(&a, 1, 1, &b, 1, 1, false));
     }
+
+    // ------------------------------------------------------------------
+    // comapre_ranges. NOTE: the current implementation has several latent
+    // bugs which the tests below DOCUMENT rather than codify as "intended"
+    // (same approach as test_0023):
+    //  - strict mode only checks that sizes match; row_match is never
+    //    evaluated when strict, so different content still returns true
+    //  - column offsets are built as (0..=cols), i.e. one past the range
+    //    end, and a row passes only with EXACTLY `cols` matches — so a
+    //    perfect match FAILS in non-strict mode and exactly one mismatch
+    //    per row is required
+    //  - rows are compared in a cartesian product; col_match is reset for
+    //    every row of B, so only B's LAST row influences the result
+    //  - non-strict + a proper-allowed_rows subset can never pass, since
+    //    row_match is compared against the FULL rows_a, not the allowed count
+    // ------------------------------------------------------------------
+
+    fn cmp_cells_sheet(name: &str, cells: &[(u32, u32, &str)]) -> Worksheet {
+        let mut sheet = Worksheet::default();
+        sheet.set_name(name);
+        for (c, r, v) in cells {
+            let mut cell = Cell::default();
+            cell.set_coordinate((*c, *r));
+            let mut cv = CellValue::default();
+            cv.set_value_string(*v);
+            cell.set_cell_value(cv);
+            sheet.set_cell(cell);
+        }
+        sheet
+    }
+
+    #[test]
+    fn test_0046_compare_ranges_invalid_range() {
+        let (a, b) = cmp_roundtrip("CR01", &cmp_str_sheet("CR01_A", 1, 1, "x"), &cmp_str_sheet("CR01_B", 1, 1, "x"));
+        assert!(!comapre_ranges(&a, &Range::default(), &b, &make_range_from_strings("A1", "A1"), true, None, None));
+        assert!(!comapre_ranges(&a, &make_range_from_strings("A1", "A1"), &b, &Range::default(), false, None, None));
+    }
+
+    #[test]
+    fn test_0047_compare_ranges_strict_size_mismatch() {
+        let (a, b) = cmp_roundtrip("CR02", &cmp_str_sheet("CR02_A", 1, 1, "x"), &cmp_str_sheet("CR02_B", 1, 1, "x"));
+        assert!(!comapre_ranges(&a, &make_range_from_strings("A1", "C3"), &b, &make_range_from_strings("A1", "C2"), true, None, None));
+    }
+
+    #[test]
+    fn test_0048_compare_ranges_strict_equal_content() {
+        let (a, b) = cmp_roundtrip("CR03", &cmp_str_sheet("CR03_A", 1, 1, "x"), &cmp_str_sheet("CR03_B", 1, 1, "x"));
+        assert!(comapre_ranges(&a, &make_range_from_strings("A1", "A2"), &b, &make_range_from_strings("A1", "A2"), true, None, None));
+    }
+
+    #[test]
+    fn test_0049_compare_ranges_strict_ignores_content() {
+        let (a, b) = cmp_roundtrip("CR04", &cmp_str_sheet("CR04_A", 1, 1, "aaa"), &cmp_str_sheet("CR04_B", 1, 1, "bbb"));
+        // Documented current behavior: strict only checks sizes; content differences
+        // do NOT fail the comparison. Expected to flip to `false` if fixed.
+        assert!(comapre_ranges(&a, &make_range_from_strings("A1", "A2"), &b, &make_range_from_strings("A1", "A2"), true, None, None));
+    }
+
+    #[test]
+    fn test_0050_compare_ranges_nonstrict_perfect_match_fails() {
+        let (a, b) = cmp_roundtrip("CR05", &cmp_str_sheet("CR05_A", 1, 1, "x"), &cmp_str_sheet("CR05_B", 1, 1, "x"));
+        // Documented current behavior: offsets run 0..=cols, so a fully equal row
+        // scores cols+1 matches while the check requires exactly cols.
+        // Expected to flip to `true` if fixed.
+        assert!(!comapre_ranges(&a, &make_range_from_strings("A1", "A1"), &b, &make_range_from_strings("A1", "A1"), false, None, None));
+    }
+
+    #[test]
+    fn test_0051_compare_ranges_nonstrict_single_mismatch_passes() {
+        let a = cmp_cells_sheet("CR06_A", &[(1, 1, "x"), (2, 1, "p")]);
+        let b = cmp_cells_sheet("CR06_B", &[(1, 1, "x"), (2, 1, "q")]);
+        let (a, b) = cmp_roundtrip("CR06", &a, &b);
+        // Exactly one mismatch (in the compared-but-out-of-range column B)
+        // yields col_match == cols, so the row passes.
+        assert!(comapre_ranges(&a, &make_range_from_strings("A1", "A1"), &b, &make_range_from_strings("A1", "A1"), false, None, None));
+    }
+
+    #[test]
+    fn test_0052_compare_ranges_nonstrict_only_last_row_of_b() {
+        // A's rows both equal B's LAST row, while B's first row differs from A.
+        let a = cmp_cells_sheet("CR07_A", &[(1, 1, "same"), (2, 1, "p1"), (1, 2, "same"), (2, 2, "p2")]);
+        let b = cmp_cells_sheet("CR07_B", &[(1, 1, "other"), (2, 1, "q1"), (1, 2, "same"), (2, 2, "q2")]);
+        let (a, b) = cmp_roundtrip("CR07", &a, &b);
+        // Documented current behavior: cartesian row loop, only B's last row is
+        // effectively compared. Expected to flip to `false` if fixed.
+        assert!(comapre_ranges(&a, &make_range_from_strings("A1", "A2"), &b, &make_range_from_strings("A1", "A2"), false, None, None));
+
+        // Control: B's last row differs -> no row of A matches.
+        let mut a2 = a.clone();
+        a2.set_name("CR07C_A");
+        let b2 = cmp_cells_sheet("CR07C_B", &[(1, 1, "other"), (2, 1, "q1"), (1, 2, "nope"), (2, 2, "q2")]);
+        let (_, b2) = cmp_roundtrip("CR07C", &a2, &b2);
+        assert!(!comapre_ranges(&a, &make_range_from_strings("A1", "A2"), &b2, &make_range_from_strings("A1", "A2"), false, None, None));
+    }
+
+    #[test]
+    fn test_0053_compare_ranges_allowed_rows() {
+        // Every row of A equals B's last row (see test_0052); col 2 always differs.
+        let a = cmp_cells_sheet("CR08_A", &[(1, 1, "c"), (2, 1, "x1"), (1, 2, "c"), (2, 2, "x2"), (1, 3, "c"), (2, 3, "x3")]);
+        let b = cmp_cells_sheet("CR08_B", &[(1, 1, "a"), (2, 1, "y1"), (1, 2, "b"), (2, 2, "y2"), (1, 3, "c"), (2, 3, "y3")]);
+        let (a, b) = cmp_roundtrip("CR08", &a, &b);
+
+        // Full allowed list: all 3 rows pass -> row_match == rows_a.
+        assert!(comapre_ranges(&a, &make_range_from_strings("A1", "A3"), &b, &make_range_from_strings("A1", "A3"), false, Some(vec![1, 2, 3]), None));
+
+        // Documented current behavior: a proper subset can never pass, because
+        // row_match (<= allowed rows) is compared against the FULL rows_a.
+        // Expected to flip to `true` if fixed.
+        assert!(!comapre_ranges(&a, &make_range_from_strings("A1", "A3"), &b, &make_range_from_strings("A1", "A3"), false, Some(vec![3]), None));
+    }
+
+    #[test]
+    fn test_0054_compare_ranges_allowed_cols_skip_counts_as_match() {
+        // Range A1:B1 (cols=2) compares 3 columns; allowed_cols=[1] skips cols 2 and 3,
+        // and skipped columns COUNT as matches.
+        let a = cmp_cells_sheet("CR09_A", &[(1, 1, "same"), (2, 1, "b1"), (3, 1, "c1")]);
+
+        let b = cmp_cells_sheet("CR09_B", &[(1, 1, "diff"), (2, 1, "d2"), (3, 1, "e3")]);
+        let (a, b) = cmp_roundtrip("CR09", &a, &b);
+        // col 1 mismatches (0) + 2 skipped = 2 == cols -> passes
+        assert!(comapre_ranges(&a, &make_range_from_strings("A1", "B1"), &b, &make_range_from_strings("A1", "B1"), false, None, Some(vec![1])));
+
+        let b2 = cmp_cells_sheet("CR10_B", &[(1, 1, "same"), (2, 1, "d2"), (3, 1, "e3")]);
+        let (a2, b2) = cmp_roundtrip("CR10", &cmp_cells_sheet("CR10_A", &[(1, 1, "same"), (2, 1, "b1"), (3, 1, "c1")]), &b2);
+        // col 1 matches (1) + 2 skipped = 3 != cols -> fails
+        assert!(!comapre_ranges(&a2, &make_range_from_strings("A1", "B1"), &b2, &make_range_from_strings("A1", "B1"), false, None, Some(vec![1])));
+    }
 }
