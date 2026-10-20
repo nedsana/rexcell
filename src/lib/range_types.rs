@@ -418,7 +418,7 @@ where
 // ==========================================
 // TRAIT
 // ==========================================
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum IterRowNextKind {
     Basic,
     Merged,
@@ -931,5 +931,161 @@ pub fn make_range_inst_mut(instance_type: IterRowNextKind, range: Range, sheet: 
         IterRowNextKind::Basic => RangeTypeMut::basic(range, sheet),
         IterRowNextKind::Merged => RangeTypeMut::merged(range, sheet),
         IterRowNextKind::Multiline => RangeTypeMut::multiline(range, sheet),
+    }
+}
+
+/* ---------------------------------------------------------------------------------------- */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use umya_spreadsheet::{Cell, CellValue, RichText, TextElement, Font};
+
+    // Sheets are built directly in memory; compare_cell_impl only reads cells.
+    fn cc_sheet(name: &str, cells: &[(u32, u32, &str)]) -> Worksheet {
+        let mut sheet = Worksheet::default();
+        sheet.set_name(name);
+        for &(c, r, v) in cells {
+            let mut value = CellValue::default();
+            value.set_value_string(v.to_string());
+            let mut cell = Cell::default();
+            cell.set_coordinate((c, r));
+            cell.set_cell_value(value);
+            sheet.set_cell(cell);
+        }
+        sheet
+    }
+
+    fn cc_rich_sheet(name: &str, col: u32, row: u32, text: &str, bold: bool) -> Worksheet {
+        let mut te = TextElement::default();
+        te.set_text(text);
+        if bold {
+            let mut font = Font::default();
+            font.set_bold(true);
+            te.set_font(font);
+        }
+        let mut rt = RichText::default();
+        rt.add_rich_text_elements(te);
+        let mut sheet = Worksheet::default();
+        sheet.set_name(name);
+        let mut cell = Cell::default();
+        cell.set_coordinate((col, row));
+        cell.set_rich_text(rt);
+        sheet.set_cell(cell);
+        sheet
+    }
+
+    fn a1() -> Range { range_ops::make_range_from_strings("A1", "A1") }
+
+    // ------------------------------------------------------------------
+    // compare_cell_impl (direct calls, RangeBasic used as the 'this' IRange)
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn test_0106_compare_cell_impl_strings() {
+        let a = cc_sheet("RT01A", &[(1, 1, "ABC\tX")]);
+        let b_eq = cc_sheet("RT01B", &[(2, 2, "abc x")]);
+        let b_diff = cc_sheet("RT01C", &[(1, 1, "abd")]);
+        let b_empty = cc_sheet("RT01D", &[]);
+        let ra = RangeBasic::new(a1(), &a);
+
+        assert!(compare_cell_impl(&ra, 1, 1, &RangeBasic::new(a1(), &b_eq), 2, 2, true)); // case/ws-insensitive, other coords may differ
+        assert!(!compare_cell_impl(&ra, 1, 1, &RangeBasic::new(a1(), &b_diff), 1, 1, true));
+        assert!(!compare_cell_impl(&ra, 1, 1, &RangeBasic::new(a1(), &b_diff), 1, 1, false));
+        assert!(compare_cell_impl(&ra, 5, 5, &RangeBasic::new(a1(), &b_empty), 5, 5, true)); // both missing -> "" == ""
+        assert!(!compare_cell_impl(&ra, 1, 1, &RangeBasic::new(a1(), &b_empty), 5, 5, true)); // one missing
+    }
+
+    #[test]
+    fn test_0107_compare_cell_impl_rich_text_equal_strict() {
+        let a = cc_rich_sheet("RT02A", 1, 1, "text", false);
+        let b = cc_rich_sheet("RT02B", 1, 1, "text", false);
+        let ra = RangeBasic::new(a1(), &a);
+        assert!(compare_cell_impl(&ra, 1, 1, &RangeBasic::new(a1(), &b), 1, 1, true));
+    }
+
+    #[test]
+    fn test_0108_compare_cell_impl_rich_text_mismatch() {
+        let a = cc_rich_sheet("RT03A", 1, 1, "text", false);
+        let b_bold = cc_rich_sheet("RT03B", 1, 1, "text", true); // same text, different formatting
+        let ra = RangeBasic::new(a1(), &a);
+        assert!(!compare_cell_impl(&ra, 1, 1, &RangeBasic::new(a1(), &b_bold), 1, 1, true));
+        assert!(compare_cell_impl(&ra, 1, 1, &RangeBasic::new(a1(), &b_bold), 1, 1, false)); // non-strict ignores formatting
+    }
+
+    // ------------------------------------------------------------------
+    // IRange::compare_cell: the same impl reached through each IRange type
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn test_0109_compare_cell_range_basic() {
+        let a = cc_sheet("RT04A", &[(1, 1, "x")]);
+        let b_eq = cc_sheet("RT04B", &[(1, 1, "X")]);
+        let b_diff = cc_sheet("RT04C", &[(1, 1, "y")]);
+        let ra = RangeBasic::new(a1(), &a);
+        assert!(ra.compare_cell(1, 1, &RangeBasic::new(a1(), &b_eq), 1, 1, true));
+        assert!(!ra.compare_cell(1, 1, &RangeBasic::new(a1(), &b_diff), 1, 1, true));
+    }
+
+    #[test]
+    fn test_0110_compare_cell_range_merged() {
+        let a = cc_sheet("RT05A", &[(1, 1, "x")]);
+        let b_eq = cc_sheet("RT05B", &[(1, 1, "X")]);
+        let b_diff = cc_sheet("RT05C", &[(1, 1, "y")]);
+        let ra = RangeMergedCells::new(a1(), &a);
+        assert!(ra.compare_cell(1, 1, &RangeMergedCells::new(a1(), &b_eq), 1, 1, true));
+        assert!(!ra.compare_cell(1, 1, &RangeMergedCells::new(a1(), &b_diff), 1, 1, true));
+    }
+
+    #[test]
+    fn test_0111_compare_cell_range_multiline() {
+        let a = cc_sheet("RT06A", &[(1, 1, "x")]);
+        let b_eq = cc_sheet("RT06B", &[(1, 1, "X")]);
+        let b_diff = cc_sheet("RT06C", &[(1, 1, "y")]);
+        let ra = RangeMultiline::new(a1(), &a);
+        assert!(ra.compare_cell(1, 1, &RangeMultiline::new(a1(), &b_eq), 1, 1, true));
+        assert!(!ra.compare_cell(1, 1, &RangeMultiline::new(a1(), &b_diff), 1, 1, true));
+    }
+
+    #[test]
+    fn test_0112_compare_cell_cross_types() {
+        // 'this' and 'other' may be different IRange implementations
+        let a = cc_sheet("RT07A", &[(1, 1, "x")]);
+        let b = cc_sheet("RT07B", &[(1, 1, "x")]);
+        let ra = RangeBasic::new(a1(), &a);
+        let rb = RangeMultiline::new(a1(), &b);
+        assert!(ra.compare_cell(1, 1, &rb, 1, 1, true));
+    }
+
+    #[test]
+    fn test_0113_compare_cell_range_type_enum() {
+        let a = cc_sheet("RT08A", &[(1, 1, "x")]);
+        let b = cc_sheet("RT08B", &[(1, 1, "X")]);
+        let c = cc_sheet("RT08C", &[(1, 1, "y")]);
+        for mk in [RangeType::basic, RangeType::merged, RangeType::multiline] {
+            let ra = mk(a1(), &a);
+            assert!(ra.compare_cell(1, 1, &mk(a1(), &b), 1, 1, true), "variant not compared equal");
+            assert!(!ra.compare_cell(1, 1, &mk(a1(), &c), 1, 1, true), "variant not compared different");
+        }
+    }
+
+    // fresh sheets per call: the &mut borrows must not outlive the function.
+    // goes through make_range_inst_mut, which also exercises the variant dispatch
+    fn check_mut_variant(kind: IterRowNextKind) {
+        let mut a = cc_sheet("TMP_A", &[(1, 1, "x")]);
+        let mut b = cc_sheet("TMP_B", &[(1, 1, "X")]);
+        let mut c = cc_sheet("TMP_C", &[(1, 1, "y")]);
+        let ra = make_range_inst_mut(kind, a1(), &mut a);
+        let rb = make_range_inst_mut(kind, a1(), &mut b);
+        let rc = make_range_inst_mut(kind, a1(), &mut c);
+        assert!(ra.compare_cell(1, 1, &rb, 1, 1, true));
+        assert!(!ra.compare_cell(1, 1, &rc, 1, 1, true));
+    }
+
+    #[test]
+    fn test_0114_compare_cell_range_type_mut_enum() {
+        check_mut_variant(IterRowNextKind::Basic);
+        check_mut_variant(IterRowNextKind::Merged);
+        check_mut_variant(IterRowNextKind::Multiline);
     }
 }
