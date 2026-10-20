@@ -1876,4 +1876,102 @@ mod tests {
         assert!(!append_range(&sheet_in, &make_range_from_strings("A1", "A2"), &mut out, &vec![]));
         assert_eq!(out.get_cell_value((1, 1)).get_value(), "x");
     }
+
+    // ------------------------------------------------------------------
+    // accumulate_ranges. Mutates sheet_b in-memory (no roundtrip needed).
+    // For each row of A: the pivot cell (first column in pivot_cols, or the
+    // range's first column when pivot_cols is empty) is looked up in B from
+    // its FIRST row downwards; on a match the first accum column of the A
+    // row is added to the matched B row. Quirks documented below:
+    //  - every A row matches B's FIRST row with an equal pivot, so several
+    //    A rows accumulate into the same B row
+    //  - the first A row whose pivot is not found in B BREAKS the whole
+    //    loop; later A rows are not processed
+    // ------------------------------------------------------------------
+
+    fn acc_sheet(name: &str, strings: &[(u32, u32, &str)], numbers: &[(u32, u32, f64)]) -> Worksheet {
+        let mut sheet = cmp_cells_sheet(name, strings);
+        for (c, r, v) in numbers {
+            let mut cell = Cell::default();
+            cell.set_coordinate((*c, *r));
+            cell.set_value_number(*v);
+            sheet.set_cell(cell);
+        }
+        sheet
+    }
+
+    #[test]
+    fn test_0063_accumulate_ranges_invalid_range() {
+        let sheet_a = acc_sheet("AC01", &[(1, 1, "k")], &[]);
+        let mut out_b = acc_sheet("AC01B", &[(1, 1, "k")], &[]);
+        assert!(!accumulate_ranges(&sheet_a, &Range::default(), &mut out_b, &make_range_from_strings("A1", "A1"), &vec![1], &vec![1]));
+        assert!(!accumulate_ranges(&sheet_a, &make_range_from_strings("A1", "A1"), &mut out_b, &Range::default(), &vec![1], &vec![1]));
+    }
+
+    #[test]
+    fn test_0064_accumulate_ranges_basic_same_row() {
+        let sheet_a = acc_sheet("AC02", &[(1, 1, "k")], &[(2, 1, 1.5)]);
+        let mut sheet_b = acc_sheet("AC02B", &[(1, 1, "k")], &[(2, 1, 2.0)]);
+        assert!(accumulate_ranges(&sheet_a, &make_range_from_strings("A1", "B1"), &mut sheet_b, &make_range_from_strings("A1", "B1"), &vec![1], &vec![2]));
+        assert_eq!(sheet_b.get_cell_value((2, 1)).get_value(), "3.5");
+        assert_eq!(sheet_b.get_cell((2, 1)).unwrap().get_data_type(), "n");
+        // pivot cell untouched
+        assert_eq!(sheet_b.get_cell_value((1, 1)).get_value(), "k");
+    }
+
+    #[test]
+    fn test_0065_accumulate_ranges_pivot_found_on_later_row_of_b() {
+        let sheet_a = acc_sheet("AC03", &[(1, 1, "k")], &[(2, 1, 1.0)]);
+        let mut sheet_b = acc_sheet("AC03B", &[(1, 1, "other"), (1, 2, "k")], &[(2, 2, 5.0)]);
+        assert!(accumulate_ranges(&sheet_a, &make_range_from_strings("A1", "B1"), &mut sheet_b, &make_range_from_strings("A1", "B2"), &vec![1], &vec![2]));
+        assert_eq!(sheet_b.get_cell_value((2, 2)).get_value(), "6");
+        assert!(sheet_b.get_cell((2, 1)).is_none());
+    }
+
+    #[test]
+    fn test_0066_accumulate_ranges_all_a_rows_hit_first_b_match() {
+        // Both A rows have pivot "k"; B has "k" on both rows.
+        let sheet_a = acc_sheet("AC04", &[(1, 1, "k"), (1, 2, "k")], &[(2, 1, 1.0), (2, 2, 1.0)]);
+        let mut sheet_b = acc_sheet("AC04B", &[(1, 1, "k"), (1, 2, "k")], &[(2, 1, 10.0), (2, 2, 20.0)]);
+        assert!(accumulate_ranges(&sheet_a, &make_range_from_strings("A1", "B2"), &mut sheet_b, &make_range_from_strings("A1", "B2"), &vec![1], &vec![2]));
+        // Documented current behavior: each A row is matched against B's FIRST
+        // equal pivot row, so B row 1 gets 10+1+1 and B row 2 is untouched.
+        // Expected to change if matching is made positional.
+        assert_eq!(sheet_b.get_cell_value((2, 1)).get_value(), "12");
+        assert_eq!(sheet_b.get_cell_value((2, 2)).get_value(), "20");
+    }
+
+    #[test]
+    fn test_0067_accumulate_ranges_missing_pivot_breaks_loop() {
+        // A row 1 pivot "missing" is not in B -> the whole loop breaks, so
+        // A row 2 (which WOULD match B) is never processed.
+        let sheet_a = acc_sheet("AC05", &[(1, 1, "missing"), (1, 2, "k")], &[(2, 1, 1.0), (2, 2, 1.0)]);
+        let mut sheet_b = acc_sheet("AC05B", &[(1, 1, "k")], &[(2, 1, 5.0)]);
+        assert!(!accumulate_ranges(&sheet_a, &make_range_from_strings("A1", "B2"), &mut sheet_b, &make_range_from_strings("A1", "B1"), &vec![1], &vec![2]));
+        assert_eq!(sheet_b.get_cell_value((2, 1)).get_value(), "5");
+    }
+
+    #[test]
+    fn test_0068_accumulate_ranges_non_numeric_not_accumulated() {
+        let sheet_a = acc_sheet("AC06", &[(1, 1, "k"), (2, 1, "txt")], &[]);
+        let mut sheet_b = acc_sheet("AC06B", &[(1, 1, "k")], &[(2, 1, 5.0)]);
+        assert!(!accumulate_ranges(&sheet_a, &make_range_from_strings("A1", "B1"), &mut sheet_b, &make_range_from_strings("A1", "B1"), &vec![1], &vec![2]));
+        assert_eq!(sheet_b.get_cell_value((2, 1)).get_value(), "5");
+    }
+
+    #[test]
+    fn test_0069_accumulate_ranges_empty_pivot_cols_uses_first_column() {
+        let sheet_a = acc_sheet("AC07", &[(1, 1, "k")], &[(2, 1, 1.0)]);
+        let mut sheet_b = acc_sheet("AC07B", &[(1, 1, "k")], &[(2, 1, 2.0)]);
+        assert!(accumulate_ranges(&sheet_a, &make_range_from_strings("A1", "B1"), &mut sheet_b, &make_range_from_strings("A1", "B1"), &vec![], &vec![2]));
+        assert_eq!(sheet_b.get_cell_value((2, 1)).get_value(), "3");
+    }
+
+    #[test]
+    fn test_0070_accumulate_ranges_missing_accum_cell_in_b() {
+        let sheet_a = acc_sheet("AC08", &[(1, 1, "k")], &[(2, 1, 1.0)]);
+        let mut sheet_b = acc_sheet("AC08B", &[(1, 1, "k")], &[]); // no B1
+        assert!(!accumulate_ranges(&sheet_a, &make_range_from_strings("A1", "B1"), &mut sheet_b, &make_range_from_strings("A1", "B1"), &vec![1], &vec![2]));
+        assert!(sheet_b.get_cell((2, 1)).is_none());
+    }
 }
