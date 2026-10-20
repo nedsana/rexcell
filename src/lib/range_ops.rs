@@ -172,17 +172,17 @@ pub fn print_range_cells(sheet: &Worksheet, range: &Range, truncate_len: Option<
 {
     if let Some((rbeg, rend, cbeg, cend, _, _)) = range_bounds(range)
     {
-        info!("Sheet {} range ({}:{}) ---", sheet.get_name(), 
-            umya_spreadsheet::helper::coordinate::coordinate_from_index(&cbeg, &rbeg), // Returns "A1"
-            umya_spreadsheet::helper::coordinate::coordinate_from_index(&cend, &rend)  // Returns "C10"
-        );
-
         // choose separator: when truncate_len is provided, use that many spaces,
         // otherwise keep the original tab-based separator
         let sep = match truncate_len {
             Some(tlen) => " ".repeat(tlen as usize),
             None => "\t".to_string(),
         };
+
+        info!("Sheet {} range ({}:{}) ---", sheet.get_name(), 
+            umya_spreadsheet::helper::coordinate::coordinate_from_index(&cbeg, &rbeg), // Returns "A1"
+            umya_spreadsheet::helper::coordinate::coordinate_from_index(&cend, &rend)  // Returns "C10"
+        );
 
         // let mut coord_names = Vec::new();
         let mut cell_values = Vec::new();
@@ -1377,5 +1377,177 @@ mod tests {
         assert!(!do_ranges_overlap(&a, &make_range_from_strings("D1", "E5"))); // adjacent col
         assert!(!do_ranges_overlap(&a, &make_range_from_strings("A4", "C5"))); // adjacent row
         assert!(!do_ranges_overlap(&a, &Range::default()));
+    }
+
+    // ------------------------------------------------------------------
+    // print_range_cells: it only logs, so install a logger that writes
+    // to a file and validate the file content. Each test uses its own
+    // file; the logger target is process-global, so these tests must
+    // run serially (cargo test -- --test-threads=1).
+    // ------------------------------------------------------------------
+    use std::io::Write;
+    use std::sync::{Mutex, Once};
+    use umya_spreadsheet::{CellValue, Spreadsheet};
+
+    // The log target is process-global (set_logger runs once), so we point it
+    // at a per-test file via a shared &'static str. Tests must run serially
+    // (cargo test -- --test-threads=1) since the target is shared.
+    static LOG_FILE: Mutex<&'static str> = Mutex::new("");
+
+    struct FileLogger;
+
+    impl log::Log for FileLogger {
+        fn enabled(&self, _metadata: &log::Metadata) -> bool { true }
+        fn log(&self, record: &log::Record) {
+            let path = *LOG_FILE.lock().unwrap();
+            if path.is_empty() { return; }
+            if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
+                let _ = f.write_all(format!("{}\n", record.args()).as_bytes());
+            }
+        }
+        fn flush(&self) {}
+    }
+
+    /// Install the test logger (once per process) and route log output to `file`.
+    fn test_logger(file: &'static str) {
+        static INIT: Once = Once::new();
+        INIT.call_once(|| {
+            log::set_max_level(log::LevelFilter::Info);
+            static FILE_LOGGER: FileLogger = FileLogger;
+            let _ = log::set_logger(&FILE_LOGGER);
+        });
+        std::fs::File::create(file).unwrap(); // truncate this test's file
+        *LOG_FILE.lock().unwrap() = file;
+    }
+
+    fn logged(file: &'static str) -> String { std::fs::read_to_string(file).unwrap() }
+
+    // Write to .xlsx written by test_sheet() and return a clone of sheet `name`.
+    fn sheet_to_slsx(sheet: &Worksheet, path: &str) {
+        let mut book = Spreadsheet::default();
+        book.add_sheet(sheet.clone()).unwrap();
+        umya_spreadsheet::writer::xlsx::write(&book, std::path::Path::new(path)).unwrap();
+    }
+
+    // Read back the .xlsx written by test_sheet() and return a clone of sheet `name`.
+    fn sheet_from_xlsx(name: &str) -> Worksheet {
+        let path = format!("/tmp/rexcell_test_sheet_{}.xlsx", name);
+        let book = umya_spreadsheet::reader::xlsx::read(std::path::Path::new(&path)).unwrap();
+        book.get_sheet_by_name(name).unwrap().clone()
+    }
+
+    // nxm sheet, each cell holds its own address: A1..A4 / B1..B4 / ... / E1..E4
+    fn test_sheet(name: &str, rows: u32, cols: u32, long_text: bool) -> Worksheet {
+        let mut sheet = Worksheet::default();
+        sheet.set_name(name);
+        for r in 1..=rows {
+            for c in 1..=cols {
+                let mut value = CellValue::default();
+                if !long_text {
+                    value.set_value_string(format!("{}{}", index_to_column(c), r));
+                }
+                else {
+                    value.set_value_string(format!(">>> {}{} Some long content for <<<", index_to_column(c), r));
+                }
+                let mut cell = Cell::default();
+                cell.set_coordinate((c, r));
+                cell.set_cell_value(value);
+                sheet.set_cell(cell);
+            }
+        }
+        sheet_to_slsx(&sheet, &format!("/tmp/rexcell_test_sheet_{}.xlsx", name));
+        sheet
+    }
+
+    #[test]
+    fn print_range_cells_tab_mode_0() {
+        test_logger("/tmp/rexcell_test_tab_mode.txt");
+        test_sheet("T1", 5, 5, false);
+        print_range_cells(&sheet_from_xlsx("T1"), &make_range_from_strings("A1", "C3"), None);
+        let out = logged("/tmp/rexcell_test_tab_mode.txt");
+        assert!(out.contains("Sheet T1 range (A1:C3) ---"));
+        assert!(out.contains("A1\tB1\tC1"));
+        assert!(out.contains("A2\tB2\tC2"));
+        assert!(out.contains("A3\tB3\tC3"));
+    }
+
+    #[test]
+    fn print_range_cells_tab_mode_1() {
+        test_logger("/tmp/rexcell_test_tab_mode.txt");
+        test_sheet("T1", 3, 3, false);
+        print_range_cells(&sheet_from_xlsx("T1"), &make_range_from_strings("A1", "C3"), None);
+        let out = logged("/tmp/rexcell_test_tab_mode.txt");
+        assert!(out.contains("Sheet T1 range (A1:C3) ---"));
+        assert!(out.contains("A1\tB1\tC1"));
+        assert!(out.contains("A2\tB2\tC2"));
+        assert!(out.contains("A3\tB3\tC3"));
+    }
+
+    #[test]
+    fn print_range_cells_truncated_mode_0() {
+        test_logger("/tmp/rexcell_test_truncated_mode.txt");
+        test_sheet("T2", 5, 5,false);
+        print_range_cells(&sheet_from_xlsx("T2"), &make_range_from_strings("A1", "C3"), Some(2));
+        let out = logged("/tmp/rexcell_test_truncated_mode.txt");
+        assert!(out.contains("Sheet T2 range (A1:C3) ---"));
+        assert!(out.contains("A1  B1  C1"));
+        assert!(out.contains("A2  B2  C2"));
+        assert!(out.contains("A3  B3  C3"));
+    }
+
+    #[test]
+    fn print_range_cells_truncated_mode_1() {
+        test_logger("/tmp/rexcell_test_truncated_mode.txt");
+        test_sheet("T2", 3, 3,false);
+        print_range_cells(&sheet_from_xlsx("T2"), &make_range_from_strings("A1", "C3"), Some(2));
+        let out = logged("/tmp/rexcell_test_truncated_mode.txt");
+        assert!(out.contains("Sheet T2 range (A1:C3) ---"));
+        assert!(out.contains("A1  B1  C1"));
+        assert!(out.contains("A2  B2  C2"));
+        assert!(out.contains("A3  B3  C3"));
+    }
+
+    #[test]
+    fn print_range_cells_truncated_long_values_0() {
+        test_logger("/tmp/rexcell_test_truncated_long.txt");
+        test_sheet("T3", 5, 5, true);
+        print_range_cells(&sheet_from_xlsx("T3"), &make_range_from_strings("A1", "C3"), Some(7));
+        let out = logged("/tmp/rexcell_test_truncated_long.txt");
+        assert!(out.contains("Sheet T3 range (A1:C3) ---"));
+        assert!(out.contains(">>> A1 ...       >>> B1 ...       >>> C1 ..."));
+        assert!(out.contains(">>> A2 ...       >>> B2 ...       >>> C2 ..."));
+        assert!(out.contains(">>> A3 ...       >>> B3 ...       >>> C3 ..."));
+    }
+
+    #[test]
+    fn print_range_cells_truncated_long_values_1() {
+        test_logger("/tmp/rexcell_test_truncated_long.txt");
+        test_sheet("T3", 3, 3, true);
+        print_range_cells(&sheet_from_xlsx("T3"), &make_range_from_strings("A1", "C3"), Some(7));
+        let out = logged("/tmp/rexcell_test_truncated_long.txt");
+        assert!(out.contains("Sheet T3 range (A1:C3) ---"));
+        assert!(out.contains(">>> A1 ...       >>> B1 ...       >>> C1 ..."));
+        assert!(out.contains(">>> A2 ...       >>> B2 ...       >>> C2 ..."));
+        assert!(out.contains(">>> A3 ...       >>> B3 ...       >>> C3 ..."));
+    }
+
+    #[test]
+    fn print_range_cells_padded_short_values() {
+        test_logger("/tmp/rexcell_test_padded_short.txt");
+        test_sheet("T5", 1, 3, false);
+        print_range_cells(&sheet_from_xlsx("T5"), &make_range_from_strings("A1", "C1"), Some(4));
+        let out = logged("/tmp/rexcell_test_padded_short.txt");
+        assert!(out.contains("Sheet T5 range (A1:C1) ---"));
+        // each 2-char value padded to 4 ("A1  ") + 4-space separator = 6 spaces
+        // between values; line ends with the trailing padding of "C1"
+        assert!(out.contains("A1      B1      C1  "));
+    }
+
+    #[test]
+    fn print_range_cells_invalid_range() {
+        test_logger("/tmp/rexcell_test_invalid_range.txt");
+        test_sheet("T4", 5, 5, false);
+        print_range_cells(&sheet_from_xlsx("T4"), &Range::default(), None);
+        assert!(logged("/tmp/rexcell_test_invalid_range.txt").contains("Invalid range from T4!"));
     }
 }
