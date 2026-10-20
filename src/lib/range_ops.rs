@@ -1779,4 +1779,101 @@ mod tests {
         // col 1 matches (1) + 2 skipped = 3 != cols -> fails
         assert!(!comapre_ranges(&a2, &make_range_from_strings("A1", "B1"), &b2, &make_range_from_strings("A1", "B1"), false, None, Some(vec![1])));
     }
+
+    // ------------------------------------------------------------------
+    // append_range. Works fully in-memory (mutates sheet_out), so the input
+    // is built with the string-cell helper above and the output sheet is
+    // asserted on directly — no xlsx roundtrip needed.
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn test_0055_append_range_invalid_range() {
+        let sheet_in = cmp_cells_sheet("AR01", &[(1, 1, "x")]);
+        let mut out = Worksheet::default();
+        assert!(!append_range(&sheet_in, &Range::default(), &mut out, &vec![]));
+        assert!(out.get_cell((1, 1)).is_none());
+    }
+
+    #[test]
+    fn test_0056_append_range_no_cells_in_range() {
+        let sheet_in = cmp_cells_sheet("AR02", &[(1, 1, "x")]);
+        let mut out = Worksheet::default();
+        assert!(!append_range(&sheet_in, &make_range_from_strings("C5", "D6"), &mut out, &vec![]));
+        assert!(out.get_cell((3, 5)).is_none());
+    }
+
+    #[test]
+    fn test_0057_append_range_basic_block() {
+        let sheet_in = cmp_cells_sheet("AR03", &[(1, 1, "a"), (2, 1, "b"), (1, 2, "c"), (2, 2, "d")]);
+        let mut out = Worksheet::default();
+        assert!(append_range(&sheet_in, &make_range_from_strings("A1", "B2"), &mut out, &vec![]));
+        assert_eq!(out.get_cell_value((1, 1)).get_value(), "a");
+        assert_eq!(out.get_cell_value((2, 1)).get_value(), "b");
+        assert_eq!(out.get_cell_value((1, 2)).get_value(), "c");
+        assert_eq!(out.get_cell_value((2, 2)).get_value(), "d");
+    }
+
+    #[test]
+    fn test_0058_append_range_after_existing_skips_empty_rows() {
+        let sheet_in = cmp_cells_sheet("AR04", &[(1, 1, "x"), (2, 1, "y"), (1, 3, "z")]); // input row 2 is empty
+        let mut out = cmp_cells_sheet("AR04_OUT", &[(1, 1, "old")]);
+        assert!(append_range(&sheet_in, &make_range_from_strings("A1", "B3"), &mut out, &vec![]));
+        // append starts at out row 2 (after "old"); empty input row 2 is compacted away
+        assert_eq!(out.get_cell_value((1, 2)).get_value(), "x");
+        assert_eq!(out.get_cell_value((2, 2)).get_value(), "y");
+        assert_eq!(out.get_cell_value((1, 3)).get_value(), "z");
+        assert!(out.get_cell((1, 4)).is_none());
+    }
+
+    #[test]
+    fn test_0059_append_range_clear_columns_content() {
+        let mut sheet_in = cmp_cells_sheet("AR05", &[(1, 1, "keep"), (3, 1, "text")]);
+        let mut ncell = Cell::default();
+        ncell.set_coordinate((2, 1));
+        ncell.set_value_number(2.5);
+        sheet_in.set_cell(ncell);
+        let mut out = Worksheet::default();
+        assert!(append_range(&sheet_in, &make_range_from_strings("A1", "C1"), &mut out, &vec![2, 3]));
+        // col 2: numeric cleared to 0; col 3: string copied as-is
+        assert_eq!(out.get_cell_value((1, 1)).get_value(), "keep");
+        assert_eq!(out.get_cell_value((2, 1)).get_value(), "0");
+        assert_eq!(out.get_cell((2, 1)).unwrap().get_data_type(), "n");
+        assert_eq!(out.get_cell_value((3, 1)).get_value(), "text");
+    }
+
+    #[test]
+    fn test_0060_append_range_preserves_rich_text() {
+        let sheet_in = cmp_rich_sheet("AR06", 1, 1, "hello", true);
+        let mut out = Worksheet::default();
+        assert!(append_range(&sheet_in, &make_range_from_strings("A1", "A1"), &mut out, &vec![]));
+        let dst = out.get_cell((1, 1)).unwrap();
+        assert_eq!(dst.get_value(), "hello");
+        // rich text (not plain value) was copied
+        let rich = dst.get_cell_value().get_raw_value().get_rich_text().unwrap();
+        assert_eq!(rich.get_text(), "hello");
+    }
+
+    #[test]
+    fn test_0061_append_range_merges_cells() {
+        let mut sheet_in = cmp_cells_sheet("AR07", &[(1, 1, "m"), (1, 2, "n")]);
+        sheet_in.add_merge_cells("A1:B2");
+        let mut out = cmp_cells_sheet("AR07_OUT", &[(1, 1, "old")]);
+        assert!(append_range(&sheet_in, &make_range_from_strings("A1", "B2"), &mut out, &vec![]));
+        assert_eq!(out.get_cell_value((1, 2)).get_value(), "m");
+        assert_eq!(out.get_cell_value((1, 3)).get_value(), "n");
+        // merge is re-applied at the append offset (out rows 2..3)
+        let merged: Vec<String> = out.get_merge_cells().iter().map(|r| r.get_range().to_string()).collect();
+        assert!(merged.contains(&"A2:B3".to_string()));
+    }
+
+    #[test]
+    fn test_0062_append_range_false_if_last_row_empty() {
+        let sheet_in = cmp_cells_sheet("AR08", &[(1, 1, "x")]);
+        let mut out = Worksheet::default();
+        // Documented current behavior: res is taken from the LAST row processed,
+        // so a range whose final row has no cells returns false even though the
+        // earlier rows were copied. Expected to flip to `true` if fixed.
+        assert!(!append_range(&sheet_in, &make_range_from_strings("A1", "A2"), &mut out, &vec![]));
+        assert_eq!(out.get_cell_value((1, 1)).get_value(), "x");
+    }
 }
