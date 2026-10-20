@@ -418,7 +418,7 @@ where
 // ==========================================
 // TRAIT
 // ==========================================
-#[derive(PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum IterRowNextKind {
     Basic,
     Merged,

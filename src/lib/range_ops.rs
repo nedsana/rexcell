@@ -2032,4 +2032,387 @@ mod tests {
         assert_eq!(offset_range(&Range::default(), &off).unwrap_err(), "Invalid range!");
         assert_eq!(offset_range(&make_range_from_strings("A", "C"), &off).unwrap_err(), "Invalid range!"); // whole-column range, no rows
     }
+
+    // ------------------------------------------------------------------
+    // iter_row_next_impl_shared / iter_row_next_impl / iter_row_next_impl_mut
+    // Sheets are built directly in memory (no xlsx round-trip).
+    // Common params unless noted: max_row=10, max_col=2 (cols A..C),
+    // pivot_col=1 (col A), zero offsets, pivot_re = "^-".
+    // ------------------------------------------------------------------
+    use range_types::{IRange, IRangeMut};
+
+    fn ir_sheet(name: &str, str_cells: &[(u32, u32, &str)], num_cells: &[(u32, u32, f64)]) -> Worksheet {
+        let mut sheet = Worksheet::default();
+        sheet.set_name(name);
+        for &(c, r, v) in str_cells {
+            let mut value = CellValue::default();
+            value.set_value_string(v.to_string());
+            let mut cell = Cell::default();
+            cell.set_coordinate((c, r));
+            cell.set_cell_value(value);
+            sheet.set_cell(cell);
+        }
+        for &(c, r, v) in num_cells {
+            let mut cell = Cell::default();
+            cell.set_coordinate((c, r));
+            cell.set_value_number(v);
+            sheet.set_cell(cell);
+        }
+        sheet
+    }
+
+    // calls iter_row_next_impl_shared, returns (result, updated current_row)
+    fn shared_next(sheet: &Worksheet, row: u32, max_row: u32, max_col: u32, pivot_col: u32, numeric: bool, re: &Regex, offsets: &Offsets)
+        -> (Option<(Range, range_types::IterRowNextKind)>, u32)
+    {
+        let mut cr = row;
+        let res = iter_row_next_impl_shared(sheet, &mut cr, max_row, max_col, pivot_col, numeric, re, offsets);
+        (res, cr)
+    }
+
+    fn assert_shared(res: &Option<(Range, range_types::IterRowNextKind)>, range: &str, kind: &range_types::IterRowNextKind) {
+        let (r, k) = res.as_ref().expect("expected Some((range, kind))");
+        assert_eq!(r.get_range(), range);
+        assert_eq!(k, kind);
+    }
+
+    #[test]
+    fn test_0079_iter_shared_basic_single_row() {
+        let sheet = ir_sheet("IR01", &[(1, 1, "hello"), (1, 2, "world"), (1, 3, "again")], &[]);
+        let re = Regex::new(r"^-").unwrap();
+        let (res, cr) = shared_next(&sheet, 1, 10, 2, 1, false, &re, &Offsets::default());
+        assert_shared(&res, "A1:C1", &range_types::IterRowNextKind::Basic);
+        assert_eq!(cr, 2);
+    }
+
+    #[test]
+    fn test_0080_iter_shared_last_row_and_eof() {
+        let sheet = ir_sheet("IR02", &[(1, 1, "a"), (1, 2, "b"), (1, 3, "c")], &[]);
+        let re = Regex::new(r"^-").unwrap();
+        let def = Offsets::default();
+        let (res, cr) = shared_next(&sheet, 3, 10, 2, 1, false, &re, &def);
+        assert_shared(&res, "A3:C3", &range_types::IterRowNextKind::Basic);
+        assert_eq!(cr, 4);
+        // no more cells after row 3 -> end of sheet, row counter still advances
+        let (res, cr) = shared_next(&sheet, 4, 10, 2, 1, false, &re, &def);
+        assert!(res.is_none());
+        assert_eq!(cr, 5);
+    }
+
+    #[test]
+    fn test_0081_iter_shared_empty_row_with_content_after() {
+        let sheet = ir_sheet("IR03", &[(1, 3, "x")], &[]);
+        let re = Regex::new(r"^-").unwrap();
+        let (res, cr) = shared_next(&sheet, 1, 10, 2, 1, false, &re, &Offsets::default());
+        assert_shared(&res, "A1:C1", &range_types::IterRowNextKind::Basic);
+        assert_eq!(cr, 2);
+    }
+
+    #[test]
+    fn test_0082_iter_shared_multiline_until_next_pattern() {
+        let sheet = ir_sheet("IR04", &[(1, 1, "-start"), (1, 2, "detail"), (1, 3, "-next")], &[]);
+        let re = Regex::new(r"^-").unwrap();
+        let (res, cr) = shared_next(&sheet, 1, 4, 2, 1, false, &re, &Offsets::default());
+        // range stops before the next pattern row (row 3)
+        assert_shared(&res, "A1:C2", &range_types::IterRowNextKind::Multiline);
+        assert_eq!(cr, 3);
+    }
+
+    #[test]
+    fn test_0083_iter_shared_multiline_no_next_pattern_goes_to_max_row() {
+        let sheet = ir_sheet("IR05", &[(1, 1, "-only"), (1, 2, "a"), (1, 3, "b")], &[]);
+        let re = Regex::new(r"^-").unwrap();
+        let (res, cr) = shared_next(&sheet, 1, 4, 2, 1, false, &re, &Offsets::default());
+        // no next pattern: range extends one row past max_row
+        assert_shared(&res, "A1:C5", &range_types::IterRowNextKind::Multiline);
+        assert_eq!(cr, 5);
+    }
+
+    #[test]
+    fn test_0084_iter_shared_numeric_pivot_extends_to_matching_row() {
+        let sheet = ir_sheet("IR06", &[(1, 2, "-cont"), (1, 3, "plain")], &[(1, 1, 1.0)]);
+        let re = Regex::new(r"^-").unwrap();
+        let (res, cr) = shared_next(&sheet, 1, 10, 2, 1, true, &re, &Offsets::default());
+        assert_shared(&res, "A1:C2", &range_types::IterRowNextKind::Multiline);
+        assert_eq!(cr, 3);
+    }
+
+    #[test]
+    fn test_0085_iter_shared_numeric_pivot_no_match_stays_basic() {
+        let sheet = ir_sheet("IR07", &[(1, 2, "plain")], &[(1, 1, 1.0)]);
+        let re = Regex::new(r"^-").unwrap();
+        let (res, cr) = shared_next(&sheet, 1, 10, 2, 1, true, &re, &Offsets::default());
+        assert_shared(&res, "A1:C1", &range_types::IterRowNextKind::Basic);
+        assert_eq!(cr, 2);
+    }
+
+    #[test]
+    fn test_0086_iter_shared_numeric_mode_string_cell_is_basic() {
+        let sheet = ir_sheet("IR07B", &[(1, 1, "txt")], &[]);
+        let re = Regex::new(r"^-").unwrap();
+        let (res, cr) = shared_next(&sheet, 1, 10, 2, 1, true, &re, &Offsets::default());
+        assert_shared(&res, "A1:C1", &range_types::IterRowNextKind::Basic);
+        assert_eq!(cr, 2);
+    }
+
+    #[test]
+    fn test_0087_iter_shared_merged_cells() {
+        let mut sheet = ir_sheet("IR08", &[(1, 1, "a")], &[]);
+        sheet.add_merge_cells("A1:C3");
+        let re = Regex::new(r"^-").unwrap();
+        let (res, cr) = shared_next(&sheet, 1, 10, 2, 1, false, &re, &Offsets::default());
+        assert_shared(&res, "A1:C3", &range_types::IterRowNextKind::Merged);
+        assert_eq!(cr, 4);
+    }
+
+    #[test]
+    fn test_0088_iter_shared_merged_range_starting_later() {
+        let mut sheet = ir_sheet("IR09", &[(1, 1, "a")], &[]);
+        sheet.add_merge_cells("A2:C3");
+        let re = Regex::new(r"^-").unwrap();
+        // row 1 is outside the merged range -> regular basic row
+        let (res, cr) = shared_next(&sheet, 1, 10, 2, 1, false, &re, &Offsets::default());
+        assert_shared(&res, "A1:C1", &range_types::IterRowNextKind::Basic);
+        assert_eq!(cr, 2);
+        // row 2 is inside the merged range: starts at current row, ends at merged end row
+        let (res, cr) = shared_next(&sheet, 2, 10, 2, 1, false, &re, &Offsets::default());
+        assert_shared(&res, "A2:C3", &range_types::IterRowNextKind::Merged);
+        assert_eq!(cr, 4);
+    }
+
+    #[test]
+    fn test_0089_iter_shared_max_row_reached() {
+        let sheet = ir_sheet("IR10", &[(1, 1, "a")], &[]);
+        let re = Regex::new(r"^-").unwrap();
+        let (res, cr) = shared_next(&sheet, 5, 4, 2, 1, false, &re, &Offsets::default());
+        assert!(res.is_none());
+        assert_eq!(cr, 5);
+    }
+
+    #[test]
+    fn test_0090_iter_shared_offset_shifts_range() {
+        let sheet = ir_sheet("IR11", &[(1, 1, "a")], &[]);
+        let re = Regex::new(r"^-").unwrap();
+        let (res, cr) = shared_next(&sheet, 1, 10, 2, 1, false, &re, &Offsets::new(1, 1, 0, 0));
+        assert_shared(&res, "B1:D1", &range_types::IterRowNextKind::Basic);
+        assert_eq!(cr, 2);
+    }
+
+    #[test]
+    fn test_0091_iter_shared_offset_error_first_line_falls_back() {
+        let sheet = ir_sheet("IR12", &[(1, 1, "a")], &[]);
+        let re = Regex::new(r"^-").unwrap();
+        // bcol 1 + (-1) = 0 -> invalid, but on the first line the no-offset range is returned
+        let (res, cr) = shared_next(&sheet, 1, 10, 2, 1, false, &re, &Offsets::new(-1, -1, 0, 0));
+        assert_shared(&res, "A1:C1", &range_types::IterRowNextKind::Basic);
+        assert_eq!(cr, 2);
+    }
+
+    #[test]
+    fn test_0092_iter_shared_offset_error_later_row_returns_none() {
+        let sheet = ir_sheet("IR13", &[(1, 1, "a"), (1, 2, "b")], &[]);
+        let re = Regex::new(r"^-").unwrap();
+        let (res, cr) = shared_next(&sheet, 2, 10, 2, 1, false, &re, &Offsets::new(-1, -1, 0, 0));
+        assert!(res.is_none());
+        assert_eq!(cr, 3);
+    }
+
+    #[test]
+    fn test_0093_iter_shared_multiline_with_row_offset() {
+        let sheet = ir_sheet("IR14", &[(1, 1, "-s"), (1, 2, "x"), (1, 3, "-n")], &[]);
+        let re = Regex::new(r"^-").unwrap();
+        let (res, cr) = shared_next(&sheet, 1, 10, 2, 1, false, &re, &Offsets::new(0, 0, 1, 1));
+        // base range A1:C2 shifted down by one row
+        assert_shared(&res, "A2:C3", &range_types::IterRowNextKind::Multiline);
+        assert_eq!(cr, 3);
+    }
+
+    // ------------------------------------------------------------------
+    // iter_row_next_impl: wraps the shared impl into Option<RangeType>
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn test_0094_iter_row_next_impl_kinds() {
+        let re = Regex::new(r"^-").unwrap();
+        let def = Offsets::default();
+
+        let sheet = ir_sheet("IR15", &[(1, 1, "hello")], &[]);
+        let mut cr = 1;
+        let rt = iter_row_next_impl(&sheet, &mut cr, 10, 2, 1, false, &re, &def).unwrap();
+        assert_eq!(rt.get_type(), range_types::IterRowNextKind::Basic);
+        assert_eq!(rt.get_range().get_range(), "A1:C1");
+        assert_eq!(cr, 2);
+
+        let sheet = ir_sheet("IR16", &[(1, 1, "-s"), (1, 2, "x"), (1, 3, "-n")], &[]);
+        let mut cr = 1;
+        let rt = iter_row_next_impl(&sheet, &mut cr, 10, 2, 1, false, &re, &def).unwrap();
+        assert_eq!(rt.get_type(), range_types::IterRowNextKind::Multiline);
+        assert_eq!(rt.get_range().get_range(), "A1:C2");
+        assert_eq!(cr, 3);
+
+        let mut sheet = ir_sheet("IR17", &[(1, 1, "a")], &[]);
+        sheet.add_merge_cells("A1:C3");
+        let mut cr = 1;
+        let rt = iter_row_next_impl(&sheet, &mut cr, 10, 2, 1, false, &re, &def).unwrap();
+        assert_eq!(rt.get_type(), range_types::IterRowNextKind::Merged);
+        assert_eq!(rt.get_range().get_range(), "A1:C3");
+        assert_eq!(cr, 4);
+    }
+
+    #[test]
+    fn test_0095_iter_row_next_impl_eof_returns_none() {
+        let sheet = ir_sheet("IR18", &[], &[]);
+        let re = Regex::new(r"^-").unwrap();
+        let mut cr = 1;
+        assert!(iter_row_next_impl(&sheet, &mut cr, 10, 2, 1, false, &re, &Offsets::default()).is_none());
+        assert_eq!(cr, 2);
+    }
+
+    // ------------------------------------------------------------------
+    // iter_row_next_impl_mut: wraps the shared impl into Option<RangeTypeMut>
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn test_0096_iter_row_next_impl_mut_kinds() {
+        let re = Regex::new(r"^-").unwrap();
+        let def = Offsets::default();
+
+        let mut sheet = ir_sheet("IR19", &[(1, 1, "hello")], &[]);
+        let mut cr = 1;
+        let rt = iter_row_next_impl_mut(&mut sheet, &mut cr, 10, 2, 1, false, &re, &def).unwrap();
+        assert_eq!(rt.get_type(), range_types::IterRowNextKind::Basic);
+        assert_eq!(rt.get_range().get_range(), "A1:C1");
+        assert_eq!(cr, 2);
+
+        let mut sheet = ir_sheet("IR20", &[(1, 1, "-s"), (1, 2, "x"), (1, 3, "-n")], &[]);
+        let mut cr = 1;
+        let rt = iter_row_next_impl_mut(&mut sheet, &mut cr, 10, 2, 1, false, &re, &def).unwrap();
+        assert_eq!(rt.get_type(), range_types::IterRowNextKind::Multiline);
+        assert_eq!(rt.get_range().get_range(), "A1:C2");
+
+        let mut sheet = ir_sheet("IR21", &[(1, 1, "a")], &[]);
+        sheet.add_merge_cells("A1:C3");
+        let mut cr = 1;
+        let rt = iter_row_next_impl_mut(&mut sheet, &mut cr, 10, 2, 1, false, &re, &def).unwrap();
+        assert_eq!(rt.get_type(), range_types::IterRowNextKind::Merged);
+        assert_eq!(rt.get_range().get_range(), "A1:C3");
+    }
+
+    #[test]
+    fn test_0097_iter_row_next_impl_mut_sheet_is_mutable() {
+        let mut sheet = ir_sheet("IR22", &[(1, 1, "a")], &[]);
+        let re = Regex::new(r"^-").unwrap();
+        let mut cr = 1;
+        let mut rt = iter_row_next_impl_mut(&mut sheet, &mut cr, 10, 2, 1, false, &re, &Offsets::default()).unwrap();
+        rt.get_sheet_mut().set_name("renamed");
+        drop(rt);
+        assert_eq!(sheet.get_name(), "renamed");
+    }
+
+    // ------------------------------------------------------------------
+    // IterRow / IterRowMut: iterators built on the impls above.
+    // IterRow is a standard Iterator (works in for-loops);
+    // IterRowMut is a LendingIterator (while-let only).
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn test_0098_iter_row_new_invalid_regex() {
+        let sheet = ir_sheet("IR23", &[], &[]);
+        assert!(IterRow::new(&sheet, 10, 2, 1, false, "[", Offsets::default()).is_err());
+    }
+
+    #[test]
+    fn test_0099_iter_row_collects_basic_rows() {
+        let sheet = ir_sheet("IR24", &[(1, 1, "a"), (1, 2, "b"), (1, 3, "c")], &[]);
+        let mut iter = IterRow::new(&sheet, 10, 2, 1, false, "^-", Offsets::default()).unwrap();
+        let mut ranges = vec![];
+        for rt in iter.by_ref() {
+            ranges.push(rt.get_range().get_range());
+        }
+        assert_eq!(ranges, vec!["A1:C1".to_string(), "A2:C2".to_string(), "A3:C3".to_string()]);
+        // the final next() that returned None (EOF row 4) still advances the counter
+        assert_eq!(iter.current_row, 5);
+    }
+
+    #[test]
+    fn test_0100_iter_row_multiline_kinds() {
+        let sheet = ir_sheet("IR25", &[(1, 1, "-s"), (1, 2, "x"), (1, 3, "-n"), (1, 4, "t")], &[]);
+        let iter = IterRow::new(&sheet, 4, 2, 1, false, "^-", Offsets::default()).unwrap();
+        let mut ranges = vec![];
+        let mut kinds = vec![];
+        for rt in iter {
+            kinds.push(rt.get_type());
+            ranges.push(rt.get_range().get_range());
+        }
+        assert_eq!(ranges, vec!["A1:C2".to_string(), "A3:C5".to_string()]);
+        assert_eq!(kinds, vec![range_types::IterRowNextKind::Multiline, range_types::IterRowNextKind::Multiline]);
+    }
+
+    #[test]
+    fn test_0101_iter_row_merged_in_middle() {
+        let mut sheet = ir_sheet("IR26", &[(1, 1, "a"), (1, 5, "e")], &[]);
+        sheet.add_merge_cells("A2:C4");
+        let iter = IterRow::new(&sheet, 10, 2, 1, false, "^-", Offsets::default()).unwrap();
+        let mut ranges = vec![];
+        let mut kinds = vec![];
+        for rt in iter {
+            kinds.push(rt.get_type());
+            ranges.push(rt.get_range().get_range());
+        }
+        assert_eq!(ranges, vec!["A1:C1".to_string(), "A2:C4".to_string(), "A5:C5".to_string()]);
+        assert_eq!(kinds, vec![range_types::IterRowNextKind::Basic, range_types::IterRowNextKind::Merged, range_types::IterRowNextKind::Basic]);
+    }
+
+    #[test]
+    fn test_0102_iter_row_empty_sheet() {
+        let sheet = ir_sheet("IR27", &[], &[]);
+        let mut iter = IterRow::new(&sheet, 10, 2, 1, false, "^-", Offsets::default()).unwrap();
+        let mut ranges = vec![];
+        for rt in iter.by_ref() {
+            ranges.push(rt.get_range().get_range());
+        }
+        assert!(ranges.is_empty());
+        assert_eq!(iter.current_row, 2);
+    }
+
+    #[test]
+    fn test_0103_iter_row_mut_iteration_and_mutation() {
+        let mut sheet = ir_sheet("IR28", &[(1, 1, "a"), (1, 2, "b"), (1, 3, "c")], &[]);
+        let mut iter = IterRowMut::new(&mut sheet, 10, 2, 1, false, "^-", Offsets::default()).unwrap();
+        let mut ranges = vec![];
+        while let Some(mut rt) = iter.next() {
+            ranges.push(rt.get_range().get_range());
+            rt.get_sheet_mut().set_name("renamed");
+        }
+        assert_eq!(ranges, vec!["A1:C1".to_string(), "A2:C2".to_string(), "A3:C3".to_string()]);
+        drop(iter);
+        assert_eq!(sheet.get_name(), "renamed");
+    }
+
+    #[test]
+    fn test_0104_iter_row_mut_multiline_kinds() {
+        let mut sheet = ir_sheet("IR29", &[(1, 1, "-s"), (1, 2, "x"), (1, 3, "-n"), (1, 4, "t")], &[]);
+        let mut iter = IterRowMut::new(&mut sheet, 4, 2, 1, false, "^-", Offsets::default()).unwrap();
+        let mut ranges = vec![];
+        let mut kinds = vec![];
+        while let Some(rt) = iter.next() {
+            kinds.push(rt.get_type());
+            ranges.push(rt.get_range().get_range());
+        }
+        assert_eq!(ranges, vec!["A1:C2".to_string(), "A3:C5".to_string()]);
+        assert_eq!(kinds, vec![range_types::IterRowNextKind::Multiline, range_types::IterRowNextKind::Multiline]);
+        assert_eq!(iter.current_row, 5);
+    }
+
+    #[test]
+    fn test_0105_iter_row_mut_empty_sheet() {
+        let mut sheet = ir_sheet("IR30", &[], &[]);
+        let mut iter = IterRowMut::new(&mut sheet, 10, 2, 1, false, "^-", Offsets::default()).unwrap();
+        let mut count = 0;
+        while let Some(_rt) = iter.next() {
+            count += 1;
+        }
+        assert_eq!(count, 0);
+        assert_eq!(iter.current_row, 2);
+    }
 }
