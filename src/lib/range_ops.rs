@@ -1162,14 +1162,14 @@ mod tests {
     use super::*;
 
     #[test]
-    fn cmp_strs_identical() {
+    fn test_0001_cmp_strs_identical() {
         assert!(cmp_strs("abc", "abc"));
         assert!(cmp_strs("", ""));
         assert!(cmp_strs("Товар", "Товар"));
     }
 
     #[test]
-    fn cmp_strs_case_insensitive() {
+    fn test_0002_cmp_strs_case_insensitive() {
         assert!(cmp_strs("ABC", "abc"));
         assert!(cmp_strs("aBc", "AbC"));
         assert!(cmp_strs("АБВ", "абв"));
@@ -1177,7 +1177,7 @@ mod tests {
     }
 
     #[test]
-    fn cmp_strs_ignores_whitespace() {
+    fn test_0003_cmp_strs_ignores_whitespace() {
         assert!(cmp_strs("a b c", "abc"));
         assert!(cmp_strs("a\tb", "ab"));
         assert!(cmp_strs("a\nb", "ab"));
@@ -1187,20 +1187,20 @@ mod tests {
     }
 
     #[test]
-    fn cmp_strs_unicode() {
+    fn test_0004_cmp_strs_unicode() {
         assert!(cmp_strs("a\u{00A0}b", "ab"));
         assert!(cmp_strs("Товар 1 ", "товар1"));
     }
 
     #[test]
-    fn cmp_strs_non_whitespace_kept() {
+    fn test_0005_cmp_strs_non_whitespace_kept() {
         assert!(!cmp_strs("a-b", "ab"));
         assert!(!cmp_strs("a.b", "ab"));
         assert!(!cmp_strs("abc", "ab"));
     }
 
     #[test]
-    fn column_to_index_known_values() {
+    fn test_0006_column_to_index_known_values() {
         assert_eq!(column_to_index("A"), 1);
         assert_eq!(column_to_index("Z"), 26);
         assert_eq!(column_to_index("AA"), 27);
@@ -1213,7 +1213,7 @@ mod tests {
     }
 
     #[test]
-    fn index_to_column_known_values() {
+    fn test_0007_index_to_column_known_values() {
         assert_eq!(index_to_column(1), "A");
         assert_eq!(index_to_column(26), "Z");
         assert_eq!(index_to_column(27), "AA");
@@ -1225,7 +1225,7 @@ mod tests {
     }
 
     #[test]
-    fn column_index_roundtrip() {
+    fn test_0008_column_index_roundtrip() {
         for i in 1..=1000u32 {
             let col = index_to_column(i);
             assert_eq!(column_to_index(&col), i);
@@ -1234,12 +1234,12 @@ mod tests {
 
     #[test]
     #[should_panic]
-    fn column_to_index_panic_on_non_letter() {
+    fn test_0009_column_to_index_panic_on_non_letter() {
         column_to_index("0");
     }
 
     #[test]
-    fn coords_to_str_known_values() {
+    fn test_0010_coords_to_str_known_values() {
         assert_eq!(coords_to_str(1, 1), "A1");
         assert_eq!(coords_to_str(26, 2), "Z2");
         assert_eq!(coords_to_str(27, 1), "AA1");
@@ -1248,7 +1248,7 @@ mod tests {
     }
 
     #[test]
-    fn make_range_from_strings_basic() {
+    fn test_0011_make_range_from_strings_basic() {
         let r = make_range_from_strings("A1", "C3");
         assert_eq!(r.get_range(), "A1:C3");
         assert_eq!(*r.get_coordinate_start_col().unwrap().get_num(), 1);
@@ -1258,25 +1258,25 @@ mod tests {
     }
 
     #[test]
-    fn make_range_from_strings_single_cell() {
+    fn test_0012_make_range_from_strings_single_cell() {
         let r = make_range_from_strings("B2", "B2");
         assert_eq!(r.get_range(), "B2:B2");
     }
 
     #[test]
-    fn make_range_from_indexes_basic() {
+    fn test_0013_make_range_from_indexes_basic() {
         let r = make_range_from_indexes(1, 1, 3, 3);
         assert_eq!(r.get_range(), "A1:C3");
     }
 
     #[test]
-    fn make_range_from_indexes_multi_letter_cols() {
+    fn test_0014_make_range_from_indexes_multi_letter_cols() {
         let r = make_range_from_indexes(27, 1, 28, 2);
         assert_eq!(r.get_range(), "AA1:AB2");
     }
 
     #[test]
-    fn is_row_in_range_tests() {
+    fn test_0015_is_row_in_range_tests() {
         let r = make_range_from_strings("A1", "C3");
         assert!(is_row_in_range(1, &r));
         assert!(is_row_in_range(2, &r));
@@ -1287,7 +1287,7 @@ mod tests {
     }
 
     #[test]
-    fn is_col_in_range_tests() {
+    fn test_0016_is_col_in_range_tests() {
         let r = make_range_from_strings("A1", "C3");
         assert!(is_col_in_range(1, &r));
         assert!(is_col_in_range(2, &r));
@@ -1298,7 +1298,7 @@ mod tests {
     }
 
     #[test]
-    fn range_bounds_valid() {
+    fn test_0017_range_bounds_valid() {
         // (brow, erow, bcol, ecol, rows, cols)
         assert_eq!(range_bounds(&make_range_from_strings("A1", "C3")), Some((1, 3, 1, 3, 3, 3)));
         assert_eq!(range_bounds(&make_range_from_strings("B2", "B2")), Some((2, 2, 2, 2, 1, 1)));
@@ -1306,7 +1306,7 @@ mod tests {
     }
 
     #[test]
-    fn truncate_str_no_dots() {
+    fn test_0018_truncate_str_no_dots() {
         assert_eq!(truncate_str("abcdef", 3, false), "abc");
         assert_eq!(truncate_str("abcd", 4, false), "abcd");
         assert_eq!(truncate_str("ab", 5, false), "ab");
@@ -1314,20 +1314,20 @@ mod tests {
     }
 
     #[test]
-    fn range_to_string_valid() {
+    fn test_0019_range_to_string_valid() {
         assert_eq!(range_to_string(&make_range_from_strings("A1", "C3")), "A1:C3 (rows:3 cols:3)");
         assert_eq!(range_to_string(&make_range_from_strings("B2", "B2")), "B2:B2 (rows:1 cols:1)");
         assert_eq!(range_to_string(&make_range_from_strings("AA10", "AC12")), "AA10:AC12 (rows:3 cols:3)");
     }
 
     #[test]
-    fn range_to_string_invalid() {
+    fn test_0020_range_to_string_invalid() {
         assert_eq!(range_to_string(&Range::default()), "Invalid range!");
         assert_eq!(range_to_string(&make_range_from_strings("A", "C")), "Invalid range!"); // no rows
     }
 
     #[test]
-    fn limit_str_tests() {
+    fn test_0021_limit_str_tests() {
         assert_eq!(limit_str("abcd", 4), "abcd");     // exact fit
         assert_eq!(limit_str("abcdef", 3), "abc..."); // longer: truncate with dots
         assert_eq!(limit_str("ab", 4), "ab  ");       // shorter: pad with spaces
@@ -1336,7 +1336,7 @@ mod tests {
     }
 
     #[test]
-    fn truncate_str_with_dots() {
+    fn test_0022_truncate_str_with_dots() {
         assert_eq!(truncate_str("abcdef", 3, true), "abc...");
         assert_eq!(truncate_str("abcd", 4, true), "abcd"); // exactly max: no truncation, no dots
         assert_eq!(truncate_str("ab", 5, true), "ab");     // short: no dots
@@ -1344,21 +1344,21 @@ mod tests {
 
     #[test]
     #[should_panic]
-    fn range_bounds_inverted_cols_underflow() {
+    fn test_0023_range_bounds_inverted_cols_underflow() {
         // Inverted range (start col 27 > end col 3): cols = 1 + ecol - bcol underflows u32.
         // Known latent bug in range_bounds, documented until fixed.
         range_bounds(&make_range_from_strings("AA10", "C12"));
     }
 
     #[test]
-    fn range_bounds_missing_coords() {
+    fn test_0024_range_bounds_missing_coords() {
         assert_eq!(range_bounds(&Range::default()), None);
         // whole-column range has no rows
         assert_eq!(range_bounds(&make_range_from_strings("A", "C")), None);
     }
 
     #[test]
-    fn is_range_in_range_tests() {
+    fn test_0025_is_range_in_range_tests() {
         let main = make_range_from_strings("A1", "C3");
         assert!(is_range_in_range(&make_range_from_strings("B2", "B2"), &main));
         assert!(is_range_in_range(&main, &main));
@@ -1369,7 +1369,7 @@ mod tests {
     }
 
     #[test]
-    fn do_ranges_overlap_tests() {
+    fn test_0026_do_ranges_overlap_tests() {
         let a = make_range_from_strings("A1", "C3");
         assert!(do_ranges_overlap(&a, &make_range_from_strings("C3", "E5"))); // shared corner
         assert!(do_ranges_overlap(&a, &make_range_from_strings("A1", "C3"))); // identical
@@ -1422,7 +1422,13 @@ mod tests {
 
     fn logged(file: &'static str) -> String { std::fs::read_to_string(file).unwrap() }
 
-    // Write to .xlsx written by test_sheet() and return a clone of sheet `name`.
+    // The log file is truncated per test, so under serial execution it holds
+    // exactly this test's output — compare the full line list.
+    fn logged_lines(file: &'static str) -> Vec<String> {
+        logged(file).lines().filter(|l| !l.is_empty()).map(|l| l.to_string()).collect()
+    }
+
+    // Write to .xlsx
     fn sheet_to_slsx(sheet: &Worksheet, path: &str) {
         let mut book = Spreadsheet::default();
         book.add_sheet(sheet.clone()).unwrap();
@@ -1436,7 +1442,7 @@ mod tests {
         book.get_sheet_by_name(name).unwrap().clone()
     }
 
-    // nxm sheet, each cell holds its own address: A1..A4 / B1..B4 / ... / E1..E4
+    // Create test sheet
     fn test_sheet(name: &str, rows: u32, cols: u32, long_text: bool) -> Worksheet {
         let mut sheet = Worksheet::default();
         sheet.set_name(name);
@@ -1460,94 +1466,114 @@ mod tests {
     }
 
     #[test]
-    fn print_range_cells_tab_mode_0() {
-        test_logger("/tmp/rexcell_test_tab_mode.txt");
-        test_sheet("T1", 5, 5, false);
-        print_range_cells(&sheet_from_xlsx("T1"), &make_range_from_strings("A1", "C3"), None);
-        let out = logged("/tmp/rexcell_test_tab_mode.txt");
-        assert!(out.contains("Sheet T1 range (A1:C3) ---"));
-        assert!(out.contains("A1\tB1\tC1"));
-        assert!(out.contains("A2\tB2\tC2"));
-        assert!(out.contains("A3\tB3\tC3"));
+    fn test_0027_print_range_cells_tab_mode() {
+        let test_file = "/tmp/rexcell_test_print_range_cells_tab_mode_0.txt";
+        test_logger(test_file);
+        test_sheet("T01", 5, 5, false);
+        print_range_cells(&sheet_from_xlsx("T01"), &make_range_from_strings("A1", "C3"), None);
+        assert_eq!(logged_lines(test_file), vec![
+            "Sheet T01 range (A1:C3) ---",
+            "A1\tB1\tC1",
+            "A2\tB2\tC2",
+            "A3\tB3\tC3",
+        ]);
     }
 
     #[test]
-    fn print_range_cells_tab_mode_1() {
-        test_logger("/tmp/rexcell_test_tab_mode.txt");
-        test_sheet("T1", 3, 3, false);
-        print_range_cells(&sheet_from_xlsx("T1"), &make_range_from_strings("A1", "C3"), None);
-        let out = logged("/tmp/rexcell_test_tab_mode.txt");
-        assert!(out.contains("Sheet T1 range (A1:C3) ---"));
-        assert!(out.contains("A1\tB1\tC1"));
-        assert!(out.contains("A2\tB2\tC2"));
-        assert!(out.contains("A3\tB3\tC3"));
+    fn test_0028_print_range_cells_tab_mode() {
+        let test_file = "/tmp/rexcell_test_print_range_cells_tab_mode_1.txt";
+        test_logger(test_file);
+        test_sheet("T11", 3, 3, false);
+        print_range_cells(&sheet_from_xlsx("T11"), &make_range_from_strings("A1", "C3"), None);
+        assert_eq!(logged_lines(test_file), vec![
+            "Sheet T11 range (A1:C3) ---",
+            "A1\tB1\tC1",
+            "A2\tB2\tC2",
+            "A3\tB3\tC3",
+        ]);
     }
 
     #[test]
-    fn print_range_cells_truncated_mode_0() {
-        test_logger("/tmp/rexcell_test_truncated_mode.txt");
-        test_sheet("T2", 5, 5,false);
-        print_range_cells(&sheet_from_xlsx("T2"), &make_range_from_strings("A1", "C3"), Some(2));
-        let out = logged("/tmp/rexcell_test_truncated_mode.txt");
-        assert!(out.contains("Sheet T2 range (A1:C3) ---"));
-        assert!(out.contains("A1  B1  C1"));
-        assert!(out.contains("A2  B2  C2"));
-        assert!(out.contains("A3  B3  C3"));
+    fn test_0029_print_range_cells_truncated_mode() {
+        let test_file = "/tmp/rexcell_test_print_range_cells_truncated_mode_0.txt";
+        test_logger(test_file);
+        test_sheet("T02", 5, 5,false);
+        print_range_cells(&sheet_from_xlsx("T02"), &make_range_from_strings("A1", "C3"), Some(2));
+        assert_eq!(logged_lines(test_file), vec![
+            "Sheet T02 range (A1:C3) ---",
+            "A1  B1  C1",
+            "A2  B2  C2",
+            "A3  B3  C3",
+        ]);
     }
 
     #[test]
-    fn print_range_cells_truncated_mode_1() {
-        test_logger("/tmp/rexcell_test_truncated_mode.txt");
-        test_sheet("T2", 3, 3,false);
-        print_range_cells(&sheet_from_xlsx("T2"), &make_range_from_strings("A1", "C3"), Some(2));
-        let out = logged("/tmp/rexcell_test_truncated_mode.txt");
-        assert!(out.contains("Sheet T2 range (A1:C3) ---"));
-        assert!(out.contains("A1  B1  C1"));
-        assert!(out.contains("A2  B2  C2"));
-        assert!(out.contains("A3  B3  C3"));
+    fn test_0030_print_range_cells_truncated_mode() {
+        let test_file = "/tmp/rexcell_test_print_range_cells_truncated_mode_1.txt";
+        test_logger(test_file);
+        test_sheet("T12", 3, 3,false);
+        print_range_cells(&sheet_from_xlsx("T12"), &make_range_from_strings("A1", "C3"), Some(2));
+        assert_eq!(logged_lines(test_file), vec![
+            "Sheet T12 range (A1:C3) ---",
+            "A1  B1  C1",
+            "A2  B2  C2",
+            "A3  B3  C3",
+        ]);
     }
 
     #[test]
-    fn print_range_cells_truncated_long_values_0() {
-        test_logger("/tmp/rexcell_test_truncated_long.txt");
-        test_sheet("T3", 5, 5, true);
-        print_range_cells(&sheet_from_xlsx("T3"), &make_range_from_strings("A1", "C3"), Some(7));
-        let out = logged("/tmp/rexcell_test_truncated_long.txt");
-        assert!(out.contains("Sheet T3 range (A1:C3) ---"));
-        assert!(out.contains(">>> A1 ...       >>> B1 ...       >>> C1 ..."));
-        assert!(out.contains(">>> A2 ...       >>> B2 ...       >>> C2 ..."));
-        assert!(out.contains(">>> A3 ...       >>> B3 ...       >>> C3 ..."));
+    fn test_0031_print_range_cells_truncated_long_values() {
+        let test_file = "/tmp/rexcell_test_print_range_cells_truncated_long_values_0.txt";
+        test_logger(test_file);
+        test_sheet("T03", 5, 5, true);
+        print_range_cells(&sheet_from_xlsx("T03"), &make_range_from_strings("A1", "C3"), Some(7));
+        // 7-space separator between truncated values
+        assert_eq!(logged_lines(test_file), vec![
+            "Sheet T03 range (A1:C3) ---",
+            ">>> A1 ...       >>> B1 ...       >>> C1 ...",
+            ">>> A2 ...       >>> B2 ...       >>> C2 ...",
+            ">>> A3 ...       >>> B3 ...       >>> C3 ...",
+        ]);
     }
 
     #[test]
-    fn print_range_cells_truncated_long_values_1() {
-        test_logger("/tmp/rexcell_test_truncated_long.txt");
-        test_sheet("T3", 3, 3, true);
-        print_range_cells(&sheet_from_xlsx("T3"), &make_range_from_strings("A1", "C3"), Some(7));
-        let out = logged("/tmp/rexcell_test_truncated_long.txt");
-        assert!(out.contains("Sheet T3 range (A1:C3) ---"));
-        assert!(out.contains(">>> A1 ...       >>> B1 ...       >>> C1 ..."));
-        assert!(out.contains(">>> A2 ...       >>> B2 ...       >>> C2 ..."));
-        assert!(out.contains(">>> A3 ...       >>> B3 ...       >>> C3 ..."));
+    fn test_0032_print_range_cells_truncated_long_values() {
+        let test_file = "/tmp/rexcell_test_print_range_cells_truncated_long_values_1.txt";
+        test_logger(test_file);
+        test_sheet("T13", 3, 3, true);
+        print_range_cells(&sheet_from_xlsx("T13"), &make_range_from_strings("A1", "C3"), Some(7));
+        // 7-space separator between truncated values
+        assert_eq!(logged_lines(test_file), vec![
+            "Sheet T13 range (A1:C3) ---",
+            ">>> A1 ...       >>> B1 ...       >>> C1 ...",
+            ">>> A2 ...       >>> B2 ...       >>> C2 ...",
+            ">>> A3 ...       >>> B3 ...       >>> C3 ...",
+        ]);
     }
 
     #[test]
-    fn print_range_cells_padded_short_values() {
-        test_logger("/tmp/rexcell_test_padded_short.txt");
-        test_sheet("T5", 1, 3, false);
-        print_range_cells(&sheet_from_xlsx("T5"), &make_range_from_strings("A1", "C1"), Some(4));
-        let out = logged("/tmp/rexcell_test_padded_short.txt");
-        assert!(out.contains("Sheet T5 range (A1:C1) ---"));
+    fn test_0033_print_range_cells_padded_short_values() {
+        let test_file = "/tmp/rexcell_test_print_range_cells_padded_short_values.txt";
+        test_logger(test_file);
+        test_sheet("T05", 1, 3, false);
+        print_range_cells(&sheet_from_xlsx("T05"), &make_range_from_strings("A1", "C1"), Some(4));
         // each 2-char value padded to 4 ("A1  ") + 4-space separator = 6 spaces
         // between values; line ends with the trailing padding of "C1"
-        assert!(out.contains("A1      B1      C1  "));
+        assert_eq!(logged_lines(test_file), vec![
+            "Sheet T05 range (A1:C1) ---",
+            "A1      B1      C1  ",
+        ]);
     }
 
     #[test]
-    fn print_range_cells_invalid_range() {
-        test_logger("/tmp/rexcell_test_invalid_range.txt");
-        test_sheet("T4", 5, 5, false);
-        print_range_cells(&sheet_from_xlsx("T4"), &Range::default(), None);
-        assert!(logged("/tmp/rexcell_test_invalid_range.txt").contains("Invalid range from T4!"));
+    fn test_0034_print_range_cells_invalid_range() {
+        let test_file = "/tmp/rexcell_test_print_range_cells_invalid_range.txt";
+        test_logger(test_file);
+        test_sheet("T06", 5, 5, false);
+        print_range_cells(&sheet_from_xlsx("T06"), &Range::default(), None);
+        assert_eq!(logged_lines(test_file), vec![
+            "Can't get range bounds! Invalid range data!",
+            "Invalid range from T06!",
+        ]);
     }
 }
