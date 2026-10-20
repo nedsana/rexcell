@@ -1974,4 +1974,62 @@ mod tests {
         assert!(!accumulate_ranges(&sheet_a, &make_range_from_strings("A1", "B1"), &mut sheet_b, &make_range_from_strings("A1", "B1"), &vec![1], &vec![2]));
         assert!(sheet_b.get_cell((2, 1)).is_none());
     }
+
+    // ------------------------------------------------------------------
+    // offset_range: shifts a range by Offsets::new(obc, oec, obr, oer)
+    // and fails if any shifted bound lands on or beyond 0.
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn test_0071_offset_range_zero_offsets_identity() {
+        let off = Offsets::default();
+        assert_eq!(offset_range(&make_range_from_strings("A1", "C3"), &off).unwrap().get_range(), "A1:C3");
+        assert_eq!(offset_range(&make_range_from_strings("B2", "B2"), &off).unwrap().get_range(), "B2:B2");
+    }
+
+    #[test]
+    fn test_0072_offset_range_shift_down_right() {
+        assert_eq!(offset_range(&make_range_from_strings("A1", "C3"), &Offsets::new(1, 1, 1, 1)).unwrap().get_range(), "B2:D4");
+    }
+
+    #[test]
+    fn test_0073_offset_range_shift_up_left_to_boundary() {
+        // lands exactly on row 1 / col 1, which is allowed (bounds must be > 0)
+        assert_eq!(offset_range(&make_range_from_strings("B2", "C5"), &Offsets::new(-1, -1, -1, -1)).unwrap().get_range(), "A1:B4");
+    }
+
+    #[test]
+    fn test_0074_offset_range_asymmetric() {
+        assert_eq!(offset_range(&make_range_from_strings("A2", "C5"), &Offsets::new(0, 1, 1, 2)).unwrap().get_range(), "A3:D7");
+        // collapsing the range to a single column
+        assert_eq!(offset_range(&make_range_from_strings("A1", "C3"), &Offsets::new(2, 0, 0, 0)).unwrap().get_range(), "C1:C3");
+    }
+
+    #[test]
+    fn test_0075_offset_range_multi_letter_cols() {
+        assert_eq!(offset_range(&make_range_from_strings("AA10", "AC12"), &Offsets::new(1, 1, -1, -1)).unwrap().get_range(), "AB9:AD11");
+    }
+
+    #[test]
+    fn test_0076_offset_range_bound_hits_zero() {
+        assert!(offset_range(&make_range_from_strings("A1", "C3"), &Offsets::new(-1, 0, 0, 0)).is_err()); // bcol -> 0
+        assert!(offset_range(&make_range_from_strings("A1", "C3"), &Offsets::new(0, 0, -1, 0)).is_err()); // brow -> 0
+        assert!(offset_range(&make_range_from_strings("A1", "C3"), &Offsets::new(0, 0, 0, -3)).is_err()); // erow -> 0
+        assert!(offset_range(&make_range_from_strings("A1", "C3"), &Offsets::new(0, -3, 0, 0)).is_err()); // ecol -> 0
+    }
+
+    #[test]
+    fn test_0077_offset_range_negative_bounds() {
+        assert!(offset_range(&make_range_from_strings("A1", "B2"), &Offsets::new(-1, -1, -1, -1)).is_err());
+        assert!(offset_range(&make_range_from_strings("A1", "B2"), &Offsets::new(-10, -10, -10, -10)).is_err());
+        let e = offset_range(&make_range_from_strings("A1", "B2"), &Offsets::new(-1, -1, -1, -1)).unwrap_err();
+        assert!(e.contains("found after offset"), "unexpected error: {}", e);
+    }
+
+    #[test]
+    fn test_0078_offset_range_invalid_input() {
+        let off = Offsets::default();
+        assert_eq!(offset_range(&Range::default(), &off).unwrap_err(), "Invalid range!");
+        assert_eq!(offset_range(&make_range_from_strings("A", "C"), &off).unwrap_err(), "Invalid range!"); // whole-column range, no rows
+    }
 }
