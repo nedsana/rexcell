@@ -1088,4 +1088,205 @@ mod tests {
         check_mut_variant(IterRowNextKind::Merged);
         check_mut_variant(IterRowNextKind::Multiline);
     }
+
+    // ------------------------------------------------------------------
+    // IRange::compare_range, per variant. Documented quirks (same family
+    // as the comapre_ranges tests in range_ops.rs, test_0046..0054):
+    //  - strict mode (Basic/Multiline) only checks sizes, content is ignored
+    //  - Basic/Multiline build column offsets 0..=cols (one past the range
+    //    end); Basic requires EXACTLY `cols` matches, so a perfect row match
+    //    FAILS in non-strict mode
+    //  - rows are compared in a cartesian product and row_match is compared
+    //    against rows_a (Basic/Merged) or rows_a+1 (Multiline)
+    //  - Merged always applies the size check AND the row_match check, so
+    //    strict and non-strict behave the same
+    // ------------------------------------------------------------------
+    fn a1a2() -> Range { range_ops::make_range_from_strings("A1", "A2") }
+
+    #[test]
+    fn test_0115_compare_range_basic_strict_size_mismatch() {
+        let a = cc_sheet("RR01A", &[(1, 1, "x")]);
+        let b = cc_sheet("RR01B", &[(1, 1, "x")]);
+        let ra = RangeBasic::new(range_ops::make_range_from_strings("A1", "C3"), &a);
+        assert!(!ra.compare_range(&RangeBasic::new(range_ops::make_range_from_strings("A1", "C2"), &b), true, None, None));
+        // invalid range on either side
+        assert!(!ra.compare_range(&RangeBasic::new(Range::default(), &b), true, None, None));
+        assert!(!RangeBasic::new(a1(), &a).compare_range(&RangeBasic::new(Range::default(), &b), false, None, None));
+    }
+
+    #[test]
+    fn test_0116_compare_range_basic_strict_ignores_content() {
+        let a = cc_sheet("RR02A", &[(1, 1, "aaa"), (1, 2, "b")]);
+        let b = cc_sheet("RR02B", &[(1, 1, "ccc"), (1, 2, "d")]);
+        let ra = RangeBasic::new(a1a2(), &a);
+        // Documented current behavior: strict only checks sizes.
+        // Expected to flip to `false` if fixed.
+        assert!(ra.compare_range(&RangeBasic::new(a1a2(), &b), true, None, None));
+    }
+
+    #[test]
+    fn test_0117_compare_range_basic_nonstrict_perfect_1x1_fails() {
+        let a = cc_sheet("RR03A", &[(1, 1, "x")]);
+        let b = cc_sheet("RR03B", &[(1, 1, "x")]);
+        let ra = RangeBasic::new(a1(), &a);
+        // Documented current behavior: offsets run 0..=cols, so a fully equal
+        // row scores cols+1 matches while the check requires exactly cols.
+        // Expected to flip to `true` if fixed.
+        assert!(!ra.compare_range(&RangeBasic::new(a1(), &b), false, None, None));
+    }
+
+    #[test]
+    fn test_0118_compare_range_basic_nonstrict_single_mismatch_passes() {
+        let a = cc_sheet("RR04A", &[(1, 1, "x"), (2, 1, "p")]);
+        let b = cc_sheet("RR04B", &[(1, 1, "x"), (2, 1, "q")]);
+        let ra = RangeBasic::new(a1(), &a);
+        // exactly one mismatch (in the compared-but-out-of-range column B)
+        // yields col_match == cols, so the row passes
+        assert!(ra.compare_range(&RangeBasic::new(a1(), &b), false, None, None));
+    }
+
+    #[test]
+    fn test_0119_compare_range_basic_nonstrict_cartesian_rows() {
+        // A's rows both equal B's LAST row, while B's first row differs from A
+        // (col 2 always differs, so a row pair needs the col-1 match only)
+        let a = cc_sheet("RR05A", &[(1, 1, "same"), (2, 1, "p1"), (1, 2, "same"), (2, 2, "p2")]);
+        let b = cc_sheet("RR05B", &[(1, 1, "other"), (2, 1, "q1"), (1, 2, "same"), (2, 2, "q2")]);
+        let ra = RangeBasic::new(a1a2(), &a);
+        // Documented current behavior: cartesian row loop, row_match counts every
+        // matching (row_a, row_b) pair; here exactly rows_a pairs match (both A
+        // rows vs B's last row). Expected to change if fixed.
+        assert!(ra.compare_range(&RangeBasic::new(a1a2(), &b), false, None, None));
+
+        // Control: B's last row differs too -> no pair matches
+        let b2 = cc_sheet("RR05C", &[(1, 1, "other"), (2, 1, "q1"), (1, 2, "nope"), (2, 2, "q2")]);
+        assert!(!ra.compare_range(&RangeBasic::new(a1a2(), &b2), false, None, None));
+    }
+
+    #[test]
+    fn test_0120_compare_range_merged_1x1_equal() {
+        let a = cc_sheet("RR06A", &[(1, 1, "x")]);
+        let b = cc_sheet("RR06B", &[(1, 1, "X")]);
+        let ra = RangeMergedCells::new(a1(), &a);
+        // single row: exactly one matching pair, row_match == rows_a
+        assert!(ra.compare_range(&RangeMergedCells::new(a1(), &b), true, None, None));
+        assert!(ra.compare_range(&RangeMergedCells::new(a1(), &b), false, None, None));
+    }
+
+    #[test]
+    fn test_0121_compare_range_merged_size_mismatch_always_fails() {
+        let a = cc_sheet("RR07A", &[(1, 1, "x")]);
+        let b = cc_sheet("RR07B", &[(1, 1, "x")]);
+        let ra = RangeMergedCells::new(a1a2(), &a);
+        // the size check applies regardless of strict
+        assert!(!ra.compare_range(&RangeMergedCells::new(a1(), &b), true, None, None));
+        assert!(!ra.compare_range(&RangeMergedCells::new(a1(), &b), false, None, None));
+    }
+
+    #[test]
+    fn test_0122_compare_range_merged_content_differs_same_size() {
+        let a = cc_sheet("RR08A", &[(1, 1, "x")]);
+        let b = cc_sheet("RR08B", &[(1, 1, "y")]);
+        let ra = RangeMergedCells::new(a1(), &a);
+        // unlike Basic/Multiline, Merged checks content in strict mode too
+        assert!(!ra.compare_range(&RangeMergedCells::new(a1(), &b), true, None, None));
+        assert!(!ra.compare_range(&RangeMergedCells::new(a1(), &b), false, None, None));
+    }
+
+    #[test]
+    fn test_0123_compare_range_merged_multi_row() {
+        // perfectly equal 2-row ranges: all 4 cartesian pairs match,
+        // row_match=4 != rows_a=2 -> fails
+        let a = cc_sheet("RR09A", &[(1, 1, "s"), (1, 2, "s")]);
+        let b = cc_sheet("RR09B", &[(1, 1, "s"), (1, 2, "s")]);
+        let ra = RangeMergedCells::new(a1a2(), &a);
+        // Documented current behavior. Expected to flip to `true` if fixed.
+        assert!(!ra.compare_range(&RangeMergedCells::new(a1a2(), &b), false, None, None));
+
+        // but only B's last row matching both A rows gives row_match == rows_a
+        let b2 = cc_sheet("RR09C", &[(1, 1, "other"), (1, 2, "s")]);
+        assert!(ra.compare_range(&RangeMergedCells::new(a1a2(), &b2), false, None, None));
+    }
+
+    #[test]
+    fn test_0124_compare_range_multiline_strict_size_mismatch() {
+        let a = cc_sheet("RR10A", &[(1, 1, "x")]);
+        let b = cc_sheet("RR10B", &[(1, 1, "x")]);
+        let ra = RangeMultiline::new(a1a2(), &a);
+        assert!(!ra.compare_range(&RangeMultiline::new(a1(), &b), true, None, None));
+        // invalid range on either side
+        assert!(!ra.compare_range(&RangeMultiline::new(Range::default(), &b), true, None, None));
+        assert!(!RangeMultiline::new(a1(), &a).compare_range(&RangeMultiline::new(Range::default(), &b), false, None, None));
+    }
+
+    #[test]
+    fn test_0125_compare_range_multiline_strict_ignores_content() {
+        let a = cc_sheet("RR11A", &[(1, 1, "a"), (1, 2, "b")]);
+        let b = cc_sheet("RR11B", &[(1, 1, "c"), (1, 2, "d")]);
+        let ra = RangeMultiline::new(a1a2(), &a);
+        // Documented current behavior: strict only checks sizes.
+        // Expected to flip to `false` if fixed.
+        assert!(ra.compare_range(&RangeMultiline::new(a1a2(), &b), true, None, None));
+    }
+
+    #[test]
+    fn test_0126_compare_range_multiline_nonstrict_1x1_fails() {
+        let a = cc_sheet("RR12A", &[(1, 1, "x")]);
+        let b = cc_sheet("RR12B", &[(1, 1, "x")]);
+        let ra = RangeMultiline::new(a1(), &a);
+        // Documented current behavior: row_match (1 matching pair) is compared
+        // against rows+1 (2), so even identical ranges fail.
+        // Expected to flip to `true` if fixed.
+        assert!(!ra.compare_range(&RangeMultiline::new(a1(), &b), false, None, None));
+    }
+
+    #[test]
+    fn test_0127_compare_range_multiline_nonstrict_match() {
+        // A is 1 row; B has 2 rows both equal to A's row (incl. the
+        // compared-but-out-of-range column B). 2 matching pairs == rows+1
+        let a = cc_sheet("RR13A", &[(1, 1, "x")]);
+        let b = cc_sheet("RR13B", &[(1, 1, "x"), (1, 2, "x")]);
+        let ra = RangeMultiline::new(a1(), &a);
+        assert!(ra.compare_range(&RangeMultiline::new(a1a2(), &b), false, None, None));
+    }
+
+    // ------------------------------------------------------------------
+    // compare_range dispatch through the RangeType / RangeTypeMut enums
+    // ------------------------------------------------------------------
+    fn check_range_variant(kind: IterRowNextKind) {
+        let a = cc_sheet("TMP_A", &[(1, 1, "x")]);
+        let b = cc_sheet("TMP_B", &[(1, 1, "X")]);
+        let ra = make_range_inst(kind, a1(), &a);
+        let rb = make_range_inst(kind, a1(), &b);
+        assert!(ra.compare_range(&rb, true, None, None));
+        // strict size mismatch
+        let rc = make_range_inst(kind, a1a2(), &a);
+        assert!(!rc.compare_range(&rb, true, None, None));
+    }
+
+    #[test]
+    fn test_0128_compare_range_range_type_enum() {
+        check_range_variant(IterRowNextKind::Basic);
+        check_range_variant(IterRowNextKind::Merged);
+        check_range_variant(IterRowNextKind::Multiline);
+    }
+
+    fn check_mut_range_variant(kind: IterRowNextKind) {
+        let mut a = cc_sheet("TMP_A", &[(1, 1, "x")]);
+        let mut b = cc_sheet("TMP_B", &[(1, 1, "X")]);
+        {
+            let ra = make_range_inst_mut(kind, a1(), &mut a);
+            let rb = make_range_inst_mut(kind, a1(), &mut b);
+            assert!(ra.compare_range(&rb, true, None, None));
+        } // drops ra/rb, releasing the &mut sheet borrows
+        let rc = make_range_inst_mut(kind, a1a2(), &mut a);
+        let rb = make_range_inst_mut(kind, a1(), &mut b);
+        assert!(!rc.compare_range(&rb, true, None, None));
+    }
+
+    #[test]
+    fn test_0129_compare_range_range_type_mut_enum() {
+        check_mut_range_variant(IterRowNextKind::Basic);
+        check_mut_range_variant(IterRowNextKind::Merged);
+        check_mut_range_variant(IterRowNextKind::Multiline);
+    }
 }
