@@ -168,8 +168,14 @@ pub fn range_to_string(range: &Range) -> String
     format!("Invalid range!")
 }
 
-pub fn print_range_cells(sheet: &Worksheet, range: &Range, truncate_len: Option<u32>) 
+/// Render the cells of `range` from `sheet` into a string (one line per row:
+/// a header line, then the values joined by the separator). With
+/// `truncate_len = Some(t)` values are limited to `t` chars (dots if cut) and
+/// the separator is `t` spaces; with `None` values are raw and tab-separated.
+/// An invalid range yields a single "Invalid range from <sheet>!" line.
+pub fn print_range_cells(sheet: &Worksheet, range: &Range, truncate_len: Option<u32>) -> String
 {
+    let mut out = String::new();
     if let Some((rbeg, rend, cbeg, cend, _, _)) = range_bounds(range)
     {
         // choose separator: when truncate_len is provided, use that many spaces,
@@ -179,10 +185,10 @@ pub fn print_range_cells(sheet: &Worksheet, range: &Range, truncate_len: Option<
             None => "\t".to_string(),
         };
 
-        info!("Sheet {} range ({}:{}) ---", sheet.get_name(), 
+        out.push_str(&format!("Sheet {} range ({}:{}) ---\n", sheet.get_name(),
             umya_spreadsheet::helper::coordinate::coordinate_from_index(&cbeg, &rbeg), // Returns "A1"
             umya_spreadsheet::helper::coordinate::coordinate_from_index(&cend, &rend)  // Returns "C10"
-        );
+        ));
 
         // let mut coord_names = Vec::new();
         let mut cell_values = Vec::new();
@@ -199,24 +205,26 @@ pub fn print_range_cells(sheet: &Worksheet, range: &Range, truncate_len: Option<
                 // };
 
                 let cell_value = sheet.get_cell_value((c, r)).get_value().to_string();
-                let _truncated = match truncate_len 
+                match truncate_len 
                 {
                     Some(tlen) => cell_values.push(limit_str(&cell_value, tlen as usize)),
                     None => cell_values.push(cell_value) ,
-                };
+                }
             }
 
             // info!("{}", coord_names.join(&sep));
             // coord_names.clear();
 
-            info!("{}", cell_values.join(&sep));
+            out.push_str(&cell_values.join(&sep));
+            out.push('\n');
             cell_values.clear();
         }
     }
     else
     {
-        error!("Invalid range from {}!", sheet.get_name())
+        out.push_str(&format!("Invalid range from {}!\n", sheet.get_name()))
     }
+    out
 }
 
 pub fn comapre_cell(
@@ -1380,53 +1388,11 @@ mod tests {
     }
 
     // ------------------------------------------------------------------
-    // print_range_cells: it only logs, so install a logger that writes
-    // to a file and validate the file content. Each test uses its own
-    // file; the logger target is process-global, so these tests must
-    // run serially (cargo test -- --test-threads=1).
+    // print_range_cells: it returns the rendered range as a String, so the
+    // tests assert on the returned value directly — no logger involved, and
+    // no shared state, so plain `cargo test` (parallel) is safe.
     // ------------------------------------------------------------------
-    use std::io::Write;
-    use std::sync::{Mutex, Once};
     use umya_spreadsheet::{CellValue, Spreadsheet};
-
-    // The log target is process-global (set_logger runs once), so we point it
-    // at a per-test file via a shared &'static str. Tests must run serially
-    // (cargo test -- --test-threads=1) since the target is shared.
-    static LOG_FILE: Mutex<&'static str> = Mutex::new("");
-
-    struct FileLogger;
-
-    impl log::Log for FileLogger {
-        fn enabled(&self, _metadata: &log::Metadata) -> bool { true }
-        fn log(&self, record: &log::Record) {
-            let path = *LOG_FILE.lock().unwrap();
-            if path.is_empty() { return; }
-            if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
-                let _ = f.write_all(format!("{}\n", record.args()).as_bytes());
-            }
-        }
-        fn flush(&self) {}
-    }
-
-    /// Install the test logger (once per process) and route log output to `file`.
-    fn test_logger(file: &'static str) {
-        static INIT: Once = Once::new();
-        INIT.call_once(|| {
-            log::set_max_level(log::LevelFilter::Info);
-            static FILE_LOGGER: FileLogger = FileLogger;
-            let _ = log::set_logger(&FILE_LOGGER);
-        });
-        std::fs::File::create(file).unwrap(); // truncate this test's file
-        *LOG_FILE.lock().unwrap() = file;
-    }
-
-    fn logged(file: &'static str) -> String { std::fs::read_to_string(file).unwrap() }
-
-    // The log file is truncated per test, so under serial execution it holds
-    // exactly this test's output — compare the full line list.
-    fn logged_lines(file: &'static str) -> Vec<String> {
-        logged(file).lines().filter(|l| !l.is_empty()).map(|l| l.to_string()).collect()
-    }
 
     // Write to .xlsx
     fn sheet_to_slsx(sheet: &Worksheet, path: &str) {
@@ -1467,11 +1433,9 @@ mod tests {
 
     #[test]
     fn test_0027_print_range_cells_tab_mode() {
-        let test_file = "/tmp/rexcell_test_print_range_cells_tab_mode_0.txt";
-        test_logger(test_file);
         test_sheet("T01", 5, 5, false);
-        print_range_cells(&sheet_from_xlsx("T01"), &make_range_from_strings("A1", "C3"), None);
-        assert_eq!(logged_lines(test_file), vec![
+        let out = print_range_cells(&sheet_from_xlsx("T01"), &make_range_from_strings("A1", "C3"), None);
+        assert_eq!(out.lines().collect::<Vec<_>>(), vec![
             "Sheet T01 range (A1:C3) ---",
             "A1\tB1\tC1",
             "A2\tB2\tC2",
@@ -1481,11 +1445,9 @@ mod tests {
 
     #[test]
     fn test_0028_print_range_cells_tab_mode() {
-        let test_file = "/tmp/rexcell_test_print_range_cells_tab_mode_1.txt";
-        test_logger(test_file);
         test_sheet("T11", 3, 3, false);
-        print_range_cells(&sheet_from_xlsx("T11"), &make_range_from_strings("A1", "C3"), None);
-        assert_eq!(logged_lines(test_file), vec![
+        let out = print_range_cells(&sheet_from_xlsx("T11"), &make_range_from_strings("A1", "C3"), None);
+        assert_eq!(out.lines().collect::<Vec<_>>(), vec![
             "Sheet T11 range (A1:C3) ---",
             "A1\tB1\tC1",
             "A2\tB2\tC2",
@@ -1495,11 +1457,9 @@ mod tests {
 
     #[test]
     fn test_0029_print_range_cells_truncated_mode() {
-        let test_file = "/tmp/rexcell_test_print_range_cells_truncated_mode_0.txt";
-        test_logger(test_file);
         test_sheet("T02", 5, 5,false);
-        print_range_cells(&sheet_from_xlsx("T02"), &make_range_from_strings("A1", "C3"), Some(2));
-        assert_eq!(logged_lines(test_file), vec![
+        let out = print_range_cells(&sheet_from_xlsx("T02"), &make_range_from_strings("A1", "C3"), Some(2));
+        assert_eq!(out.lines().collect::<Vec<_>>(), vec![
             "Sheet T02 range (A1:C3) ---",
             "A1  B1  C1",
             "A2  B2  C2",
@@ -1509,11 +1469,9 @@ mod tests {
 
     #[test]
     fn test_0030_print_range_cells_truncated_mode() {
-        let test_file = "/tmp/rexcell_test_print_range_cells_truncated_mode_1.txt";
-        test_logger(test_file);
         test_sheet("T12", 3, 3,false);
-        print_range_cells(&sheet_from_xlsx("T12"), &make_range_from_strings("A1", "C3"), Some(2));
-        assert_eq!(logged_lines(test_file), vec![
+        let out = print_range_cells(&sheet_from_xlsx("T12"), &make_range_from_strings("A1", "C3"), Some(2));
+        assert_eq!(out.lines().collect::<Vec<_>>(), vec![
             "Sheet T12 range (A1:C3) ---",
             "A1  B1  C1",
             "A2  B2  C2",
@@ -1523,12 +1481,10 @@ mod tests {
 
     #[test]
     fn test_0031_print_range_cells_truncated_long_values() {
-        let test_file = "/tmp/rexcell_test_print_range_cells_truncated_long_values_0.txt";
-        test_logger(test_file);
         test_sheet("T03", 5, 5, true);
-        print_range_cells(&sheet_from_xlsx("T03"), &make_range_from_strings("A1", "C3"), Some(7));
+        let out = print_range_cells(&sheet_from_xlsx("T03"), &make_range_from_strings("A1", "C3"), Some(7));
         // 7-space separator between truncated values
-        assert_eq!(logged_lines(test_file), vec![
+        assert_eq!(out.lines().collect::<Vec<_>>(), vec![
             "Sheet T03 range (A1:C3) ---",
             ">>> A1 ...       >>> B1 ...       >>> C1 ...",
             ">>> A2 ...       >>> B2 ...       >>> C2 ...",
@@ -1538,12 +1494,10 @@ mod tests {
 
     #[test]
     fn test_0032_print_range_cells_truncated_long_values() {
-        let test_file = "/tmp/rexcell_test_print_range_cells_truncated_long_values_1.txt";
-        test_logger(test_file);
         test_sheet("T13", 3, 3, true);
-        print_range_cells(&sheet_from_xlsx("T13"), &make_range_from_strings("A1", "C3"), Some(7));
+        let out = print_range_cells(&sheet_from_xlsx("T13"), &make_range_from_strings("A1", "C3"), Some(7));
         // 7-space separator between truncated values
-        assert_eq!(logged_lines(test_file), vec![
+        assert_eq!(out.lines().collect::<Vec<_>>(), vec![
             "Sheet T13 range (A1:C3) ---",
             ">>> A1 ...       >>> B1 ...       >>> C1 ...",
             ">>> A2 ...       >>> B2 ...       >>> C2 ...",
@@ -1553,13 +1507,11 @@ mod tests {
 
     #[test]
     fn test_0033_print_range_cells_padded_short_values() {
-        let test_file = "/tmp/rexcell_test_print_range_cells_padded_short_values.txt";
-        test_logger(test_file);
         test_sheet("T05", 1, 3, false);
-        print_range_cells(&sheet_from_xlsx("T05"), &make_range_from_strings("A1", "C1"), Some(4));
+        let out = print_range_cells(&sheet_from_xlsx("T05"), &make_range_from_strings("A1", "C1"), Some(4));
         // each 2-char value padded to 4 ("A1  ") + 4-space separator = 6 spaces
         // between values; line ends with the trailing padding of "C1"
-        assert_eq!(logged_lines(test_file), vec![
+        assert_eq!(out.lines().collect::<Vec<_>>(), vec![
             "Sheet T05 range (A1:C1) ---",
             "A1      B1      C1  ",
         ]);
@@ -1567,12 +1519,9 @@ mod tests {
 
     #[test]
     fn test_0034_print_range_cells_invalid_range() {
-        let test_file = "/tmp/rexcell_test_print_range_cells_invalid_range.txt";
-        test_logger(test_file);
         test_sheet("T06", 5, 5, false);
-        print_range_cells(&sheet_from_xlsx("T06"), &Range::default(), None);
-        assert_eq!(logged_lines(test_file), vec![
-            "Can't get range bounds! Invalid range data!",
+        let out = print_range_cells(&sheet_from_xlsx("T06"), &Range::default(), None);
+        assert_eq!(out.lines().collect::<Vec<_>>(), vec![
             "Invalid range from T06!",
         ]);
     }
