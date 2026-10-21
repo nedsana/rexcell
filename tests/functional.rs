@@ -510,34 +510,90 @@ fn autocomplete_t1() {
 
 
 //Execute functional tests for "Autocomplete" command over Test_Excell.*.xlsx and Test_Range_.*.xlsx files.
-//Use Test_Excell_T1_Analysis.xlsx as analysis file
-#[test]
-fn test_0001_autocomplete() 
+fn test_autocomplete(afile_name: &str, tfile_name: &str) -> bool
 {
-    let afile = "Test_Excell_T1_Analysis.xlsx";
-    let tfile = "Test_Excell_T1_small.xlsx";
+    let mut ret = true;
+    let afile_path = reference_file(afile_name);
+    let afile = afile_path.to_string_lossy().into_owned();
 
-    let mut cfg = base_config();
-    cfg.command = common::Command::CmdAutocompleteSheets;
-    cfg.tgt_file = reference_file(tfile).to_string_lossy().into_owned();
-    cfg.tgt_upd_table = "КСС_ОП1".to_string();
-    cfg.tgt_src_col = "C".to_string();
-    cfg.tgt_dest_col = "B,F".to_string();
-    cfg.tgt_acc_col = "E".to_string();
-    cfg.tgt_calcs = "G=E*F".to_string();
-    cfg.new_sheet_name = "Prices".to_string();
-    // analysis file is read in place, never copied
-    cfg.analysis_file = reference_file(afile).to_string_lossy().into_owned();
-    cfg.analysis_table = "Analysis".to_string();
-    cfg.analysis_col_srch = "A".to_string();
-    cfg.analysis_col_term = "B".to_string();
-    cfg.analysis_cols_cp_src = "A,G".to_string();
-    cfg.analysis_srch_pat = "Позиция: *, *Основание:(.*)".to_string();
-    cfg.analysis_term_pat = "Общо".to_string();
+    if let Ok(assheet) =  umya_spreadsheet::reader::xlsx::read(afile_path)
+    {
+        let awsheets = excell::get_worksheet_names_list(&assheet);
+        if awsheets.len() == 1
+        {
+            let tfile_path = reference_file(tfile_name);
+            let tfile = tfile_path.to_string_lossy().into_owned();
 
-    cfg.inplace = true;
+            if let Ok(ssheet) = umya_spreadsheet::reader::xlsx::read(tfile_path)
+            {
+                let swsheets = excell::get_worksheet_names_string(&ssheet);
 
-    let out = run(&mut cfg).expect("execute failed");
+                println!("Processing file:{} sheet:{}", tfile, swsheets);
 
-    // record_or_compare(&out, &expected_path("cmd-autocomplete-sheets", "Test_Excell_T1"));
+                let mut cfg = base_config();
+                cfg.command = common::Command::CmdAutocompleteSheets;
+                cfg.tgt_file = tfile.clone();
+                cfg.tgt_upd_table = swsheets.clone();
+                cfg.tgt_src_col = "C".to_string();
+                cfg.tgt_dest_col = "B,F".to_string();
+                cfg.tgt_acc_col = "E".to_string();
+                cfg.tgt_calcs = "G=E*F".to_string();
+                cfg.new_sheet_name = "Prices".to_string();
+                // analysis file is read in place, never copied
+                cfg.analysis_file = afile.clone();
+                cfg.analysis_table = awsheets[0].to_string();
+                cfg.analysis_col_srch = "A".to_string();
+                cfg.analysis_col_term = "B".to_string();
+                cfg.analysis_cols_cp_src = "A,G".to_string();
+                cfg.analysis_srch_pat = "Позиция: *, *Основание:(.*)".to_string();
+                cfg.analysis_term_pat = "Общо".to_string();
+
+                //TO DO ... remove inplace and check execute results. Automate the test!
+                cfg.inplace = true;
+
+                if let Err(err) = excell::execute(&cfg)
+                {
+                    println!("Failed to process file:{} sheets:{}! {}", tfile, swsheets, err);
+                    ret = false;
+                }
+            }
+            else
+            { 
+                ret = false;
+            }
+        }
+        else
+        {
+            ret = false;
+        }
+    }
+    ret
+    // ... to do add some error
+}
+
+#[test]
+fn test_create_autocompleted_files_0() 
+{
+    let afile_name = "Test_Excell_T1_Analysis.xlsx";
+    let ref_files = ["Test_Excell_T0.xlsx", "Test_Excell_ref.xlsx", "Test_Excell_T1_small.xlsx", "Test_Excell_T1.xlsx", 
+                                "Test_Range_Basic.xlsx", "Test_Range_Multiline.xlsx", "Test_Range_Merged.xlsx"];
+    for ref_file in &ref_files {
+        if false == test_autocomplete(afile_name, ref_file)
+        {
+            panic!("Failed to execute test_autocomplete({}, {})!", afile_name, ref_file);
+        }
+    }
+}
+
+#[test]
+fn test_create_autocompleted_files_1() 
+{
+    let afile_name = "Test_Twins_Analysis.xlsx";
+    let ref_files = ["Test_Twins.xlsx"];
+    for ref_file in &ref_files {
+        if false == test_autocomplete(afile_name, ref_file)
+        {
+            panic!("Failed to execute test_autocomplete({}, {})!", afile_name, ref_file);
+        }
+    }
 }
