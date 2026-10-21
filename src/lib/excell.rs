@@ -1659,4 +1659,497 @@ mod tests {
         // 'what' has no data rows -> nothing can be missing
         assert!(find_missing_entries(&where_r, &what_r, &vec![1]).is_empty());
     }
+
+    // ------------------------------------------------------------------
+    // make_largest_range: copies range_in into a TMP_SHEET, then scans
+    // sheet_in for same-type, same-header ranges with MORE rows and
+    // appends their missing data rows. Numeric values in acc_cols are
+    // zeroed on copy (so later accumulation can sum into them).
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn test_0188_make_largest_range_appends_missing_rows_of_larger_same_header_table() {
+        let mut sheet = ws("ML1");
+        put_num(&mut sheet, 1, 1, 100.0);
+        put(&mut sheet, 1, 2, "- a");
+        put(&mut sheet, 1, 3, "- b");
+        put_num(&mut sheet, 2, 1, 10.0);
+        put_num(&mut sheet, 2, 2, 20.0);
+        put_num(&mut sheet, 2, 3, 30.0);
+        // table 2: same header, one more row
+        put_num(&mut sheet, 1, 5, 100.0);
+        put(&mut sheet, 1, 6, "- a");
+        put(&mut sheet, 1, 7, "- b");
+        put(&mut sheet, 1, 8, "- c");
+        put_num(&mut sheet, 2, 8, 40.0);
+
+        let range_in = RangeMultiline::new(range_ops::make_range_from_indexes(1, 1, 9, 3), &sheet);
+        let cmp = vec![1];
+        let acc = vec![2];
+
+        let tmp = make_largest_range(&range_in, &sheet, &cmp, &acc);
+
+        assert_eq!(tmp.get_name(), "TMP_SHEET");
+        assert_eq!(tmp.get_value((1, 1)), "100"); // cmp column copied as-is
+        assert_eq!(tmp.get_value((1, 2)), "- a");
+        assert_eq!(tmp.get_value((1, 3)), "- b");
+        assert_eq!(tmp.get_value((1, 4)), "- c"); // appended from table 2
+        // numeric values in acc_cols are replaced with 0 on copy
+        assert_eq!(tmp.get_value((2, 1)), "0");
+        assert_eq!(tmp.get_value((2, 2)), "0");
+        assert_eq!(tmp.get_value((2, 3)), "0");
+        assert_eq!(tmp.get_value((2, 4)), "0");
+        assert_eq!(tmp.get_highest_row(), 4);
+    }
+
+    #[test]
+    fn test_0189_make_largest_range_ignores_different_header() {
+        let mut sheet = ws("ML2");
+        put_num(&mut sheet, 1, 1, 100.0);
+        put(&mut sheet, 1, 2, "- a");
+        put_num(&mut sheet, 1, 4, 200.0); // different header, larger table
+        put(&mut sheet, 1, 5, "- a");
+        put(&mut sheet, 1, 6, "- b");
+
+        let range_in = RangeMultiline::new(range_ops::make_range_from_indexes(1, 1, 9, 2), &sheet);
+        let cmp = vec![1];
+        let acc = Vec::new();
+        let tmp = make_largest_range(&range_in, &sheet, &cmp, &acc);
+
+        // header differs -> nothing appended
+        assert_eq!(tmp.get_highest_row(), 2);
+        assert!(tmp.get_value((1, 3)).is_empty());
+    }
+
+    #[test]
+    fn test_0190_make_largest_range_ignores_smaller_same_header_table() {
+        let mut sheet = ws("ML3");
+        // the input range is the LARGER table
+        put_num(&mut sheet, 1, 1, 100.0);
+        put(&mut sheet, 1, 2, "- a");
+        put(&mut sheet, 1, 3, "- b");
+        put(&mut sheet, 1, 4, "- c");
+        // same header, but fewer rows
+        put_num(&mut sheet, 1, 6, 100.0);
+        put(&mut sheet, 1, 7, "- b");
+
+        let range_in = RangeMultiline::new(range_ops::make_range_from_indexes(1, 1, 9, 4), &sheet);
+        let cmp = vec![1];
+        let acc = Vec::new();
+        let tmp = make_largest_range(&range_in, &sheet, &cmp, &acc);
+
+        // rows_it > rows_in is false for the smaller table -> untouched
+        assert_eq!(tmp.get_highest_row(), 4);
+        assert_eq!(tmp.get_value((1, 4)), "- c");
+    }
+
+    #[test]
+    fn test_0191_make_largest_range_type_mismatch_ignored() {
+        let mut sheet = ws("ML4");
+        put_num(&mut sheet, 1, 1, 100.0);
+        put(&mut sheet, 1, 2, "- a");
+        put(&mut sheet, 1, 3, "- b");
+        // a LARGER same-header table, but of Merged type
+        put_num(&mut sheet, 1, 5, 100.0);
+        put(&mut sheet, 1, 6, "x");
+        put(&mut sheet, 1, 7, "y");
+        put(&mut sheet, 1, 8, "z");
+        sheet.add_merge_cells("A5:A8");
+
+        let range_in = RangeMultiline::new(range_ops::make_range_from_indexes(1, 1, 9, 3), &sheet);
+        let cmp = vec![1];
+        let acc = Vec::new();
+        let tmp = make_largest_range(&range_in, &sheet, &cmp, &acc);
+
+        // Documented current behavior: only same-type ranges are
+        // considered, so the larger Merged table is ignored.
+        assert_eq!(tmp.get_highest_row(), 3);
+        assert!(tmp.get_value((1, 4)).is_empty());
+    }
+
+    #[test]
+    fn test_0192_make_largest_range_merged_recreates_column_a_merge() {
+        let mut sheet = ws("ML5");
+        put_num(&mut sheet, 1, 1, 100.0);
+        put(&mut sheet, 1, 2, "x");
+        put(&mut sheet, 1, 3, "y");
+        sheet.add_merge_cells("A1:A3"); // input range (Merged)
+        put_num(&mut sheet, 1, 5, 100.0);
+        put(&mut sheet, 1, 6, "x");
+        put(&mut sheet, 1, 7, "y");
+        put(&mut sheet, 1, 8, "z");
+        sheet.add_merge_cells("A5:A8"); // larger Merged, same header
+
+        let range_in = RangeMergedCells::new(range_ops::make_range_from_indexes(1, 1, 9, 3), &sheet);
+        let cmp = vec![1];
+        let acc = Vec::new();
+        let tmp = make_largest_range(&range_in, &sheet, &cmp, &acc);
+
+        assert_eq!(tmp.get_value((1, 1)), "100");
+        assert_eq!(tmp.get_value((1, 2)), "x");
+        assert_eq!(tmp.get_value((1, 3)), "y");
+        assert_eq!(tmp.get_value((1, 4)), "z"); // appended missing row
+        // the initial append copies the A1:A3 merge; after appending the
+        // Merged branch clears it and re-merges column A over all rows
+        let merges: Vec<String> = tmp.get_merge_cells().iter().map(|r| r.get_range()).collect();
+        assert_eq!(merges, vec!["A1:A4".to_string()]);
+    }
+
+    #[test]
+    fn test_0193_make_largest_range_basic_is_never_extended() {
+        let mut sheet = ws("ML6");
+        put(&mut sheet, 1, 1, "hdr");
+        put(&mut sheet, 1, 3, "hdr"); // same header in another row
+
+        let range_in = RangeBasic::new(range_ops::make_range_from_indexes(1, 1, 9, 1), &sheet);
+        let cmp = vec![1];
+        let acc = Vec::new();
+        let tmp = make_largest_range(&range_in, &sheet, &cmp, &acc);
+
+        // Documented current behavior: Basic items are always single-row,
+        // so rows_it > rows_in can never hold and nothing is appended.
+        assert_eq!(tmp.get_highest_row(), 1);
+        assert_eq!(tmp.get_value((1, 1)), "hdr");
+    }
+
+    // ------------------------------------------------------------------
+    // convert_to_excel_formula / apply_calculations
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn test_0194_convert_to_excel_formula_appends_row_to_variables() {
+        assert_eq!(convert_to_excel_formula("D=B*C", 2), "D2=B2*C2");
+        assert_eq!(convert_to_excel_formula("A+B-C", 3), "A3+B3-C3");
+        // a run of letters is ONE variable (multi-letter column)
+        assert_eq!(convert_to_excel_formula("AB=C", 5), "AB5=C5");
+    }
+
+    #[test]
+    fn test_0195_convert_to_excel_formula_digit_suffix_quirk() {
+        // Documented current behavior: the row number is inserted BEFORE
+        // any existing digit suffix, so "A1" becomes "A{row}1".
+        assert_eq!(convert_to_excel_formula("A1=B", 2), "A21=B2");
+        assert_eq!(convert_to_excel_formula("A1+B2", 3), "A31+B32");
+    }
+
+    #[test]
+    fn test_0196_convert_to_excel_formula_no_variables_unchanged() {
+        assert_eq!(convert_to_excel_formula("", 3), "");
+        assert_eq!(convert_to_excel_formula("1+2", 3), "1+2");
+        assert_eq!(convert_to_excel_formula("=B", 4), "=B4");
+    }
+
+    #[test]
+    fn test_0197_apply_calculations_sets_formula_on_lhs_cell() {
+        let mut s = ws("CALC1");
+        let calcs = "D=B*C".to_string();
+        assert!(apply_calculations(&mut s, 2, &calcs).is_ok());
+        let c = s.get_cell((4, 2)).unwrap(); // LHS "D2" is created if absent
+        assert!(c.is_formula());
+        assert_eq!(c.get_formula(), "B2*C2");
+    }
+
+    #[test]
+    fn test_0198_apply_calculations_multiple_calcs_multiletter_column() {
+        let mut s = ws("CALC2");
+        let calcs = "AB=B, D=B*C".to_string(); // spaces after ',' are trimmed
+        assert!(apply_calculations(&mut s, 3, &calcs).is_ok());
+        assert_eq!(s.get_cell((28, 3)).unwrap().get_formula(), "B3"); // col AB
+        assert_eq!(s.get_cell((4, 3)).unwrap().get_formula(), "B3*C3");
+    }
+
+    #[test]
+    fn test_0199_apply_calculations_missing_equals_errors_keeps_prior() {
+        let mut s = ws("CALC3");
+        let calcs = "D=B*C, X Y".to_string(); // second calc has no '='
+        let err = apply_calculations(&mut s, 2, &calcs).unwrap_err();
+        assert_eq!(err, "Missing sign '='!");
+        // Documented current behavior: calcs apply in order and the error
+        // does not roll back the earlier ones.
+        assert_eq!(s.get_cell((4, 2)).unwrap().get_formula(), "B2*C2");
+    }
+
+    #[test]
+    fn test_0200_apply_calculations_empty_segments_are_skipped() {
+        let mut s = ws("CALC4");
+        assert!(apply_calculations(&mut s, 1, &"".to_string()).is_ok());
+        assert!(apply_calculations(&mut s, 1, &",,".to_string()).is_ok());
+        assert_eq!(s.get_highest_row(), 0); // nothing was written
+
+        let calcs = "D=B*C,,".to_string(); // trailing empty segments ok
+        assert!(apply_calculations(&mut s, 5, &calcs).is_ok());
+        assert_eq!(s.get_cell((4, 5)).unwrap().get_formula(), "B5*C5");
+    }
+
+    // ------------------------------------------------------------------
+    // filter_sheet_by_col_and_accum
+    //
+    // For each numeric-leading table in sheet_in: if a table with the
+    // same header/pivot rows already exists in sheet_out, the values in
+    // the accum columns are summed into it; otherwise the (largest
+    // merged) table is appended with zeroed accum columns and the values
+    // are accumulated into it on the next inner-loop pass.
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn test_0201_filter_sheet_by_col_and_accum_accumulates_identical_tables() {
+        let mut sheet_in = ws("FA1IN");
+        put_num(&mut sheet_in, 1, 1, 100.0); put(&mut sheet_in, 1, 2, "- a"); put(&mut sheet_in, 1, 3, "- b");
+        put_num(&mut sheet_in, 2, 1, 1.0); put_num(&mut sheet_in, 2, 2, 10.0); put_num(&mut sheet_in, 2, 3, 20.0);
+        put_num(&mut sheet_in, 1, 5, 100.0); put(&mut sheet_in, 1, 6, "- a"); put(&mut sheet_in, 1, 7, "- b");
+        put_num(&mut sheet_in, 2, 5, 2.0); put_num(&mut sheet_in, 2, 6, 30.0); put_num(&mut sheet_in, 2, 7, 40.0);
+        let mut sheet_out = ws("FA1OUT");
+
+        let res = filter_sheet_by_col_and_accum(&sheet_in, &mut sheet_out, &"A".to_string(), &"B".to_string());
+
+        assert!(res);
+        // one merged table, accum column B summed over both source tables
+        assert_eq!(sheet_out.get_value((1, 1)), "100");
+        assert_eq!(sheet_out.get_value((1, 2)), "- a");
+        assert_eq!(sheet_out.get_value((1, 3)), "- b");
+        assert_eq!(sheet_out.get_cell((2, 1)).unwrap().get_value_number(), Some(3.0));
+        assert_eq!(sheet_out.get_cell((2, 2)).unwrap().get_value_number(), Some(40.0));
+        assert_eq!(sheet_out.get_cell((2, 3)).unwrap().get_value_number(), Some(60.0));
+        assert_eq!(sheet_out.get_highest_row(), 3);
+    }
+
+    #[test]
+    fn test_0202_filter_sheet_by_col_and_accum_appends_different_tables() {
+        let mut sheet_in = ws("FA2IN");
+        put_num(&mut sheet_in, 1, 1, 100.0); put(&mut sheet_in, 1, 2, "- a"); put(&mut sheet_in, 1, 3, "- b");
+        put_num(&mut sheet_in, 2, 1, 1.0); put_num(&mut sheet_in, 2, 2, 10.0); put_num(&mut sheet_in, 2, 3, 20.0);
+        put_num(&mut sheet_in, 1, 5, 200.0); put(&mut sheet_in, 1, 6, "- x"); put(&mut sheet_in, 1, 7, "- y");
+        put_num(&mut sheet_in, 2, 5, 2.0); put_num(&mut sheet_in, 2, 6, 30.0); put_num(&mut sheet_in, 2, 7, 40.0);
+        let mut sheet_out = ws("FA2OUT");
+
+        let res = filter_sheet_by_col_and_accum(&sheet_in, &mut sheet_out, &"A".to_string(), &"B".to_string());
+
+        assert!(res);
+        // two separate tables in the output, values accumulated into each
+        assert_eq!(sheet_out.get_value((1, 1)), "100");
+        assert_eq!(sheet_out.get_value((1, 4)), "200");
+        assert_eq!(sheet_out.get_value((1, 6)), "- y");
+        assert_eq!(sheet_out.get_cell((2, 1)).unwrap().get_value_number(), Some(1.0));
+        assert_eq!(sheet_out.get_cell((2, 2)).unwrap().get_value_number(), Some(10.0));
+        assert_eq!(sheet_out.get_cell((2, 3)).unwrap().get_value_number(), Some(20.0));
+        assert_eq!(sheet_out.get_cell((2, 4)).unwrap().get_value_number(), Some(2.0));
+        assert_eq!(sheet_out.get_cell((2, 5)).unwrap().get_value_number(), Some(30.0));
+        assert_eq!(sheet_out.get_cell((2, 6)).unwrap().get_value_number(), Some(40.0));
+        assert_eq!(sheet_out.get_highest_row(), 6);
+    }
+
+    #[test]
+    fn test_0203_filter_sheet_by_col_and_accum_skips_non_numeric_leading() {
+        let mut sheet_in = ws("FA3IN");
+        put(&mut sheet_in, 1, 1, "text");
+        put(&mut sheet_in, 1, 2, "more");
+        let mut sheet_out = ws("FA3OUT");
+
+        let res = filter_sheet_by_col_and_accum(&sheet_in, &mut sheet_out, &"A".to_string(), &"B".to_string());
+
+        // rows not starting with a numeric pivot cell are skipped entirely
+        assert!(!res);
+        assert_eq!(sheet_out.get_highest_row(), 0);
+    }
+
+    #[test]
+    fn test_0204_filter_sheet_by_col_and_accum_merges_larger_table_on_append() {
+        let mut sheet_in = ws("FA4IN");
+        // small table first ...
+        put_num(&mut sheet_in, 1, 1, 100.0); put(&mut sheet_in, 1, 2, "- a");
+        put_num(&mut sheet_in, 2, 1, 1.0); put_num(&mut sheet_in, 2, 2, 10.0);
+        // ... then a larger one with the same header
+        put_num(&mut sheet_in, 1, 4, 100.0);
+        put(&mut sheet_in, 1, 5, "- a"); put(&mut sheet_in, 1, 6, "- b"); put(&mut sheet_in, 1, 7, "- c");
+        put_num(&mut sheet_in, 2, 4, 2.0); put_num(&mut sheet_in, 2, 5, 30.0);
+        put_num(&mut sheet_in, 2, 6, 40.0); put_num(&mut sheet_in, 2, 7, 50.0);
+        let mut sheet_out = ws("FA4OUT");
+
+        let res = filter_sheet_by_col_and_accum(&sheet_in, &mut sheet_out, &"A".to_string(), &"B".to_string());
+
+        assert!(res);
+        // the first (small) table is appended via make_largest_range, which
+        // already pulls in the missing rows of the larger same-header table
+        assert_eq!(sheet_out.get_value((1, 1)), "100");
+        assert_eq!(sheet_out.get_value((1, 2)), "- a");
+        assert_eq!(sheet_out.get_value((1, 3)), "- b");
+        assert_eq!(sheet_out.get_value((1, 4)), "- c");
+        // both source tables then accumulate into the merged rows
+        assert_eq!(sheet_out.get_cell((2, 1)).unwrap().get_value_number(), Some(3.0));
+        assert_eq!(sheet_out.get_cell((2, 2)).unwrap().get_value_number(), Some(40.0));
+        assert_eq!(sheet_out.get_cell((2, 3)).unwrap().get_value_number(), Some(40.0));
+        assert_eq!(sheet_out.get_cell((2, 4)).unwrap().get_value_number(), Some(50.0));
+        assert_eq!(sheet_out.get_highest_row(), 4);
+    }
+
+    #[test]
+    fn test_0205_filter_sheet_by_col_and_accum_accumulate_only_returns_false() {
+        let mut sheet_in = ws("FA5IN");
+        put_num(&mut sheet_in, 1, 1, 100.0); put(&mut sheet_in, 1, 2, "- a"); put(&mut sheet_in, 1, 3, "- b");
+        put_num(&mut sheet_in, 2, 1, 1.0); put_num(&mut sheet_in, 2, 2, 10.0); put_num(&mut sheet_in, 2, 3, 20.0);
+        let mut sheet_out = ws("FA5OUT");
+        // sheet_out already holds the same table with its own values
+        put_num(&mut sheet_out, 1, 1, 100.0); put(&mut sheet_out, 1, 2, "- a"); put(&mut sheet_out, 1, 3, "- b");
+        put_num(&mut sheet_out, 2, 1, 5.0); put_num(&mut sheet_out, 2, 2, 6.0); put_num(&mut sheet_out, 2, 3, 7.0);
+
+        let res = filter_sheet_by_col_and_accum(&sheet_in, &mut sheet_out, &"A".to_string(), &"B".to_string());
+
+        // Documented current behavior: res reflects only the append path;
+        // a pure accumulation (no append) leaves it false.
+        assert!(!res);
+        assert_eq!(sheet_out.get_cell((2, 1)).unwrap().get_value_number(), Some(6.0));
+        assert_eq!(sheet_out.get_cell((2, 2)).unwrap().get_value_number(), Some(16.0));
+        assert_eq!(sheet_out.get_cell((2, 3)).unwrap().get_value_number(), Some(27.0));
+    }
+
+    // ------------------------------------------------------------------
+    // get_anaysis_data
+    //
+    // The analysis sheet is iterated with Offsets::new(0,0,-1,-1), which
+    // shifts every detected section range UP one row: the section is
+    // identified by the column-A cell ABOVE the analysis_srch_pat marker
+    // row, the term scan covers [start-1 .. end-1], and the
+    // analysis_col_srch copy source is read from the marker row itself.
+    // Copied values are cut after their last ':' and trimmed.
+    //
+    // Non-matching and empty pivot rows each emit a single-row Basic item
+    // pointing one row up, so the identification value must sit on a row
+    // >= 2 directly above the marker: at row 1 the is_first_line fallback
+    // returns that row's item without offset and it preempts the section.
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn test_0206_get_anaysis_data_copies_section_values() {
+        let mut an = ws("GA6AN");
+        put(&mut an, 1, 2, "K1");            // identification value (row above marker)
+        put(&mut an, 1, 3, "SEC: alpha");    // section marker (matches ^SEC:)
+        put(&mut an, 2, 5, "EndMark");       // term row
+        put(&mut an, 7, 5, "total: 42");
+        let mut f = ws("GA6F");
+        put_num(&mut f, 1, 1, 10.0);
+        put(&mut f, 2, 1, "K1");             // search value
+
+        let res = get_anaysis_data(&an, &"A".to_string(), &"B".to_string(), &"A,G".to_string(),
+            &"^SEC:".to_string(), &"EndMark".to_string(),
+            &mut f, &"B".to_string(), &"C,D".to_string(), &"E=C*D".to_string());
+
+        assert!(res);
+        // col A copy = marker row "SEC: alpha" -> after last ':' -> "alpha"
+        assert_eq!(f.get_value((3, 1)), "alpha");
+        // col G copy from the term row: "total: 42" -> "42"
+        assert_eq!(f.get_value((4, 1)), "42");
+        assert_eq!(f.get_cell((5, 1)).unwrap().get_formula(), "C1*D1");
+    }
+
+    #[test]
+    fn test_0207_get_anaysis_data_no_matching_section() {
+        let mut an = ws("GA7AN");
+        put(&mut an, 1, 2, "K1");
+        put(&mut an, 1, 3, "SEC: alpha");
+        put(&mut an, 2, 5, "EndMark");
+        put(&mut an, 7, 5, "total: 42");
+        let mut f = ws("GA7F");
+        put_num(&mut f, 1, 1, 10.0);
+        put(&mut f, 2, 1, "KX");             // no section has this above its marker
+
+        let res = get_anaysis_data(&an, &"A".to_string(), &"B".to_string(), &"A,G".to_string(),
+            &"^SEC:".to_string(), &"EndMark".to_string(),
+            &mut f, &"B".to_string(), &"C,D".to_string(), &"E=C*D".to_string());
+
+        // no section found: nothing is written
+        assert!(!res);
+        assert_eq!(f.get_value((3, 1)), "");
+        assert_eq!(f.get_value((4, 1)), "");
+        assert!(f.get_cell((5, 1)).is_none());
+    }
+
+    #[test]
+    fn test_0208_get_anaysis_data_copy_col_count_mismatch() {
+        let mut an = ws("GA8AN");
+        let mut f = ws("GA8F");
+
+        // 2 source columns vs 1 destination column: rejected up front
+        let res = get_anaysis_data(&an, &"A".to_string(), &"B".to_string(), &"A,G".to_string(),
+            &"^SEC:".to_string(), &"EndMark".to_string(),
+            &mut f, &"B".to_string(), &"C".to_string(), &"".to_string());
+
+        assert!(!res);
+        assert_eq!(f.get_highest_row(), 0);
+    }
+
+    #[test]
+    fn test_0209_get_anaysis_data_multiple_sections() {
+        let mut an = ws("GA9AN");
+        put(&mut an, 1, 2, "K1");
+        put(&mut an, 1, 3, "SEC: one");
+        put(&mut an, 2, 5, "EndMark");
+        put(&mut an, 7, 5, "11: one-val");
+        put(&mut an, 1, 6, "K2");
+        put(&mut an, 1, 7, "SEC: two");
+        put(&mut an, 2, 9, "EndMark");
+        put(&mut an, 7, 9, "22: two-val");
+        let mut f = ws("GA9F");
+        put_num(&mut f, 1, 1, 10.0);
+        put(&mut f, 2, 1, "K1");
+        put_num(&mut f, 1, 2, 20.0);
+        put(&mut f, 2, 2, "K2");
+
+        let res = get_anaysis_data(&an, &"A".to_string(), &"B".to_string(), &"A,G".to_string(),
+            &"^SEC:".to_string(), &"EndMark".to_string(),
+            &mut f, &"B".to_string(), &"C,D".to_string(), &"E=C*D".to_string());
+
+        assert!(res);
+        assert_eq!(f.get_value((3, 1)), "one");
+        assert_eq!(f.get_value((4, 1)), "one-val");
+        assert_eq!(f.get_cell((5, 1)).unwrap().get_formula(), "C1*D1");
+        assert_eq!(f.get_value((3, 2)), "two");
+        assert_eq!(f.get_value((4, 2)), "two-val");
+        assert_eq!(f.get_cell((5, 2)).unwrap().get_formula(), "C2*D2");
+    }
+
+    #[test]
+    fn test_0210_get_anaysis_data_no_term_row() {
+        let mut an = ws("GA10AN");
+        put(&mut an, 1, 2, "K1");
+        put(&mut an, 1, 3, "SEC: alpha");
+        // term row removed: column B stays empty
+        put(&mut an, 7, 5, "total: 42");
+        let mut f = ws("GA10F");
+        put_num(&mut f, 1, 1, 10.0);
+        put(&mut f, 2, 1, "K1");
+
+        let res = get_anaysis_data(&an, &"A".to_string(), &"B".to_string(), &"A,G".to_string(),
+            &"^SEC:".to_string(), &"EndMark".to_string(),
+            &mut f, &"B".to_string(), &"C,D".to_string(), &"E=C*D".to_string());
+
+        // section header matched, but no term row: nothing is copied
+        assert!(!res);
+        assert_eq!(f.get_value((3, 1)), "");
+        assert_eq!(f.get_value((4, 1)), "");
+        assert!(f.get_cell((5, 1)).is_none());
+    }
+
+    #[test]
+    fn test_0211_get_anaysis_data_bad_calcs_leaves_partial_copy() {
+        let mut an = ws("GA11AN");
+        put(&mut an, 1, 2, "K1");
+        put(&mut an, 1, 3, "SEC: alpha");
+        put(&mut an, 2, 5, "EndMark");
+        put(&mut an, 7, 5, "total: 42");
+        let mut f = ws("GA11F");
+        put_num(&mut f, 1, 1, 10.0);
+        put(&mut f, 2, 1, "K1");
+
+        // calcs without '=' -> apply_calculations errors after the copy is done
+        let res = get_anaysis_data(&an, &"A".to_string(), &"B".to_string(), &"A,G".to_string(),
+            &"^SEC:".to_string(), &"EndMark".to_string(),
+            &mut f, &"B".to_string(), &"C,D".to_string(), &"ABC".to_string());
+
+        // Documented current behavior: the copied values are already in the
+        // sheet when the calculation failure aborts the call.
+        assert!(!res);
+        assert_eq!(f.get_value((3, 1)), "alpha");
+        assert_eq!(f.get_value((4, 1)), "42");
+        assert!(f.get_cell((5, 1)).is_none());
+    }
 }
