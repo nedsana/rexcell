@@ -1104,3 +1104,366 @@ pub fn execute(cfg: &common::Config) -> Result<(), String>
     Ok(())
 
 }
+
+/* ---------------------------------------------------------------------------------------- */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Sheets are built directly in memory; the functions under test only
+    // read/write cells of the given worksheets.
+    fn ws(name: &str) -> Worksheet {
+        let mut sheet = Worksheet::default();
+        sheet.set_name(name);
+        sheet
+    }
+
+    fn put(sheet: &mut Worksheet, col: u32, row: u32, value: &str) {
+        sheet.get_cell_mut((col, row)).set_value(value);
+    }
+
+    /// A formula cell carrying a stale cached result (like one loaded from
+    /// a saved xlsx). set_formula_result_default keeps the formula in place.
+    fn put_formula_cached(sheet: &mut Worksheet, col: u32, row: u32, formula: &str, cached: &str) {
+        let cell = sheet.get_cell_mut((col, row));
+        cell.set_formula(formula);
+        cell.set_formula_result_default(cached);
+    }
+
+    // ------------------------------------------------------------------
+    // get_ref_map_by_indexes / get_ref_map_by_strings
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn test_0157_get_ref_map_by_indexes_maps_value_to_key() {
+        let mut s = ws("RM1");
+        put(&mut s, 2, 1, "K1"); put(&mut s, 3, 1, "V1");
+        put(&mut s, 2, 2, "K2"); put(&mut s, 3, 2, "V2");
+        put(&mut s, 2, 3, "K3"); put(&mut s, 3, 3, "V3");
+
+        let m = get_ref_map_by_indexes(&s, 2, 3);
+        // Documented current behavior: the map is keyed by the VALUE column
+        // and holds the KEY column content (reversed vs the parameter names).
+        assert_eq!(m.len(), 3);
+        assert_eq!(m.get("V1"), Some(&"K1".to_string()));
+        assert_eq!(m.get("V2"), Some(&"K2".to_string()));
+        assert_eq!(m.get("V3"), Some(&"K3".to_string()));
+    }
+
+    #[test]
+    fn test_0158_get_ref_map_by_indexes_skips_incomplete_rows() {
+        let mut s = ws("RM2");
+        put(&mut s, 2, 1, "K1"); // key only
+        put(&mut s, 3, 2, "V2"); // value only
+        put(&mut s, 2, 3, "K3"); put(&mut s, 3, 3, "V3"); // complete
+
+        let m = get_ref_map_by_indexes(&s, 2, 3);
+        assert_eq!(m.len(), 1);
+        assert_eq!(m.get("V3"), Some(&"K3".to_string()));
+    }
+
+    #[test]
+    fn test_0159_get_ref_map_by_indexes_duplicates() {
+        let mut s = ws("RM3");
+        // same value, two keys -> last row wins (HashMap insert overwrites)
+        put(&mut s, 2, 1, "K1"); put(&mut s, 3, 1, "V");
+        put(&mut s, 2, 2, "K2"); put(&mut s, 3, 2, "V");
+        // same key, two values -> both entries kept
+        put(&mut s, 2, 3, "K3"); put(&mut s, 3, 3, "VA");
+        put(&mut s, 2, 4, "K3"); put(&mut s, 3, 4, "VB");
+
+        let m = get_ref_map_by_indexes(&s, 2, 3);
+        assert_eq!(m.len(), 3);
+        assert_eq!(m.get("V"), Some(&"K2".to_string()));
+        assert_eq!(m.get("VA"), Some(&"K3".to_string()));
+        assert_eq!(m.get("VB"), Some(&"K3".to_string()));
+    }
+
+    #[test]
+    fn test_0160_get_ref_map_by_strings_delegates_to_indexes() {
+        let mut s = ws("RM4");
+        put(&mut s, 2, 1, "K1"); put(&mut s, 3, 1, "V1");
+
+        let by_idx = get_ref_map_by_indexes(&s, 2, 3);
+        let by_str = get_ref_map_by_strings(&s, &"B".to_string(), &"C".to_string());
+        assert_eq!(by_idx, by_str);
+    }
+
+    // ------------------------------------------------------------------
+    // apply_formulas / reset_formulas
+    //
+    // The "reset" of a formula cell is set_value("") + set_formula(f):
+    // set_value() wipes the cached raw value (and removes the formula),
+    // set_formula() restores the formula but keeps the raw value empty.
+    // Observable effect: get_value() becomes empty, formula stays intact.
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn test_0161_apply_formulas_clears_cache_on_matching_rows_only() {
+        let mut rt = ws("AF1R");
+        put(&mut rt, 1, 1, "K1");
+        put(&mut rt, 1, 2, "K2");
+
+        let mut ut = ws("AF1U");
+        put(&mut ut, 1, 1, "K1"); put_formula_cached(&mut ut, 2, 1, "SUM(A1:A2)", "stale1");
+        put(&mut ut, 1, 2, "K2"); put_formula_cached(&mut ut, 2, 2, "A2*2", "stale2");
+        put(&mut ut, 1, 3, "ZZ"); put_formula_cached(&mut ut, 2, 3, "A3+1", "stale3"); // not in ref
+        put_formula_cached(&mut ut, 2, 4, "A4+1", "stale4"); // row without a key
+        put_formula_cached(&mut ut, 9, 1, "A9+1", "stale5"); // beyond MAX_COL(8)
+
+        apply_formulas(&rt, &mut ut, 1);
+
+        // matching rows: formula kept, cached result cleared
+        assert!(ut.get_cell((2, 1)).unwrap().is_formula());
+        assert_eq!(ut.get_cell((2, 1)).unwrap().get_formula(), "SUM(A1:A2)");
+        assert!(ut.get_value((2, 1)).is_empty());
+        assert!(ut.get_cell((2, 2)).unwrap().is_formula());
+        assert_eq!(ut.get_cell((2, 2)).unwrap().get_formula(), "A2*2");
+        assert!(ut.get_value((2, 2)).is_empty());
+
+        // non-matching rows: cached results intact
+        assert_eq!(ut.get_value((2, 3)), "stale3");
+        assert_eq!(ut.get_value((2, 4)), "stale4");
+
+        // Documented current behavior: the column loop stops at MAX_COL=8,
+        // so col I is untouched even on a matching row.
+        assert_eq!(ut.get_value((9, 1)), "stale5");
+    }
+
+    #[test]
+    fn test_0162_apply_formulas_matches_keys_case_insensitively() {
+        let mut rt = ws("AF2R");
+        put(&mut rt, 1, 1, "  Key1 "); // cmp_strs: case- and whitespace-insensitive
+        let mut ut = ws("AF2U");
+        put(&mut ut, 1, 1, "key1");
+        put_formula_cached(&mut ut, 2, 1, "A1+1", "stale");
+
+        apply_formulas(&rt, &mut ut, 1);
+
+        assert!(ut.get_cell((2, 1)).unwrap().is_formula());
+        assert!(ut.get_value((2, 1)).is_empty()); // matched despite case/spacing
+    }
+
+    #[test]
+    fn test_0163_apply_formulas_no_reference_keys_touches_nothing() {
+        let rt = ws("AF3R"); // empty reference
+        let mut ut = ws("AF3U");
+        put(&mut ut, 1, 1, "K1");
+        put_formula_cached(&mut ut, 2, 1, "A1+1", "stale");
+
+        apply_formulas(&rt, &mut ut, 1);
+
+        assert!(ut.get_cell((2, 1)).unwrap().is_formula());
+        assert_eq!(ut.get_value((2, 1)), "stale");
+    }
+
+    #[test]
+    fn test_0164_reset_formulas_clears_all_formula_caches() {
+        let mut s = ws("RF1");
+        put_formula_cached(&mut s, 1, 1, "A2+1", "stale1");
+        put_formula_cached(&mut s, 3, 2, "SUM(A1:B2)", "stale2");
+        put(&mut s, 1, 2, "plain");
+        put(&mut s, 2, 1, "text");
+
+        reset_formulas(&mut s);
+
+        // formulas kept, cached results cleared
+        assert!(s.get_cell((1, 1)).unwrap().is_formula());
+        assert_eq!(s.get_cell((1, 1)).unwrap().get_formula(), "A2+1");
+        assert!(s.get_value((1, 1)).is_empty());
+        assert!(s.get_cell((3, 2)).unwrap().is_formula());
+        assert_eq!(s.get_cell((3, 2)).unwrap().get_formula(), "SUM(A1:B2)");
+        assert!(s.get_value((3, 2)).is_empty());
+
+        // non-formula cells untouched, and not turned into formulas
+        assert_eq!(s.get_value((1, 2)), "plain");
+        assert_eq!(s.get_value((2, 1)), "text");
+        assert!(!s.get_cell((1, 2)).unwrap().is_formula());
+    }
+
+    // ------------------------------------------------------------------
+    // clear_worksheet
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn test_0165_clear_worksheet_removes_cells_and_merges() {
+        let mut s = ws("CW1");
+        put(&mut s, 1, 1, "a");
+        put(&mut s, 3, 2, "b");
+        put(&mut s, 1, 4, "c");
+        s.add_merge_cells("A1:B1");
+
+        clear_worksheet(&mut s);
+
+        assert_eq!(s.get_highest_row(), 0);
+        assert_eq!(s.get_highest_column(), 0);
+        assert!(s.get_merge_cells().is_empty());
+        assert!(s.get_value((1, 1)).is_empty());
+        assert!(s.get_value((3, 2)).is_empty());
+    }
+
+    #[test]
+    fn test_0166_clear_worksheet_empty_sheet_is_noop() {
+        let mut s = ws("CW2");
+        clear_worksheet(&mut s); // max_row == 0 -> remove_row skipped, no panic
+        assert_eq!(s.get_highest_row(), 0);
+        assert!(s.get_merge_cells().is_empty());
+    }
+
+    // ------------------------------------------------------------------
+    // apply_key_value_data_by_indexes / apply_key_value_data_by_strings
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn test_0167_apply_key_value_data_by_indexes_copies_matched_values() {
+        let mut rt = ws("KV1R");
+        put(&mut rt, 1, 1, "K1"); put(&mut rt, 3, 1, "val1");
+        put(&mut rt, 1, 2, "K2"); put(&mut rt, 3, 2, "val2");
+        let mut ut = ws("KV1U");
+        put(&mut ut, 1, 1, "K1");
+        put(&mut ut, 1, 2, "K2");
+        put(&mut ut, 3, 3, "keep"); // row without a key -> skipped
+
+        assert!(apply_key_value_data_by_indexes(&rt, &mut ut, 1, 3, &"".to_string()).is_ok());
+        assert_eq!(ut.get_value((3, 1)), "val1");
+        assert_eq!(ut.get_value((3, 2)), "val2");
+        assert_eq!(ut.get_value((3, 3)), "keep");
+    }
+
+    #[test]
+    fn test_0168_apply_key_value_data_by_indexes_numeric_vs_string_copy() {
+        let mut rt = ws("KV2R");
+        put(&mut rt, 1, 1, "K1");
+        rt.get_cell_mut((3, 1)).set_value_number(42.5); // numeric source
+        put(&mut rt, 1, 2, "K2");
+        put(&mut rt, 3, 2, "text2"); // string source
+        let mut ut = ws("KV2U");
+        put(&mut ut, 1, 1, "K1");
+        put(&mut ut, 1, 2, "K2");
+
+        assert!(apply_key_value_data_by_indexes(&rt, &mut ut, 1, 3, &"".to_string()).is_ok());
+        // numeric source cell is copied as a number, not as its text
+        assert_eq!(ut.get_cell((3, 1)).unwrap().get_data_type(), "n");
+        assert_eq!(ut.get_cell((3, 1)).unwrap().get_value_number(), Some(42.5));
+        // string source cell is copied as text
+        assert_eq!(ut.get_value((3, 2)), "text2");
+    }
+
+    #[test]
+    fn test_0169_apply_key_value_data_by_indexes_no_match_returns_error() {
+        let mut rt = ws("KV3R");
+        put(&mut rt, 1, 1, "K1"); put(&mut rt, 3, 1, "val1");
+        let mut ut = ws("KV3U");
+        put(&mut ut, 1, 1, "no-such-key");
+        put(&mut ut, 3, 1, "keep");
+
+        let err = apply_key_value_data_by_indexes(&rt, &mut ut, 1, 3, &"".to_string()).unwrap_err();
+        assert_eq!(err, common::MESSAGE_NO_KEY_VALUE_MAPPING);
+        assert_eq!(ut.get_value((3, 1)), "keep"); // nothing was written
+    }
+
+    #[test]
+    fn test_0170_apply_key_value_data_by_indexes_one_match_makes_call_succeed() {
+        let mut rt = ws("KV4R");
+        put(&mut rt, 1, 1, "K1"); put(&mut rt, 3, 1, "val1");
+        let mut ut = ws("KV4U");
+        put(&mut ut, 1, 1, "K1");
+        put(&mut ut, 1, 2, "orphan"); // no match in reference
+
+        // Documented current behavior: the `found` flag is never reset per
+        // row, so a single matched row makes the whole call succeed and the
+        // orphan row is skipped without an Err.
+        assert!(apply_key_value_data_by_indexes(&rt, &mut ut, 1, 3, &"".to_string()).is_ok());
+        assert_eq!(ut.get_value((3, 1)), "val1");
+        assert!(ut.get_value((3, 2)).is_empty()); // orphan row untouched
+    }
+
+    #[test]
+    fn test_0171_apply_key_value_data_by_indexes_resets_formula_caches_on_success() {
+        let mut rt = ws("KV5R");
+        put(&mut rt, 1, 1, "K1"); put(&mut rt, 3, 1, "val1");
+
+        // success path: reset_formulas runs at the end, wiping cached results
+        let mut ut = ws("KV5U");
+        put(&mut ut, 1, 1, "K1");
+        put_formula_cached(&mut ut, 4, 1, "B1+1", "stale");
+        assert!(apply_key_value_data_by_indexes(&rt, &mut ut, 1, 3, &"".to_string()).is_ok());
+        assert!(ut.get_cell((4, 1)).unwrap().is_formula());
+        assert!(ut.get_value((4, 1)).is_empty());
+
+        // failure path: the early return skips reset_formulas, cache intact
+        let mut ut2 = ws("KV5U2");
+        put(&mut ut2, 1, 1, "orphan");
+        put_formula_cached(&mut ut2, 4, 1, "B1+1", "stale");
+        assert!(apply_key_value_data_by_indexes(&rt, &mut ut2, 1, 3, &"".to_string()).is_err());
+        assert_eq!(ut2.get_value((4, 1)), "stale");
+    }
+
+    #[test]
+    fn test_0172_apply_key_value_data_by_indexes_calcs_formula_row_substitution() {
+        let mut rt = ws("KV6R");
+        put(&mut rt, 1, 2, "K2"); put(&mut rt, 3, 2, "val2"); // reference data in row 2
+        let mut ut = ws("KV6U");
+        put(&mut ut, 1, 2, "K2");
+
+        let calcs = "D=B*C".to_string(); // user formula, single-letter columns
+        assert!(apply_key_value_data_by_indexes(&rt, &mut ut, 1, 3, &calcs).is_ok());
+        // every column letter gets the matched update row appended:
+        // "D=B*C" -> "D2=B2*C2" -> formula "B2*C2" written to D2
+        let c = ut.get_cell((4, 2)).unwrap();
+        assert!(c.is_formula());
+        assert_eq!(c.get_formula(), "B2*C2");
+    }
+
+    #[test]
+    fn test_0173_apply_key_value_data_by_indexes_calcs_missing_equals_errors() {
+        let mut rt = ws("KV7R");
+        put(&mut rt, 1, 1, "K1"); put(&mut rt, 3, 1, "val1");
+        let mut ut = ws("KV7U");
+        put(&mut ut, 1, 1, "K1");
+
+        let calcs = "D B*C".to_string(); // no '=' sign
+        let err = apply_key_value_data_by_indexes(&rt, &mut ut, 1, 3, &calcs).unwrap_err();
+        assert_eq!(err, "Missing sign '='!");
+        // Documented current behavior: the value copy happens before the
+        // calcs error, so the sheet is left partially updated.
+        assert_eq!(ut.get_value((3, 1)), "val1");
+    }
+
+    #[test]
+    fn test_0174_apply_key_value_data_by_strings_empty_cols_error() {
+        let rt = ws("KV8R");
+        let mut ut = ws("KV8U");
+        let err = apply_key_value_data_by_strings(&rt, &mut ut, &"A".to_string(), &"".to_string(), &"".to_string()).unwrap_err();
+        assert_eq!(err, common::ERROR_DEST_COL_NOT_DEFINED);
+    }
+
+    #[test]
+    fn test_0175_apply_key_value_data_by_strings_multiple_columns() {
+        let mut rt = ws("KV9R");
+        put(&mut rt, 1, 1, "K1");
+        put(&mut rt, 2, 1, "vb");
+        put(&mut rt, 3, 1, "vc");
+        let mut ut = ws("KV9U");
+        put(&mut ut, 1, 1, "K1");
+
+        assert!(apply_key_value_data_by_strings(&rt, &mut ut, &"A".to_string(), &"B,C".to_string(), &"".to_string()).is_ok());
+        assert_eq!(ut.get_value((2, 1)), "vb");
+        assert_eq!(ut.get_value((3, 1)), "vc");
+    }
+
+    #[test]
+    fn test_0176_apply_key_value_data_by_indexes_first_reference_row_wins() {
+        let mut rt = ws("KV10R");
+        put(&mut rt, 1, 1, "K1"); put(&mut rt, 3, 1, "first");
+        put(&mut rt, 1, 2, "K1"); put(&mut rt, 3, 2, "second");
+        let mut ut = ws("KV10U");
+        put(&mut ut, 1, 1, "K1");
+
+        assert!(apply_key_value_data_by_indexes(&rt, &mut ut, 1, 3, &"".to_string()).is_ok());
+        // Documented current behavior: the reference scan breaks on the
+        // FIRST matching row, so "first" wins.
+        assert_eq!(ut.get_value((3, 1)), "first");
+    }
+}
