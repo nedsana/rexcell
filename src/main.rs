@@ -140,24 +140,24 @@ EXAMPLES:
 Update the file: read 'C' column from reference file ../Test_Excell_new.xlsx and update 'C' column in target file ../Test_Excell_new.xlsx
     cargo run --bin rexcell -- -c cmd-update-sheets -t ../Test_Excell_new.xlsx -s C -d B -u "Лист1,Лист2,Лист3" -r ../Test_Excell_new.xlsx -e "Unknown Items" -k B -v C -i
     cargo run --bin rexcell -- -c cmd-update-sheets -t ../Test_Excell_new.xlsx -s C -d B -u "Лист1,Лист2,Лист3" -r ../Test_Excell_new.xlsx -e "Test" -k B -v C -i
-    cargo run --bin rexcell -- -c cmd-update-sheets -t ./Ref_Files/Test_Excell_new.xlsx -s C -d B -u "Лист1,Лист2,Лист3" -r ./Ref_Files/Test_Excell_new.xlsx -e "Test" -k B -v C -i
+    cargo run --bin rexcell -- -c cmd-update-sheets -t ./tests/fixtures/reference/Test_Excell_new.xlsx -s C -d B -u "Лист1,Лист2,Лист3" -r ./tests/fixtures/reference/Test_Excell_new.xlsx -e "Test" -k B -v C -i
 
 Update the file: get the cells in 'C' col from ref.table. Find this cell content in col 'C' from tgt.table and copy the content of ref.col 'F' to tgt.col 'F'
-    cargo run --bin rexcell -- -c cmd-update-sheets -t ./Ref_Files/Test_Excell_new.xlsx -s C -d F -u "Лист1,Лист2,Лист3" -r ./Ref_Files/Test_Excell_new.xlsx -e "Test" -k F -v C -i 
+    cargo run --bin rexcell -- -c cmd-update-sheets -t ./tests/fixtures/reference/Test_Excell_new.xlsx -s C -d F -u "Лист1,Лист2,Лист3" -r ./tests/fixtures/reference/Test_Excell_new.xlsx -e "Test" -k F -v C -i 
 
 Read target file ../Test_Excell.xlsx, extract unique entries from column C and store them in another sheet
     cargo run --bin rexcell -- -c cmd-filter-sheets -t ../Test_Excell.xlsx -u "Лист1,Лист2,Лист3" -s C -d E -n "Test"
-    cargo run --bin rexcell -- -c cmd-filter-sheets -t ./Ref_Files/Test_Excell.xlsx -u "Лист1,Лист2,Лист3" -s C -d E -n "Test"
+    cargo run --bin rexcell -- -c cmd-filter-sheets -t ./tests/fixtures/reference/Test_Excell.xlsx -u "Лист1,Лист2,Лист3" -s C -d E -n "Test"
 
 Lits the existing sheets in target file ../Test_Excell.xlsx
     cargo run --bin rexcell -- -c cmd-list-sheets -t ../Test_Excell.xlsx
 
 Execute autoupdate:
-RUST_BACKTRACE=1 cargo run --bin rexcell -- -c cmd-autocomplete-sheets -t "./Ref_Files/Test_Excell_T1.xlsx" -u "КСС_ОП1" -s "C" -d "B,F" -n "Prices" -i -a "./Ref_Files/Test_Excell_T1_Analysis.xlsx" -o "Analysis" >OUT
+RUST_BACKTRACE=1 cargo run --bin rexcell -- -c cmd-autocomplete-sheets -t "./tests/fixtures/reference/Test_Excell_T1.xlsx" -u "КСС_ОП1" -s "C" -d "B,F" -n "Prices" -i -a "./tests/fixtures/reference/Test_Excell_T1_Analysis.xlsx" -o "Analysis" >OUT
 
 Real test:
-RUST_BACKTRACE=1 cargo run --bin rexcell -- -c cmd-autocomplete-sheets -t "./Ref_Files/Test_Twins.xlsx" -u "Ф200,Ф160,Ф 125,Ф 90" -s "C" -d "B,F" -n "Prices" -i -a "./Ref_Files/ОП № 2-КСС Близнаци(ЕВРОКАНАЛ) ().xlsx" -o "Анализи" >OUT
-RUST_BACKTRACE=1 cargo run --bin rexcell -- -c cmd-filter-sheets -t "./Ref_Files/Test_Twins.xlsx" -u "Ф200,Ф160,Ф 125,Ф 90" -s "C" -d "E" -n "Prices" >OUT
+RUST_BACKTRACE=1 cargo run --bin rexcell -- -c cmd-autocomplete-sheets -t "./tests/fixtures/reference/Test_Twins.xlsx" -u "Ф200,Ф160,Ф 125,Ф 90" -s "C" -d "B,F" -n "Prices" -i -a "./tests/fixtures/reference/ОП № 2-КСС Близнаци(ЕВРОКАНАЛ) ().xlsx" -o "Анализи" >OUT
+RUST_BACKTRACE=1 cargo run --bin rexcell -- -c cmd-filter-sheets -t "./tests/fixtures/reference/Test_Twins.xlsx" -u "Ф200,Ф160,Ф 125,Ф 90" -s "C" -d "E" -n "Prices" >OUT
 
 dev@ned-dev:~/Projects/Razni/rexcell$ ls Ref_Files/
 '5.1.1. КСС1_Горун_Прил. 2.1 - Евроканал.xlsx'   Test_Excell_T1_Analysis.xlsx   Test_Range_Merged.xlsx                   'КСС етап 2(53337467) - ЕВРОКАНАЛ 2.04.2026.xlsx'
