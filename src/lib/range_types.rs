@@ -1571,4 +1571,103 @@ mod tests {
             check_getters(IterRowNextKind::Multiline, r);
         }
     }
+
+    // ------------------------------------------------------------------
+    // Row-by-row iterators: Iterator for RangeGeneric / RangeType /
+    // RangeTypeMut (yields one Range per row), LendingIterator impls
+    // (source comments: "not used and most likely incorrect" — the tests
+    // pin the current behavior), and the always-false PartialEq impls.
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn test_0151_range_generic_iterator_yields_rows() {
+        let a = cc_sheet("IT01A", &[]);
+        let mut r = RangeBasic::new(a2c4(), &a);
+        // qualified: RangeGeneric also implements LendingIterator (same `next` name)
+        assert_eq!(Iterator::next(&mut r).unwrap().get_range(), "A2:C2");
+        assert_eq!(Iterator::next(&mut r).unwrap().get_range(), "A3:C3");
+        assert_eq!(Iterator::next(&mut r).unwrap().get_range(), "A4:C4");
+        assert!(Iterator::next(&mut r).is_none());
+        // invalid range yields nothing
+        let mut r2 = RangeBasic::new(Range::default(), &a);
+        assert!(Iterator::next(&mut r2).is_none());
+    }
+
+    #[test]
+    fn test_0152_range_type_iterator_yields_rows() {
+        let a = cc_sheet("IT02A", &[]);
+        for mk in [RangeType::basic, RangeType::merged, RangeType::multiline] {
+            let mut rt = mk(a2c4(), &a);
+            let rows: Vec<String> = (&mut rt).map(|rr| rr.get_range()).collect();
+            assert_eq!(rows, vec!["A2:C2".to_string(), "A3:C3".to_string(), "A4:C4".to_string()]);
+        }
+    }
+
+    fn check_mut_row_iterator(kind: IterRowNextKind) {
+        let mut a = cc_sheet("IT03A", &[]);
+        let mut rt = make_range_inst_mut(kind, a2c4(), &mut a);
+        let rows: Vec<String> = (&mut rt).map(|rr| rr.get_range()).collect();
+        assert_eq!(rows, vec!["A2:C2".to_string(), "A3:C3".to_string(), "A4:C4".to_string()]);
+        let cur = match &rt {
+            RangeTypeMut::Basic(r) => r.current_row,
+            RangeTypeMut::Merged(r) => r.current_row,
+            RangeTypeMut::Multiline(r) => r.current_row,
+        };
+        assert_eq!(cur, 5);
+    }
+
+    #[test]
+    fn test_0153_range_type_mut_iterator_yields_rows() {
+        check_mut_row_iterator(IterRowNextKind::Basic);
+        check_mut_row_iterator(IterRowNextKind::Merged);
+        check_mut_row_iterator(IterRowNextKind::Multiline);
+    }
+
+    #[test]
+    fn test_0154_lending_iterator_range_generic() {
+        let a = cc_sheet("IT04A", &[]);
+        let mut r = RangeBasic::new(a2c4(), &a);
+        let mut cnt = 0;
+        while let Some(item) = LendingIterator::next(&mut r) {
+            // Documented quirk: the item is the WHOLE range object, not the
+            // current row (the impl is marked "not used" in the source).
+            assert_eq!(item.get_range().get_range(), "A2:C4");
+            cnt += 1;
+        }
+        assert_eq!(cnt, 3);
+        assert_eq!(r.current_row, 5);
+    }
+
+    fn check_mut_lending_variant(kind: IterRowNextKind) {
+        let mut a = cc_sheet("IT05A", &[]);
+        let mut rt = make_range_inst_mut(kind, a2c4(), &mut a);
+        let mut cnt = 0;
+        while let Some(_item) = LendingIterator::next(&mut rt) {
+            cnt += 1;
+        }
+        // each call probes the inner iterator, advancing the row counter once
+        let cur = match &rt {
+            RangeTypeMut::Basic(r) => r.current_row,
+            RangeTypeMut::Merged(r) => r.current_row,
+            RangeTypeMut::Multiline(r) => r.current_row,
+        };
+        assert_eq!(cnt, 3);
+        assert_eq!(cur, 5);
+    }
+
+    #[test]
+    fn test_0155_lending_iterator_range_type_mut() {
+        check_mut_lending_variant(IterRowNextKind::Basic);
+        check_mut_lending_variant(IterRowNextKind::Merged);
+        check_mut_lending_variant(IterRowNextKind::Multiline);
+    }
+
+    #[test]
+    fn test_0156_partial_eq_always_false() {
+        let a = cc_sheet("EQ01A", &[(1, 1, "x")]);
+        // no Debug on RangeGeneric, so assert via ==  directly
+        assert!(!((RangeBasic::new(a2c4(), &a)) == (RangeBasic::new(a2c4(), &a))));
+        assert!(!((RangeMergedCells::new(a2c4(), &a)) == (RangeMergedCells::new(a2c4(), &a))));
+        assert!(!((RangeMultiline::new(a2c4(), &a)) == (RangeMultiline::new(a2c4(), &a))));
+    }
 }

@@ -60,3 +60,11 @@ Output: unless `-i` is given, results are written to `<target>_new.xlsx` (`NEW_F
 
 `fern` logger at `Debug` level to stdout. GUI runs are typically launched as `cargo run --bin gui >OUT`; `OUT` is a captured log file in the repo root (not committed).
 
+## Graphify (knowledge graph)
+
+`/graphify .` builds a knowledge graph in `graphify-out/` (generated — safe to delete/rebuild). After any full build or `--update`, exclude the inline tests: the Rust extractor has no `#[cfg(test)]` skip, so the test modules in `src/lib/range_ops.rs` and `src/lib/range_types.rs` add ~130 `test_XXXX_*` nodes that pollute the graph.
+
+Re-apply the filter (idempotent, run after each build):
+1. In `graphify-out/graph.json`, drop every node whose id matches `_(test_\d+|test_sheet)(_|$)` (all are `file_type:"code"`), plus any edge touching a dropped node.
+2. Re-cluster the remainder (`graphify.cluster.cluster`), re-label the communities, then regenerate `GRAPH_REPORT.md` and `graph.html` (`graphify export html`). When writing `graph.json` back, preserve its top-level `directed`/`multigraph`/`graph`/`hyperedges`/`built_at_commit` wrapper.
+
