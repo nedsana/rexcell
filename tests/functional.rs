@@ -3,17 +3,31 @@ use std::path::{Path, PathBuf};
 
 use rexcell::{common, excell, range_ops};
 
+fn create_folder(folder: &str)
+{
+    fs::create_dir_all(folder)
+        .unwrap_or_else(|e| panic!("Failed to create '{}': {}", folder, e));
+}
+
 // cargo runs integration tests with CWD = crate root
 fn reference_file(name: &str) -> PathBuf {
-    Path::new("tests/fixtures/reference").join(name)
+    let dir = "tests/fixtures/reference";
+    // tests/fixtures/reference is part of the project, so if it is missing there 
+    // is something wrong with the git repo access. Don't create the folder!
+    // create_folder(dir); 
+    Path::new(dir).join(name)
 }
 
 fn expected_file(name: &str) -> PathBuf {
-    Path::new("tests/fixtures/expected").join(name)
+    let dir = "tests/fixtures/expected";
+    create_folder(dir);
+    Path::new(dir).join(name)
 }
 
 fn actual_file(name: &str) -> PathBuf {
-    Path::new("tests/fixtures/actual").join(name)
+    let dir = "tests/fixtures/actual";
+    create_folder(dir);
+    Path::new(dir).join(name)
 }
 
 fn base_config() -> common::Config {
@@ -41,29 +55,24 @@ fn base_config() -> common::Config {
     }
 }
 
-/// Execute rexcell on `cfg` (whose `tgt_file` must already live inside the
-/// per-command actual dir) and return the path of the produced `_new.xlsx`.
-fn run(cfg: &mut common::Config) -> Result<PathBuf, String> 
+/// Execute rexcell on `cfg` (whose `tgt_file` must already live inside the actual dir) 
+/// and return the path of the produced `_new.xlsx`.
+fn run(cfg: &mut common::Config) -> Result<PathBuf, String>
 {
-    if let Some((_, filename)) = cfg.tgt_file.rsplit_once('/') 
+    let Some(stem) = Path::new(&cfg.tgt_file).file_stem().and_then(|s| s.to_str()) else
     {
-        if let Some((filename, _)) = filename.split_once('.') 
-        {
-            let out = actual_file(&format!("{}_new.xlsx", filename));
-            let _ = fs::remove_file(&out); // drop the old test file
+        return Err(format!("run(): Failed to read target file name from '{}'!", cfg.tgt_file));
+    };
 
-            // println!("Removed {}", out.as_path().to_string_lossy());
-            // println!("{}", cfg);
+    let out = actual_file(&format!("{}_new.xlsx", stem));
+    let _ = fs::remove_file(&out); // drop the old test file
 
-            excell::execute(cfg).map_err(|e| format!("execute failed: {}", e))?;
+    excell::execute(cfg).map_err(|e| format!("execute failed: {}", e))?;
 
-            if !out.exists() {
-                return Err(format!("run(): Missing: {}", out.display()));
-            }
-            return Ok(out);
-        }
+    if !out.exists() {
+        return Err(format!("run(): Missing: {}", out.display()));
     }
-    Err(format!("run(): Failed to read target file name from '{}'!", cfg.tgt_file))
+    Ok(out)
 }
 
 /// Cell-by-cell comparison of two workbooks (sheets, then cells up to
@@ -206,39 +215,27 @@ fn update_cfg(target: &Path, inplace: bool) -> common::Config {
 //Execute functional tests for "Autocomplete" command over Test_Excell.*.xlsx and Test_Range_.*.xlsx files.
 fn test_autocomplete(afile_name: &str, tfile_name: &str) -> bool
 {
+    let mode_record = std::env::var("MODE_RECORD").is_ok();
     let mut ret = false;
-
-    // let path_ref_dir = "tests/fixtures/reference";
-    // let path_exp_dir = "tests/fixtures/expected";
 
     let afile_path = reference_file(afile_name);
     let mut tfile_path = reference_file(tfile_name);
 
     if afile_path.exists() && tfile_path.exists()
     {
-        let mut act_file_path = actual_file(tfile_name);
+        let act_file_path = actual_file(tfile_name);
         let exp_file_path = expected_file(tfile_name);
 
         let afile = afile_path.to_string_lossy().into_owned();
         let efile = exp_file_path.to_string_lossy().into_owned();
-
-        let mode_record = std::env::var("MODE_RECORD").is_ok();
-        if true == mode_record
-        {
-            if exp_file_path.exists() && let Err(err) = fs::remove_file(&exp_file_path)
-            {
-                eprintln!("Failed to delete '{}'! {}", exp_file_path.as_path().to_string_lossy(), err);
-                return ret;
-            }
-            act_file_path = exp_file_path;
-        }
 
         if let Err(err) = fs::copy(&tfile_path, &act_file_path)
         {
             eprintln!("Failed to copy '{}' to '{}'! {}", tfile_path.as_path().to_string_lossy(), act_file_path.as_path().to_string_lossy(), err);
             return ret;
         }
-        tfile_path = act_file_path;
+
+        tfile_path = act_file_path; //the file we will be working on
 
         let tfile = tfile_path.to_string_lossy().into_owned();
 
@@ -277,8 +274,16 @@ fn test_autocomplete(afile_name: &str, tfile_name: &str) -> bool
                     }
                     else if true  == mode_record
                     {
-                        println!("Created {}!", tfile);
-                        ret = true;
+                        // Update reference/golden is written only after a successful run,
+                        if let Err(err) = fs::copy(Path::new(&tfile), &exp_file_path)
+                        {
+                            eprintln!("Failed to copy '{}' to '{}'! {}", tfile, exp_file_path.as_path().to_string_lossy(), err);
+                        }
+                        else
+                        {
+                            println!("Created {}!", exp_file_path.as_path().to_string_lossy());
+                            ret = true;
+                        }
                     }
                     else
                     {
@@ -370,6 +375,32 @@ fn corner_numeric() {
 }
 
 #[test]
+fn corner_inplace() {
+    let path = actual_file("corner_inplace.xlsx");
+    write_workbook(&path, |book| {
+        let mut s1 = umya_spreadsheet::Worksheet::default();
+        s1.set_name("S1");
+        s1.get_cell_mut((3, 2)).set_value("Ключ");
+        let mut r = umya_spreadsheet::Worksheet::default();
+        r.set_name("R");
+        r.get_cell_mut((3, 2)).set_value("ключ "); // different case + trailing space
+        r.get_cell_mut((4, 2)).set_value("123");
+        book.add_sheet(s1).unwrap();
+        book.add_sheet(r).unwrap();
+    });
+
+    // inplace writes back to the input, so execute directly (no run()).
+    excell::execute(&update_cfg(&path, true)).expect("execute failed");
+
+    let book = umya_spreadsheet::reader::xlsx::read(&path).expect("read input in place");
+    assert_eq!(sheet_value(&book, "S1", 4, 2), "123");
+    assert!(
+        !actual_file("corner_inplace_new.xlsx").exists(),
+        "inplace must not create a _new.xlsx"
+    );
+}
+
+#[test]
 fn corner_filter_accumulate() {
     let path = actual_file("corner_filter_accumulate.xlsx");
     write_workbook(&path, |book| {
@@ -411,6 +442,7 @@ fn corner_filter_accumulate() {
     assert!((acc - 5.0).abs() < 1e-9, "expected accumulated 5.0, got {acc}");
 }
 
+// EXPECTED TO FAIL: MAX_ROW boundary bug, keep until fixed!
 #[test]
 fn corner_max_row() {
     // Rows 1..4999 share key "K", row 5000 = K5000 (last scanned), rows
