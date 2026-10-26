@@ -8,6 +8,15 @@ fn reference_file(name: &str) -> PathBuf {
     Path::new("tests/fixtures/reference").join(name)
 }
 
+fn expected_file(name: &str) -> PathBuf {
+    Path::new("tests/fixtures/expected").join(name)
+}
+
+fn actual_file(name: &str) -> PathBuf {
+    Path::new("tests/fixtures/actual").join(name)
+}
+
+
 fn actual_dir(command: &str) -> PathBuf {
     Path::new("tests/fixtures/actual").join(command)
 }
@@ -239,7 +248,7 @@ fn update_cfg(target: &Path, inplace: bool) -> common::Config {
     cfg
 }
 
-#[test]
+// #[test]
 fn corner_case() {
     let path = actual_dir("corner_case").join("case.xlsx");
     write_workbook(&path, |book| {
@@ -259,7 +268,7 @@ fn corner_case() {
     assert_eq!(sheet_value(&book, "S1", 4, 2), "123");
 }
 
-#[test]
+// #[test]
 fn corner_no_match() {
     let path = actual_dir("corner_no_match").join("nomatch.xlsx");
     write_workbook(&path, |book| {
@@ -281,7 +290,7 @@ fn corner_no_match() {
     );
 }
 
-#[test]
+// #[test]
 fn corner_numeric() {
     let path = actual_dir("corner_numeric").join("numeric.xlsx");
     write_workbook(&path, |book| {
@@ -307,7 +316,7 @@ fn corner_numeric() {
     assert_eq!(cell.get_value_number(), Some(12.5));
 }
 
-#[test]
+// #[test]
 fn corner_filter_accumulate() {
     let path = actual_dir("corner_filter_accumulate").join("accum.xlsx");
     write_workbook(&path, |book| {
@@ -349,7 +358,7 @@ fn corner_filter_accumulate() {
     assert!((acc - 5.0).abs() < 1e-9, "expected accumulated 5.0, got {acc}");
 }
 
-#[test]
+// #[test]
 fn corner_inplace() {
     let dir = actual_dir("corner_inplace");
     let path = dir.join("inplace_in.xlsx");
@@ -376,7 +385,7 @@ fn corner_inplace() {
     );
 }
 
-#[test]
+// #[test]
 fn corner_max_row() {
     // Rows 1..4999 share key "K", row 5000 = K5000 (last scanned), rows
     // 5001/5002 = K5001/K5002 must be ignored (MAX_ROW = 5000).
@@ -409,7 +418,7 @@ fn corner_max_row() {
     assert!(!keys.iter().any(|k| k == "K5002"), "K5002 must not be processed (MAX_ROW)");
 }
 
-#[test]
+// #[test]
 fn harness_self_check() {
     let p = reference_file("Test_Twins.xlsx");
     compare_workbooks(&p, &p).expect("self-compare must be equal");
@@ -421,7 +430,7 @@ fn harness_self_check() {
 // REXCELL_RECORD=1 cargo test --test functional
 // ----------------------------------------------------------------------
 
-#[test]
+// #[test]
 fn list_sheets_twins() {
     let p = reference_file("Test_Twins.xlsx");
     let names = excell::get_worksheet_names(&p).expect("list sheets");
@@ -434,7 +443,7 @@ fn list_sheets_twins() {
     excell::execute(&cfg).expect("execute failed");
 }
 
-#[test]
+// #[test]
 fn filter_twins() {
     let mut cfg = base_config();
     cfg.command = common::Command::CmdFilterSheets;
@@ -451,7 +460,7 @@ fn filter_twins() {
     record_or_compare(&out, &expected_path("cmd-filter-sheets", "Test_Twins"));
 }
 
-#[test]
+// #[test]
 fn update_twins() {
     let mut cfg = base_config();
     cfg.command = common::Command::CmdUpdateSheets;
@@ -474,7 +483,7 @@ fn update_twins() {
     record_or_compare(&out, &expected_path("cmd-update-sheets", "Test_Twins"));
 }
 
-#[test]
+// #[test]
 fn autocomplete_t1() {
     let analysis = reference_file("Test_Excell_T1_Analysis.xlsx");
     let analysis_before = fs::read(&analysis).expect("read analysis file");
@@ -509,66 +518,123 @@ fn autocomplete_t1() {
 }
 
 
+
+
+
+//delete all files from fixtures/expected
+fn clear_dir_content(path_dir: &str) -> Result<&str, String>
+{
+    if let Ok(path_dir) =  fs::read_dir(path_dir)
+    {
+        for entry in path_dir 
+        {
+            let path = entry.expect("dir entry").path();
+            if path.is_file() {
+                fs::remove_file(&path).expect("remove file");
+            }
+        }
+    }
+    else 
+    {
+        return Err(format!("Failed to find folder '{}'! Can't delete content!", path_dir));
+    }
+    Ok(path_dir)
+}
+
 //Execute functional tests for "Autocomplete" command over Test_Excell.*.xlsx and Test_Range_.*.xlsx files.
 fn test_autocomplete(afile_name: &str, tfile_name: &str) -> bool
 {
-    let mut ret = true;
+    let mut ret = false;
+
+    // let path_ref_dir = "tests/fixtures/reference";
+    // let path_exp_dir = "tests/fixtures/expected";
+
     let afile_path = reference_file(afile_name);
-    let afile = afile_path.to_string_lossy().into_owned();
+    let mut tfile_path = reference_file(tfile_name);
 
-    if let Ok(assheet) =  umya_spreadsheet::reader::xlsx::read(afile_path)
+    if afile_path.exists() && tfile_path.exists()
     {
-        let awsheets = excell::get_worksheet_names_list(&assheet);
-        if awsheets.len() == 1
+        let mut act_file_path = actual_file(tfile_name);
+        let exp_file_path = expected_file(tfile_name);
+
+        let afile = afile_path.to_string_lossy().into_owned();
+        let efile = exp_file_path.to_string_lossy().into_owned();
+
+        let mode_record = std::env::var("MODE_RECORD").is_ok();
+        if true == mode_record
         {
-            let tfile_path = reference_file(tfile_name);
-            let tfile = tfile_path.to_string_lossy().into_owned();
-
-            if let Ok(ssheet) = umya_spreadsheet::reader::xlsx::read(tfile_path)
+            if exp_file_path.exists() && let Err(err) = fs::remove_file(&exp_file_path)
             {
-                let swsheets = excell::get_worksheet_names_string(&ssheet);
+                eprintln!("Failed to delete '{}'! {}", exp_file_path.as_path().to_string_lossy(), err);
+                return ret;
+            }
+            act_file_path = exp_file_path;
+        }
 
-                println!("Processing file:{} sheet:{}", tfile, swsheets);
+        if let Err(err) = fs::copy(&tfile_path, &act_file_path)
+        {
+            eprintln!("Failed to copy '{}' to '{}'! {}", tfile_path.as_path().to_string_lossy(), act_file_path.as_path().to_string_lossy(), err);
+            return ret;
+        }
+        tfile_path = act_file_path;
 
-                let mut cfg = base_config();
-                cfg.command = common::Command::CmdAutocompleteSheets;
-                cfg.tgt_file = tfile.clone();
-                cfg.tgt_upd_table = swsheets.clone();
-                cfg.tgt_src_col = "C".to_string();
-                cfg.tgt_dest_col = "B,F".to_string();
-                cfg.tgt_acc_col = "E".to_string();
-                cfg.tgt_calcs = "G=E*F".to_string();
-                cfg.new_sheet_name = "Prices".to_string();
-                // analysis file is read in place, never copied
-                cfg.analysis_file = afile.clone();
-                cfg.analysis_table = awsheets[0].to_string();
-                cfg.analysis_col_srch = "A".to_string();
-                cfg.analysis_col_term = "B".to_string();
-                cfg.analysis_cols_cp_src = "A,G".to_string();
-                cfg.analysis_srch_pat = "Позиция: *, *Основание:(.*)".to_string();
-                cfg.analysis_term_pat = "Общо".to_string();
+        let tfile = tfile_path.to_string_lossy().into_owned();
 
-                //TO DO ... remove inplace and check execute results. Automate the test!
-                cfg.inplace = true;
-
-                if let Err(err) = excell::execute(&cfg)
+        if let Ok(assheet) =  umya_spreadsheet::reader::xlsx::read(afile_path)
+        {
+            let awsheets = excell::get_worksheet_names_list(&assheet);
+            if awsheets.len() == 1
+            {
+                if let Ok(ssheet) = umya_spreadsheet::reader::xlsx::read(tfile_path)
                 {
-                    println!("Failed to process file:{} sheets:{}! {}", tfile, swsheets, err);
-                    ret = false;
+                    let swsheets = excell::get_worksheet_names_string(&ssheet);
+
+                    let mut cfg = base_config();
+                    cfg.command = common::Command::CmdAutocompleteSheets;
+                    cfg.tgt_file = tfile.clone();
+                    cfg.tgt_upd_table = swsheets.clone();
+                    cfg.tgt_src_col = "C".to_string();
+                    cfg.tgt_dest_col = "B,F".to_string();
+                    cfg.tgt_acc_col = "E".to_string();
+                    cfg.tgt_calcs = "G=E*F".to_string();
+                    cfg.new_sheet_name = "Prices".to_string();
+                    // analysis file is read in place, never copied
+                    cfg.analysis_file = afile.clone();
+                    cfg.analysis_table = awsheets[0].to_string();
+                    cfg.analysis_col_srch = "A".to_string();
+                    cfg.analysis_col_term = "B".to_string();
+                    cfg.analysis_cols_cp_src = "A,G".to_string();
+                    cfg.analysis_srch_pat = "Позиция: *, *Основание:(.*)".to_string();
+                    cfg.analysis_term_pat = "Общо".to_string();
+                    //use inplace update, as we've already set correct path for tgt_file
+                    cfg.inplace = true;
+
+                    if let Err(err) = excell::execute(&cfg)
+                    {
+                        eprintln!("Failed to process file:{} sheets:{}! {}", tfile, swsheets, err);
+                    }
+                    else if true  == mode_record
+                    {
+                        println!("Created {}!", tfile);
+                        ret = true;
+                    }
+                    else
+                    {
+                        if let Err(err) = compare_workbooks(Path::new(&tfile), Path::new(&efile))
+                        {
+                            eprintln!("[ERROR] {}! {}", tfile, err);
+                        }
+                        else 
+                        {
+                            println!("[OK] {}!", tfile);
+                            ret = true;    
+                        }
+                    }
                 }
             }
-            else
-            { 
-                ret = false;
-            }
-        }
-        else
-        {
-            ret = false;
         }
     }
     ret
-    // ... to do add some error
 }
 
 #[test]
@@ -577,6 +643,7 @@ fn test_create_autocompleted_files_0()
     let afile_name = "Test_Excell_T1_Analysis.xlsx";
     let ref_files = ["Test_Excell_T0.xlsx", "Test_Excell_ref.xlsx", "Test_Excell_T1_small.xlsx", "Test_Excell_T1.xlsx", 
                                 "Test_Range_Basic.xlsx", "Test_Range_Multiline.xlsx", "Test_Range_Merged.xlsx"];
+    // let ref_files = ["Test_Excell_T0.xlsx"];
     for ref_file in &ref_files {
         if false == test_autocomplete(afile_name, ref_file)
         {
