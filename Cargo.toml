@@ -20,6 +20,9 @@ path = "src/gui.rs"
 name = "rexcell"
 path = "src/main.rs"
 
+[dev-dependencies]
+umya-spreadsheet = "2.2.0"
+
 [package.metadata.packager]
 before-packaging-command = "cargo build --release --target x86_64-pc-windows-gnu"
 formats = ["nsis"] # Classic Setup.exe installer for Windows

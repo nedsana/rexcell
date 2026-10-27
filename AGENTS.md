@@ -3,7 +3,7 @@
 Rust CLI + eframe/egui GUI for updating Excel (`.xlsx`) files. Reads a target workbook and a reference/analysis workbook, matches rows by key column, copies/accumulates values, applies Excel formulas, and writes results.
 
 ## Ground Rules
-- Never commit any changes and do not change 'Ref_Files' folder.
+- Never commit any changes and do not change 'tests/fixtures/reference' folder.
 - Answer short.
 - Always run `cargo check` after any code change, before saying work is done.
 - Do not change `MAX_ROW`/`MAX_COL` in `src/lib/common.rs` without asking.
@@ -54,7 +54,7 @@ Output: unless `-i` is given, results are written to `<target>_new.xlsx` (`NEW_F
 
 ## Test fixtures
 
-`Ref_Files/` (gitignored) contains `.xlsx` fixtures used in `src/main.rs` example comments, e.g. `Test_Twins.xlsx`, `Test_Excell_T1.xlsx`, `Test_Twins_Analysis.xlsx`, `Test_Range_Basic/Merged/Multiline.xlsx`.
+`tests/fixtures/reference/` contains committed `.xlsx` fixtures used in `src/main.rs` example comments, e.g. `Test_Twins.xlsx`, `Test_Excell_T1.xlsx`, `Test_Twins_Analysis.xlsx`, `Test_Range_Basic/Merged/Multiline.xlsx`.
 
 ## Logging
 
