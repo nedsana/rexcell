@@ -1,7 +1,7 @@
 use umya_spreadsheet::{Range, Worksheet};
 use super::range_ops;
 use std::vec;
-use std::ops::Deref;
+use std::ops::{Deref, DerefMut};
 use std::marker::PhantomData;
 use log::{info, error};
 
@@ -457,6 +457,47 @@ pub trait LendingIterator
 // ==========================================
 // STRUCTS
 // ==========================================
+
+pub struct WorkSheet<S>
+{
+    pub sheet: S,
+    pub max_row: u32,
+    pub max_col: u32,
+}
+
+impl<S> WorkSheet<S> 
+{
+    pub fn new(ws: S, mr: u32, mc: u32) -> Self 
+    {
+        Self 
+        {
+            sheet:   ws,
+            max_row: mr,
+            max_col: mc,
+        }
+    }
+}
+
+impl<S> Deref for WorkSheet<S>
+where
+    S: Deref<Target = Worksheet>,
+{
+    type Target = Worksheet;
+
+    fn deref(&self) -> &Worksheet {
+        &*self.sheet
+    }
+}
+
+impl<S> DerefMut for WorkSheet<S>
+where
+    S: DerefMut<Target = Worksheet>,
+{
+    fn deref_mut(&mut self) -> &mut Worksheet {
+        &mut *self.sheet
+    }
+}
+
 
 pub struct TagRangeBasic;
 pub struct TagRangeMergedCells;

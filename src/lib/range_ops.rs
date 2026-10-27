@@ -672,6 +672,41 @@ pub fn offset_range(range: &Range, offsets: &Offsets) -> Result<Range, String>
     Err(format!("Invalid range!"))
 }
 
+/// Compute the sheet's effective data bounds: the highest row/column
+/// containing content — a cell with a non-empty value or a formula.
+/// Empty or styling-only cells do not extend the bounds.
+/// Caps: max_row / max_col (0 = no limit).
+fn effective_bounds_impl(sheet: &Worksheet, max_row: u32, max_col: u32) -> (u32, u32)
+{
+    let (mut data_max_row, mut data_max_col) = (0u32, 0u32);
+
+    for cell in sheet.get_cell_collection()
+    {
+        if !cell.get_value().is_empty() || cell.is_formula()
+        {
+            data_max_row = data_max_row.max(*cell.get_coordinate().get_row_num());
+            data_max_col = data_max_col.max(*cell.get_coordinate().get_col_num());
+        }
+    }
+
+    let eff_max_row = if max_row > 0 { data_max_row.min(max_row) } else { data_max_row };
+    let eff_max_col = if max_col > 0 { data_max_col.min(max_col) } else { data_max_col };
+
+    (eff_max_row, eff_max_col)
+}
+
+pub fn effective_bounds(sheet: &Worksheet, max_row: u32, max_col: u32) -> range_types::WorkSheet<&Worksheet>
+{
+    let (max_row, max_col) = effective_bounds_impl(sheet, max_row, max_col);
+    range_types::WorkSheet::new(sheet, max_row, max_col)
+}
+
+pub fn effective_bounds_mut(sheet: &mut Worksheet, max_row: u32, max_col: u32) -> range_types::WorkSheet<&mut Worksheet>
+{
+    let (max_row, max_col) = effective_bounds_impl(sheet, max_row, max_col);
+    range_types::WorkSheet::new(sheet, max_row, max_col)
+}
+
 fn iter_row_next_impl_shared<'a>(
     sheet:          &Worksheet,
     current_row:    &mut u32,
