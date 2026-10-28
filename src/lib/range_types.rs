@@ -496,7 +496,7 @@ where
 
 impl<T> IWorkSheetMut<T> for WorkSheet<T> 
 where
-    T: Deref<Target = Worksheet>,
+    T: DerefMut<Target = Worksheet>,
 { 
     fn sheet_mut(&mut self) -> &mut T  { &mut self.sheet }
 }

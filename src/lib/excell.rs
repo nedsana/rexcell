@@ -239,7 +239,7 @@ pub fn find_range_in_sheet<'a,T>(range: &'a dyn IRange, wsheet: &'a WorkSheet<T>
 where
     T: Deref<Target = Worksheet>,
 {
-    match range_ops::IterRow::new(wsheet.sheet(), wsheet.max_row(), wsheet.max_col(), 1, true, common::REGEX_MULTILINE, range_ops::Offsets::default())
+    match range_ops::IterRow::new(wsheet, wsheet.max_row, wsheet.max_col, 1, true, common::REGEX_MULTILINE, range_ops::Offsets::default())
     {
         Ok(iter_sheet) =>
         {
@@ -1246,7 +1246,7 @@ mod tests {
         put(&mut ut, 1, 2, "K2"); put_formula_cached(&mut ut, 2, 2, "A2*2", "stale2");
         put(&mut ut, 1, 3, "ZZ"); put_formula_cached(&mut ut, 2, 3, "A3+1", "stale3"); // not in ref
         put_formula_cached(&mut ut, 2, 4, "A4+1", "stale4"); // row without a key
-        put_formula_cached(&mut ut, 9, 1, "A9+1", "stale5"); // beyond MAX_COL(8)
+        put_formula_cached(&mut ut, 9, 1, "A9+1", "stale5");
 
         let wrt = range_ops::effective_bounds(&rt, 0, 0);
         let mut wut = range_ops::effective_bounds_mut(&mut ut, 0, 0);
