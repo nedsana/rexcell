@@ -75,15 +75,15 @@ where
     }
 }
 
-pub fn reset_formulas(
-    utbl: &mut Worksheet,
+pub fn reset_formulas<'a, U>(
+    utbl: &'a mut WorkSheet<U>,
 )
+where
+    U: DerefMut<Target = Worksheet>,
 {
-    let utbl_max_row = common::MAX_ROW; //utbl.get_highest_row();
-    let utbl_max_col = common::MAX_COL; //utbl.get_highest_column();
-    for utbl_col in 1..=utbl_max_col //loop over the update table rows
+    for utbl_col in 1..=utbl.max_col //loop over the update table rows
     {
-        for utbl_row in 1..=utbl_max_row //loop over the update table rows
+        for utbl_row in 1..=utbl.max_row //loop over the update table rows
         {
             let ucell = utbl.get_cell_mut((utbl_col, utbl_row));
             if ucell.is_formula()
@@ -97,20 +97,23 @@ pub fn reset_formulas(
     }
 }
 
-pub fn apply_key_value_data_by_indexes(
-    rtbl:       &Worksheet,
-    utbl:       &mut Worksheet,
+pub fn apply_key_value_data_by_indexes<'a, R, U>(
+    rtbl: &'a WorkSheet<R>,
+    utbl: &'a mut WorkSheet<U>,
     col_key:    u32,
     col_upd:    u32,
     calcs:      &String,
 ) -> Result<(), String> 
+where
+    R: Deref<Target = Worksheet>,
+    U: DerefMut<Target = Worksheet>,
 {
     // info!("rtbl:{} utbl:{} col_key:{} col_upd:{}", rtbl.get_name(), utbl.get_name(), col_key, col_upd);
 
     let mut found = false;
     
-    let utbl_max_row = common::MAX_ROW; //utbl.get_highest_row();
-    let rtbl_max_row = common::MAX_ROW; //rtbl.get_highest_row();
+    let utbl_max_row = utbl.max_row;
+    let rtbl_max_row = rtbl.max_row;
 
     for utbl_row in 1..=utbl_max_row //loop over the update table rows
     {
@@ -183,13 +186,16 @@ pub fn apply_key_value_data_by_indexes(
     Ok(())
 }
 
-pub fn apply_key_value_data_by_strings(
-    rtbl:       &Worksheet,
-    utbl:       &mut Worksheet,
+pub fn apply_key_value_data_by_strings<'a, R, U>(
+    rtbl:       &'a WorkSheet<R>,
+    utbl:       &'a mut WorkSheet<U>,
     col_key:    &String,
     cols_upd:   &String,
     calcs:      &String,
 ) -> Result<(), String>
+where
+    R: Deref<Target = Worksheet>,
+    U: DerefMut<Target = Worksheet>,
 {
     if cols_upd.len() == 0 
     {
@@ -945,7 +951,10 @@ pub fn execute(cfg: &common::Config) -> Result<(), String>
                     }
                 };
                 
-                if let Err(err) = apply_key_value_data_by_strings(rtbl, utbl, &cfg.tgt_src_col, &cfg.tgt_dest_col, &"".to_string())
+                let     wrtbl = range_ops::effective_bounds(rtbl, 0, 0);
+                let mut wutbl = range_ops::effective_bounds_mut(utbl, 0, 0);
+
+                if let Err(err) = apply_key_value_data_by_strings(&wrtbl, &mut wutbl, &cfg.tgt_src_col, &cfg.tgt_dest_col, &"".to_string())
                 {
                     error!("{}:{}", common::MESSAGE_NO_KEY_VALUE_MAPPING, err);
                     return Err(format!("{}:{}", common::MESSAGE_NO_KEY_VALUE_MAPPING, err));
@@ -1047,8 +1056,11 @@ pub fn execute(cfg: &common::Config) -> Result<(), String>
                         return Err(format!("{}:{}", common::ERROR_UPDATE_SHEET_NOT_FOUND, utbln));
                     }
                 };
-                
-                if let Err(err) = apply_key_value_data_by_strings(&fotbl, utbl, &cfg.tgt_src_col, &cfg.tgt_dest_col, &cfg.tgt_calcs)
+
+                let     wfotbl = range_ops::effective_bounds(&fotbl, 0, 0);
+                let mut wutbl = range_ops::effective_bounds_mut(utbl, 0, 0);
+
+                if let Err(err) = apply_key_value_data_by_strings(&wfotbl, &mut wutbl, &cfg.tgt_src_col, &cfg.tgt_dest_col, &cfg.tgt_calcs)
                 {
                     error!("{}:{}", common::MESSAGE_NO_KEY_VALUE_MAPPING, err);
                     return Err(format!("{}:{}", common::MESSAGE_NO_KEY_VALUE_MAPPING, err));
@@ -1288,7 +1300,8 @@ mod tests {
         put(&mut s, 1, 2, "plain");
         put(&mut s, 2, 1, "text");
 
-        reset_formulas(&mut s);
+        let mut ws = range_ops::effective_bounds_mut(&mut s, 0, 0);
+        reset_formulas(&mut ws);
 
         // formulas kept, cached results cleared
         assert!(s.get_cell((1, 1)).unwrap().is_formula());
@@ -1347,7 +1360,10 @@ mod tests {
         put(&mut ut, 1, 2, "K2");
         put(&mut ut, 3, 3, "keep"); // row without a key -> skipped
 
-        assert!(apply_key_value_data_by_indexes(&rt, &mut ut, 1, 3, &"".to_string()).is_ok());
+        let     wrt = range_ops::effective_bounds(&rt, 0, 0);
+        let mut wut = range_ops::effective_bounds_mut(&mut ut, 0, 0);
+        assert!(apply_key_value_data_by_indexes(&wrt, &mut wut, 1, 3, &"".to_string()).is_ok());
+
         assert_eq!(ut.get_value((3, 1)), "val1");
         assert_eq!(ut.get_value((3, 2)), "val2");
         assert_eq!(ut.get_value((3, 3)), "keep");
@@ -1364,7 +1380,10 @@ mod tests {
         put(&mut ut, 1, 1, "K1");
         put(&mut ut, 1, 2, "K2");
 
-        assert!(apply_key_value_data_by_indexes(&rt, &mut ut, 1, 3, &"".to_string()).is_ok());
+        let     wrt = range_ops::effective_bounds(&rt, 0, 0);
+        let mut wut = range_ops::effective_bounds_mut(&mut ut, 0, 0);
+        assert!(apply_key_value_data_by_indexes(&wrt, &mut wut, 1, 3, &"".to_string()).is_ok());
+
         // numeric source cell is copied as a number, not as its text
         assert_eq!(ut.get_cell((3, 1)).unwrap().get_data_type(), "n");
         assert_eq!(ut.get_cell((3, 1)).unwrap().get_value_number(), Some(42.5));
@@ -1380,7 +1399,10 @@ mod tests {
         put(&mut ut, 1, 1, "no-such-key");
         put(&mut ut, 3, 1, "keep");
 
-        let err = apply_key_value_data_by_indexes(&rt, &mut ut, 1, 3, &"".to_string()).unwrap_err();
+        let     wrt = range_ops::effective_bounds(&rt, 0, 0);
+        let mut wut = range_ops::effective_bounds_mut(&mut ut, 0, 0);
+        let err = apply_key_value_data_by_indexes(&wrt, &mut wut, 1, 3, &"".to_string()).unwrap_err();
+
         assert_eq!(err, common::MESSAGE_NO_KEY_VALUE_MAPPING);
         assert_eq!(ut.get_value((3, 1)), "keep"); // nothing was written
     }
@@ -1393,10 +1415,12 @@ mod tests {
         put(&mut ut, 1, 1, "K1");
         put(&mut ut, 1, 2, "orphan"); // no match in reference
 
+        let     wrt = range_ops::effective_bounds(&rt, 0, 0);
+        let mut wut = range_ops::effective_bounds_mut(&mut ut, 0, 0);
         // Documented current behavior: the `found` flag is never reset per
         // row, so a single matched row makes the whole call succeed and the
         // orphan row is skipped without an Err.
-        assert!(apply_key_value_data_by_indexes(&rt, &mut ut, 1, 3, &"".to_string()).is_ok());
+        assert!(apply_key_value_data_by_indexes(&wrt, &mut wut, 1, 3, &"".to_string()).is_ok());
         assert_eq!(ut.get_value((3, 1)), "val1");
         assert!(ut.get_value((3, 2)).is_empty()); // orphan row untouched
     }
@@ -1410,7 +1434,11 @@ mod tests {
         let mut ut = ws("KV5U");
         put(&mut ut, 1, 1, "K1");
         put_formula_cached(&mut ut, 4, 1, "B1+1", "stale");
-        assert!(apply_key_value_data_by_indexes(&rt, &mut ut, 1, 3, &"".to_string()).is_ok());
+
+        let     wrt = range_ops::effective_bounds(&rt, 0, 0);
+        let mut wut = range_ops::effective_bounds_mut(&mut ut, 0, 0);
+
+        assert!(apply_key_value_data_by_indexes(&wrt, &mut wut, 1, 3, &"".to_string()).is_ok());
         assert!(ut.get_cell((4, 1)).unwrap().is_formula());
         assert!(ut.get_value((4, 1)).is_empty());
 
@@ -1418,7 +1446,10 @@ mod tests {
         let mut ut2 = ws("KV5U2");
         put(&mut ut2, 1, 1, "orphan");
         put_formula_cached(&mut ut2, 4, 1, "B1+1", "stale");
-        assert!(apply_key_value_data_by_indexes(&rt, &mut ut2, 1, 3, &"".to_string()).is_err());
+
+        let mut wut2 = range_ops::effective_bounds_mut(&mut ut2, 0, 0);
+
+        assert!(apply_key_value_data_by_indexes(&wrt, &mut wut2, 1, 3, &"".to_string()).is_err());
         assert_eq!(ut2.get_value((4, 1)), "stale");
     }
 
@@ -1428,9 +1459,12 @@ mod tests {
         put(&mut rt, 1, 2, "K2"); put(&mut rt, 3, 2, "val2"); // reference data in row 2
         let mut ut = ws("KV6U");
         put(&mut ut, 1, 2, "K2");
-
         let calcs = "D=B*C".to_string(); // user formula, single-letter columns
-        assert!(apply_key_value_data_by_indexes(&rt, &mut ut, 1, 3, &calcs).is_ok());
+
+        let     wrt = range_ops::effective_bounds(&rt, 0, 0);
+        let mut wut = range_ops::effective_bounds_mut(&mut ut, 0, 0);
+
+        assert!(apply_key_value_data_by_indexes(&wrt, &mut wut, 1, 3, &calcs).is_ok());
         // every column letter gets the matched update row appended:
         // "D=B*C" -> "D2=B2*C2" -> formula "B2*C2" written to D2
         let c = ut.get_cell((4, 2)).unwrap();
@@ -1444,9 +1478,12 @@ mod tests {
         put(&mut rt, 1, 1, "K1"); put(&mut rt, 3, 1, "val1");
         let mut ut = ws("KV7U");
         put(&mut ut, 1, 1, "K1");
-
         let calcs = "D B*C".to_string(); // no '=' sign
-        let err = apply_key_value_data_by_indexes(&rt, &mut ut, 1, 3, &calcs).unwrap_err();
+
+        let     wrt = range_ops::effective_bounds(&rt, 0, 0);
+        let mut wut = range_ops::effective_bounds_mut(&mut ut, 0, 0);
+
+        let err = apply_key_value_data_by_indexes(&wrt, &mut wut, 1, 3, &calcs).unwrap_err();
         assert_eq!(err, "Missing sign '='!");
         // Documented current behavior: the value copy happens before the
         // calcs error, so the sheet is left partially updated.
@@ -1457,7 +1494,11 @@ mod tests {
     fn test_0174_apply_key_value_data_by_strings_empty_cols_error() {
         let rt = ws("KV8R");
         let mut ut = ws("KV8U");
-        let err = apply_key_value_data_by_strings(&rt, &mut ut, &"A".to_string(), &"".to_string(), &"".to_string()).unwrap_err();
+        
+        let     wrt = range_ops::effective_bounds(&rt, 0, 0);
+        let mut wut = range_ops::effective_bounds_mut(&mut ut, 0, 0);
+
+        let err = apply_key_value_data_by_strings(&wrt, &mut wut, &"A".to_string(), &"".to_string(), &"".to_string()).unwrap_err();
         assert_eq!(err, common::ERROR_DEST_COL_NOT_DEFINED);
     }
 
@@ -1470,7 +1511,10 @@ mod tests {
         let mut ut = ws("KV9U");
         put(&mut ut, 1, 1, "K1");
 
-        assert!(apply_key_value_data_by_strings(&rt, &mut ut, &"A".to_string(), &"B,C".to_string(), &"".to_string()).is_ok());
+        let     wrt = range_ops::effective_bounds(&rt, 0, 0);
+        let mut wut = range_ops::effective_bounds_mut(&mut ut, 0, 0);
+
+        assert!(apply_key_value_data_by_strings(&wrt, &mut wut, &"A".to_string(), &"B,C".to_string(), &"".to_string()).is_ok());
         assert_eq!(ut.get_value((2, 1)), "vb");
         assert_eq!(ut.get_value((3, 1)), "vc");
     }
@@ -1483,7 +1527,10 @@ mod tests {
         let mut ut = ws("KV10U");
         put(&mut ut, 1, 1, "K1");
 
-        assert!(apply_key_value_data_by_indexes(&rt, &mut ut, 1, 3, &"".to_string()).is_ok());
+        let     wrt = range_ops::effective_bounds(&rt, 0, 0);
+        let mut wut = range_ops::effective_bounds_mut(&mut ut, 0, 0);
+
+        assert!(apply_key_value_data_by_indexes(&wrt, &mut wut, 1, 3, &"".to_string()).is_ok());
         // Documented current behavior: the reference scan breaks on the
         // FIRST matching row, so "first" wins.
         assert_eq!(ut.get_value((3, 1)), "first");
