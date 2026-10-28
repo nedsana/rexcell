@@ -641,22 +641,22 @@ pub fn apply_calculations(
  * filtered_cols_copy_dst - the columns (comma separated), we want to copy from the analysis sheet
  * filtered_calculations  - calculations (comma separated), we want to apply to the filtered sheet
  */
-pub fn get_anaysis_data(
-    analysis_sheet:          &Worksheet, 
+pub fn get_anaysis_data<'a, R, U>(
+    analysis_sheet:          &'a WorkSheet<R>,
     analysis_col_srch:       &String,
     analysis_col_term:       &String,
-    analysis_cols_cp_src:  &String,
+    analysis_cols_cp_src:    &String,
     analysis_srch_pat:       &String,
     analysis_term_pat:       &String,
-    filtered_sheet:          &mut Worksheet,
+    filtered_sheet:          &'a mut WorkSheet<U>,
     filtered_col_srch:       &String,
     filtered_cols_copy_dst:  &String,
     filtered_calculations:   &String,
 ) -> bool 
+where
+    R: Deref<Target = Worksheet>,
+    U: DerefMut<Target = Worksheet>,
 {
-    let max_row = common::MAX_ROW; //sheet_in.get_highest_row();
-    let max_col = common::MAX_COL; //sheet_in.get_highest_column();
-
     let mut res: bool = false;
 
     let aloop_col = range_ops::column_to_index(analysis_col_srch);
@@ -673,6 +673,8 @@ pub fn get_anaysis_data(
 
     let fsrch_col = range_ops::column_to_index(filtered_col_srch);
 
+    let max_row = filtered_sheet.max_row;
+    let max_col = filtered_sheet.max_col;
     match range_ops::IterRowMut::new(filtered_sheet, max_row, max_col, 1, true, common::REGEX_MULTILINE, range_ops::Offsets::default())
     {
         Ok(mut filtered_sheet_it) => 
@@ -695,7 +697,7 @@ pub fn get_anaysis_data(
                         {
                             let filtered_cell_value = fit.get_sheet().get_cell_value((fsrch_col, fbr)).get_value();
 
-                            match range_ops::IterRow::new(analysis_sheet, max_row, max_col, 1, false, analysis_srch_pat, range_ops::Offsets::new(0,0,-1,-1))
+                            match range_ops::IterRow::new(analysis_sheet, analysis_sheet.max_row, analysis_sheet.max_col, 1, false, analysis_srch_pat, range_ops::Offsets::new(0,0,-1,-1))
                             {
                                 Ok(analysis_sheet_it) => 
                                 {
@@ -1027,15 +1029,18 @@ pub fn execute(cfg: &common::Config) -> Result<(), String>
                 }
             }
 
+            let     watbl = range_ops::effective_bounds(atbl, 0, 0);
+            let mut wfotbl = range_ops::effective_bounds_mut(&mut fotbl, 0, 0);
+
             //The entries are filtered in the filter sheet. Now get the needed values from analysis table and update the filter sheet.
             if false == get_anaysis_data(
-                atbl, 
+                &watbl, 
                 &cfg.analysis_col_srch,                   //&"A".to_string(), 
                 &cfg.analysis_col_term,                   //&"B".to_string(), 
                 &cfg.analysis_cols_cp_src,                //&"A,G".to_string(), 
                 &cfg.analysis_srch_pat,                   //&"Позиция: *, *Основание:(.*)".to_string(),
                 &cfg.analysis_term_pat,                   //&"Общо".to_string(), 
-                &mut fotbl, 
+                &mut wfotbl, 
                 &cfg.tgt_src_col,       //&"C".to_string(), 
                 &cfg.tgt_dest_col, //&"B,F".to_string(), 
                 &cfg.tgt_calcs)     //&"G=E*F".to_string()
@@ -2126,9 +2131,12 @@ mod tests {
         put_num(&mut f, 1, 1, 10.0);
         put(&mut f, 2, 1, "K1");             // search value
 
-        let res = get_anaysis_data(&an, &"A".to_string(), &"B".to_string(), &"A,G".to_string(),
+        let     wan = range_ops::effective_bounds(&an, 0, 0);
+        let mut wf = range_ops::effective_bounds_mut(&mut f, 0, 0);
+
+        let res = get_anaysis_data(&wan, &"A".to_string(), &"B".to_string(), &"A,G".to_string(),
             &"^SEC:".to_string(), &"EndMark".to_string(),
-            &mut f, &"B".to_string(), &"C,D".to_string(), &"E=C*D".to_string());
+            &mut wf, &"B".to_string(), &"C,D".to_string(), &"E=C*D".to_string());
 
         assert!(res);
         // col A copy = marker row "SEC: alpha" -> after last ':' -> "alpha"
@@ -2149,9 +2157,12 @@ mod tests {
         put_num(&mut f, 1, 1, 10.0);
         put(&mut f, 2, 1, "KX");             // no section has this above its marker
 
-        let res = get_anaysis_data(&an, &"A".to_string(), &"B".to_string(), &"A,G".to_string(),
+        let     wan = range_ops::effective_bounds(&an, 0, 0);
+        let mut wf = range_ops::effective_bounds_mut(&mut f, 0, 0);
+
+        let res = get_anaysis_data(&wan, &"A".to_string(), &"B".to_string(), &"A,G".to_string(),
             &"^SEC:".to_string(), &"EndMark".to_string(),
-            &mut f, &"B".to_string(), &"C,D".to_string(), &"E=C*D".to_string());
+            &mut wf, &"B".to_string(), &"C,D".to_string(), &"E=C*D".to_string());
 
         // no section found: nothing is written
         assert!(!res);
@@ -2165,10 +2176,13 @@ mod tests {
         let an = ws("GA8AN");
         let mut f = ws("GA8F");
 
+        let     wan = range_ops::effective_bounds(&an, 0, 0);
+        let mut wf = range_ops::effective_bounds_mut(&mut f, 0, 0);
+
         // 2 source columns vs 1 destination column: rejected up front
-        let res = get_anaysis_data(&an, &"A".to_string(), &"B".to_string(), &"A,G".to_string(),
+        let res = get_anaysis_data(&wan, &"A".to_string(), &"B".to_string(), &"A,G".to_string(),
             &"^SEC:".to_string(), &"EndMark".to_string(),
-            &mut f, &"B".to_string(), &"C".to_string(), &"".to_string());
+            &mut wf, &"B".to_string(), &"C".to_string(), &"".to_string());
 
         assert!(!res);
         assert_eq!(f.get_highest_row(), 0);
@@ -2191,9 +2205,12 @@ mod tests {
         put_num(&mut f, 1, 2, 20.0);
         put(&mut f, 2, 2, "K2");
 
-        let res = get_anaysis_data(&an, &"A".to_string(), &"B".to_string(), &"A,G".to_string(),
+        let     wan = range_ops::effective_bounds(&an, 0, 0);
+        let mut wf = range_ops::effective_bounds_mut(&mut f, 0, 0);
+
+        let res = get_anaysis_data(&wan, &"A".to_string(), &"B".to_string(), &"A,G".to_string(),
             &"^SEC:".to_string(), &"EndMark".to_string(),
-            &mut f, &"B".to_string(), &"C,D".to_string(), &"E=C*D".to_string());
+            &mut wf, &"B".to_string(), &"C,D".to_string(), &"E=C*D".to_string());
 
         assert!(res);
         assert_eq!(f.get_value((3, 1)), "one");
@@ -2215,9 +2232,12 @@ mod tests {
         put_num(&mut f, 1, 1, 10.0);
         put(&mut f, 2, 1, "K1");
 
-        let res = get_anaysis_data(&an, &"A".to_string(), &"B".to_string(), &"A,G".to_string(),
+        let     wan = range_ops::effective_bounds(&an, 0, 0);
+        let mut wf = range_ops::effective_bounds_mut(&mut f, 0, 0);
+
+        let res = get_anaysis_data(&wan, &"A".to_string(), &"B".to_string(), &"A,G".to_string(),
             &"^SEC:".to_string(), &"EndMark".to_string(),
-            &mut f, &"B".to_string(), &"C,D".to_string(), &"E=C*D".to_string());
+            &mut wf, &"B".to_string(), &"C,D".to_string(), &"E=C*D".to_string());
 
         // section header matched, but no term row: nothing is copied
         assert!(!res);
@@ -2237,10 +2257,13 @@ mod tests {
         put_num(&mut f, 1, 1, 10.0);
         put(&mut f, 2, 1, "K1");
 
+        let     wan = range_ops::effective_bounds(&an, 0, 0);
+        let mut wf = range_ops::effective_bounds_mut(&mut f, 0, 0);
+
         // calcs without '=' -> apply_calculations errors after the copy is done
-        let res = get_anaysis_data(&an, &"A".to_string(), &"B".to_string(), &"A,G".to_string(),
+        let res = get_anaysis_data(&wan, &"A".to_string(), &"B".to_string(), &"A,G".to_string(),
             &"^SEC:".to_string(), &"EndMark".to_string(),
-            &mut f, &"B".to_string(), &"C,D".to_string(), &"ABC".to_string());
+            &mut wf, &"B".to_string(), &"C,D".to_string(), &"ABC".to_string());
 
         // Documented current behavior: the copied values are already in the
         // sheet when the calculation failure aborts the call.
