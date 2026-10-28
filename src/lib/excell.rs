@@ -221,9 +221,9 @@ pub fn get_worksheet_names(path: &std::path::Path) -> Result<String, String> {
  * Find a matching range in the sheet.
  * Returns Some(range) when a matching range is found, otherwise None.
  */
-pub fn find_range_in_sheet<'a>(range: &'a dyn IRange, sheet: &'a Worksheet, cmp_cols: &'a Vec<u32>) -> Option<RangeType<'a>>
+pub fn find_range_in_sheet<'a>(range: &'a dyn IRange, sheet: &'a Worksheet, cmp_cols: &'a Vec<u32>, max_row: u32, max_col: u32) -> Option<RangeType<'a>>
 {
-    match range_ops::IterRow::new(sheet, common::MAX_ROW, common::MAX_COL, 1, true, common::REGEX_MULTILINE, range_ops::Offsets::default())
+    match range_ops::IterRow::new(sheet, max_row, max_col, 1, true, common::REGEX_MULTILINE, range_ops::Offsets::default())
     {
         Ok(iter_sheet) =>
         {
@@ -244,6 +244,7 @@ pub fn find_range_in_sheet<'a>(range: &'a dyn IRange, sheet: &'a Worksheet, cmp_
     None
 }
 
+/** */
 pub fn clear_worksheet(sheet: &mut Worksheet) 
 {
     let (_, max_row) = sheet.get_highest_column_and_row();
@@ -452,7 +453,7 @@ pub fn filter_sheet_by_col_and_accum(
     let max_row = common::MAX_ROW; //sheet_in.get_highest_row();
     let max_col = common::MAX_COL; //sheet_in.get_highest_column();
 
-    match range_ops::IterRow::new(sheet_in, common::MAX_ROW, common::MAX_COL, 1, true, common::REGEX_MULTILINE, range_ops::Offsets::default())
+    match range_ops::IterRow::new(sheet_in, max_row, max_col, 1, true, common::REGEX_MULTILINE, range_ops::Offsets::default())
     {
         Ok(iter_sheet) =>
         {
@@ -466,7 +467,7 @@ pub fn filter_sheet_by_col_and_accum(
 
                         loop 
                         {
-                            if let Some(found_range) = find_range_in_sheet(&it, sheet_out, &cmp_cols)
+                            if let Some(found_range) = find_range_in_sheet(&it, sheet_out, &cmp_cols, max_row, max_col)
                             { //accumulating
                                 let found_range_clone = found_range.get_range().clone();
                                 drop(found_range);
@@ -865,6 +866,9 @@ pub fn execute(cfg: &common::Config) -> Result<(), String>
                     }
                 };
 
+                let     wutbl = range_ops::effective_bounds(utbl, 0, 0);
+                let mut wfotbl = range_ops::effective_bounds_mut(&mut fotbl, 0, 0);
+
                 // Create new table with unique values from cfg.tgt_src_col.When repetition is found, accumulate the values in cfg.tgt_acc_col.
                 let r = filter_sheet_by_col_and_accum(utbl, &mut fotbl, &cfg.tgt_src_col, &cfg.tgt_acc_col);
                 if !r 
@@ -983,6 +987,9 @@ pub fn execute(cfg: &common::Config) -> Result<(), String>
                         return Err(format!("{}:{}", common::ERROR_UPDATE_SHEET_NOT_FOUND, utbln));
                     }
                 };
+
+                let     wutbl = range_ops::effective_bounds(utbl, 0, 0);
+                let mut wfotbl = range_ops::effective_bounds_mut(&mut fotbl, 0, 0);
 
                 //Filter (accumulate or append values) the data from initial sheet to filter sheet
                 let r = filter_sheet_by_col_and_accum(utbl, &mut fotbl, &cfg.tgt_src_col, &cfg.tgt_acc_col);
@@ -1537,11 +1544,12 @@ mod tests {
         put(&mut pat, 1, 3, "- x");
         let pattern = RangeMultiline::new(range_ops::make_range_from_strings("A1", "C3"), &pat);
 
+        let wsheet = range_ops::effective_bounds(&out, 0, 0);
         let cmp = vec![1];
-        let found = find_range_in_sheet(&pattern, &out, &cmp).unwrap();
+        let found = find_range_in_sheet(&pattern, &wsheet.sheet, &cmp, wsheet.max_row, wsheet.max_col).unwrap();
         assert_eq!(found.get_type(), IterRowNextKind::Multiline);
-        // detected items span pivot..pivot+MAX_COL, so the range is A5:I8
-        assert_eq!(found.get_range().get_range(), "A5:I8");
+        assert_eq!(found.get_range().get_range(), "A5:B8");
+        assert_ne!(found.get_range().get_range(), "A5:I8"); // old behavior: detected items span pivot..pivot+MAX_COL, so the range is A5:I8
     }
 
     #[test]
@@ -1556,10 +1564,12 @@ mod tests {
         put(&mut pat, 1, 1, "bar");
         let pattern = RangeBasic::new(range_ops::make_range_from_strings("A1", "C1"), &pat);
 
+        let wsheet = range_ops::effective_bounds(&out, 0, 0);
         let cmp = vec![1];
-        let found = find_range_in_sheet(&pattern, &out, &cmp).unwrap();
+        let found = find_range_in_sheet(&pattern, &wsheet.sheet, &cmp, wsheet.max_row, wsheet.max_col).unwrap();
         assert_eq!(found.get_type(), IterRowNextKind::Basic);
-        assert_eq!(found.get_range().get_range(), "A3:I3");
+        assert_eq!(found.get_range().get_range(), "A3:B3");
+        assert_ne!(found.get_range().get_range(), "A3:I3"); // old behavior: detected items span pivot..pivot+MAX_COL, so the range is A3:I3
     }
 
     #[test]
@@ -1570,7 +1580,8 @@ mod tests {
         let mut pat = ws("FR3P");
         put(&mut pat, 1, 1, "nope");
         let pattern = RangeBasic::new(range_ops::make_range_from_strings("A1", "C1"), &pat);
-        assert!(find_range_in_sheet(&pattern, &out, &vec![1]).is_none());
+        let wsheet = range_ops::effective_bounds(&out, 0, 0);
+        assert!(find_range_in_sheet(&pattern, &wsheet.sheet, &vec![1], wsheet.max_row, wsheet.max_col).is_none());
     }
 
     #[test]
@@ -1583,7 +1594,8 @@ mod tests {
         let pattern = RangeBasic::new(range_ops::make_range_from_strings("A1", "C1"), &pat);
         // Documented current behavior: contains() requires the same range
         // type, so a Basic pattern can never match a Multiline item.
-        assert!(find_range_in_sheet(&pattern, &out, &vec![1]).is_none());
+        let wsheet = range_ops::effective_bounds(&out, 0, 0);
+        assert!(find_range_in_sheet(&pattern, &wsheet.sheet, &vec![1], wsheet.max_row, wsheet.max_col).is_none());
     }
 
     // ------------------------------------------------------------------
