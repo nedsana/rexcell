@@ -48,13 +48,13 @@ where
 {
     for rtbl_row in 1..=rtbl.max_row //loop over the reference table rows
     {
-        let rtbl_key_value = rtbl.get_value((col_key, rtbl_row));
+        let rtbl_key_value = rtbl.sheet.get_value((col_key, rtbl_row));
         
         if !rtbl_key_value.is_empty()
         {
             for utbl_row in 1..=utbl.max_row //loop over the update table rows
             {
-                let utbl_key_value = utbl.get_value((col_key, utbl_row));
+                let utbl_key_value = utbl.sheet.get_value((col_key, utbl_row));
 
                 if !utbl_key_value.is_empty() && range_ops::cmp_strs(&utbl_key_value, &rtbl_key_value) 
                 {
@@ -85,7 +85,7 @@ where
     {
         for utbl_row in 1..=utbl.max_row //loop over the update table rows
         {
-            let ucell = utbl.get_cell_mut((utbl_col, utbl_row));
+            let ucell = utbl.sheet.get_cell_mut((utbl_col, utbl_row));
             if ucell.is_formula()
             {
                 let formula: String = ucell.get_formula().to_string();
@@ -117,22 +117,22 @@ where
 
     for utbl_row in 1..=utbl_max_row //loop over the update table rows
     {
-        let utbl_key_value = utbl.get_value((col_key, utbl_row));
+        let utbl_key_value = utbl.sheet.get_value((col_key, utbl_row));
 
         if !utbl_key_value.is_empty() 
         {
             for rtbl_row in 1..=rtbl_max_row //loop over the reference table rows
             {
-                let rtbl_key_value = rtbl.get_value((col_key, rtbl_row));
+                let rtbl_key_value = rtbl.sheet.get_value((col_key, rtbl_row));
 
                 if range_ops::cmp_strs(&utbl_key_value, &rtbl_key_value) 
                 {
-                    let rtbl_upd_value = rtbl.get_value((col_upd, rtbl_row));
-                    let rtbl_upd_cell = rtbl.get_cell((col_upd, rtbl_row));
+                    let rtbl_upd_value = rtbl.sheet.get_value((col_upd, rtbl_row));
+                    let rtbl_upd_cell = rtbl.sheet.get_cell((col_upd, rtbl_row));
 
                     if let Some(upd_cell) = rtbl_upd_cell 
                     {
-                        let dst_cell = utbl.get_cell_mut((col_upd, utbl_row));
+                        let dst_cell = utbl.sheet.get_cell_mut((col_upd, utbl_row));
 
                         // info!("dst_cell({}{}).get_data_type()={}", index_to_column(col_upd), utbl_row, upd_cell.get_data_type());
 
@@ -149,19 +149,19 @@ where
                     } 
                     else 
                     {
-                        utbl.get_cell_mut((col_upd, utbl_row)).set_value(rtbl_upd_value.clone());
+                        utbl.sheet.get_cell_mut((col_upd, utbl_row)).set_value(rtbl_upd_value.clone());
                     }
 
                     //apply calculations after the update of the table
-                    if let Err(err_msg) = apply_calculations(utbl, utbl_row, &calcs) 
+                    if let Err(err_msg) = apply_calculations(&mut utbl.sheet, utbl_row, &calcs) 
                     {
                         log::error!("Failed to apply formula for row {}: {}", utbl_row, err_msg);
                         return Err(err_msg);
                     }
 
                     info!("Updated '{} {}{}' with '{}' from '{} {}{}'!", 
-                                        utbl.get_name(), range_ops::index_to_column(col_upd), utbl_row, rtbl_upd_value,
-                                        rtbl.get_name(), range_ops::index_to_column(col_upd), rtbl_row);
+                                        utbl.sheet.get_name(), range_ops::index_to_column(col_upd), utbl_row, rtbl_upd_value,
+                                        rtbl.sheet.get_name(), range_ops::index_to_column(col_upd), rtbl_row);
 
                     found = true;
                     
@@ -171,8 +171,8 @@ where
 
             if !found
             {
-                error!("Can't find '{} {}{}' '{}' in '{}'!", utbl.get_name(), range_ops::index_to_column(col_upd), 
-                                    utbl_row, utbl_key_value, rtbl.get_name());
+                error!("Can't find '{} {}{}' '{}' in '{}'!", utbl.sheet.get_name(), range_ops::index_to_column(col_upd), 
+                                    utbl_row, utbl_key_value, rtbl.sheet.get_name());
             }
         }
     }
@@ -239,7 +239,7 @@ pub fn find_range_in_sheet<'a,T>(range: &'a dyn IRange, wsheet: &'a WorkSheet<T>
 where
     T: Deref<Target = Worksheet>,
 {
-    match range_ops::IterRow::new(wsheet, wsheet.max_row, wsheet.max_col, 1, true, common::REGEX_MULTILINE, range_ops::Offsets::default())
+    match range_ops::IterRow::new(&wsheet.sheet, wsheet.max_row, wsheet.max_col, 1, true, common::REGEX_MULTILINE, range_ops::Offsets::default())
     {
         Ok(iter_sheet) =>
         {
@@ -334,13 +334,13 @@ where
     if let Some((_, _, _, _, rows_in, cols_in)) = range_ops::range_bounds(range_in.get_range())
     {
         //Add the input range to the temporary sheet. Any rows, which belong to this group will be appened
-        if range_ops::append_range(sheet_in, range_in.get_range(), &mut tmp_sheet, acc_cols) 
+        if range_ops::append_range(&sheet_in.sheet, range_in.get_range(), &mut tmp_sheet, acc_cols) 
         {
-            info!("Appended range {}:[{}] to {}", sheet_in.get_name(), range_ops::range_to_string(range_in.get_range()), tmp_sheet.get_name());
+            info!("Appended range {}:[{}] to {}", sheet_in.sheet.get_name(), range_ops::range_to_string(range_in.get_range()), tmp_sheet.get_name());
 
             let mut range_tmp = make_range_inst_mut(range_in.get_type(), range_ops::make_range_from_indexes(1, 1, cols_in, rows_in), &mut tmp_sheet);
 
-            match range_ops::IterRow::new(sheet_in, sheet_in.max_row, sheet_in.max_col, 1, true, common::REGEX_MULTILINE, range_ops::Offsets::default())
+            match range_ops::IterRow::new(&sheet_in.sheet, sheet_in.max_row, sheet_in.max_col, 1, true, common::REGEX_MULTILINE, range_ops::Offsets::default())
             {
                 Ok(iter_sheet) =>
                 {
@@ -443,7 +443,7 @@ where
         }
         else
         {
-            error!("Failed to append range {}:[{}] to {}!", sheet_in.get_name(), range_ops::range_to_string(range_in.get_range()), tmp_sheet.get_name());
+            error!("Failed to append range {}:[{}] to {}!", sheet_in.sheet.get_name(), range_ops::range_to_string(range_in.get_range()), tmp_sheet.get_name());
         }
     }
     tmp_sheet
@@ -503,7 +503,7 @@ pub fn filter_sheet_by_col_and_accum(
                                 let sheet_largest_range = make_largest_range(&it, wsheet_in, &cmp_cols, &acc_cols);
                                 let sheet_largest_range = range_ops::effective_bounds(&sheet_largest_range, 0, 0);
 
-                                match range_ops::IterRow::new(&sheet_largest_range, sheet_largest_range.max_row, sheet_largest_range.max_col, 1, true, common::REGEX_MULTILINE, range_ops::Offsets::default()) 
+                                match range_ops::IterRow::new(&sheet_largest_range.sheet, sheet_largest_range.max_row, sheet_largest_range.max_col, 1, true, common::REGEX_MULTILINE, range_ops::Offsets::default()) 
                                 {
                                     Ok(iter_sheet_largest_range) => 
                                     {
@@ -675,7 +675,7 @@ where
 
     let max_row = filtered_sheet.max_row;
     let max_col = filtered_sheet.max_col;
-    match range_ops::IterRowMut::new(filtered_sheet, max_row, max_col, 1, true, common::REGEX_MULTILINE, range_ops::Offsets::default())
+    match range_ops::IterRowMut::new(&mut filtered_sheet.sheet, max_row, max_col, 1, true, common::REGEX_MULTILINE, range_ops::Offsets::default())
     {
         Ok(mut filtered_sheet_it) => 
         {
@@ -697,7 +697,7 @@ where
                         {
                             let filtered_cell_value = fit.get_sheet().get_cell_value((fsrch_col, fbr)).get_value();
 
-                            match range_ops::IterRow::new(analysis_sheet, analysis_sheet.max_row, analysis_sheet.max_col, 1, false, analysis_srch_pat, range_ops::Offsets::new(0,0,-1,-1))
+                            match range_ops::IterRow::new(&analysis_sheet.sheet, analysis_sheet.max_row, analysis_sheet.max_col, 1, false, analysis_srch_pat, range_ops::Offsets::new(0,0,-1,-1))
                             {
                                 Ok(analysis_sheet_it) => 
                                 {
