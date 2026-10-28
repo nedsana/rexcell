@@ -2,7 +2,7 @@
 use umya_spreadsheet::*;
 use std::collections::HashMap;
 use std::iter::Iterator;
-use std::ops::{Deref}; //, DerefMut};
+use std::ops::{Deref, DerefMut};
 use crate::range_types::*;
 use log::{debug, info, warn, error};
 use super::common;
@@ -34,36 +34,37 @@ where
     get_ref_map_by_indexes(sheet, range_ops::column_to_index(col_key),range_ops::column_to_index(col_value))
 }
 
-pub fn apply_formulas(
-    rtbl: &Worksheet,
-    utbl: &mut Worksheet,
+/**
+ * Try to trigger the formula execution
+ */
+pub fn apply_formulas<'a, R, U>(
+    rtbl: &'a WorkSheet<R>,
+    utbl: &'a mut WorkSheet<U>,
     col_key: u32,
 )
+where
+    R: Deref<Target = Worksheet>,
+    U: DerefMut<Target = Worksheet>,
 {
-    let utbl_max_row = common::MAX_ROW; //utbl.get_highest_row();
-    let rtbl_max_row = common::MAX_ROW; //rtbl.get_highest_row();
-
-    for rtbl_row in 1..=rtbl_max_row //loop over the reference table rows
+    for rtbl_row in 1..=rtbl.max_row //loop over the reference table rows
     {
         let rtbl_key_value = rtbl.get_value((col_key, rtbl_row));
         
         if !rtbl_key_value.is_empty()
         {
-            for utbl_row in 1..=utbl_max_row //loop over the update table rows
+            for utbl_row in 1..=utbl.max_row //loop over the update table rows
             {
                 let utbl_key_value = utbl.get_value((col_key, utbl_row));
 
                 if !utbl_key_value.is_empty() && range_ops::cmp_strs(&utbl_key_value, &rtbl_key_value) 
                 {
-                    // let utbl_name = utbl.get_name().to_string();
-                    let utbl_max_col = common::MAX_COL; //utbl.get_highest_column();
-                    for utbl_col in 1..=utbl_max_col
+                    for utbl_col in 1..=utbl.max_col
                     {
-                        let ucell = utbl.get_cell_mut((utbl_col, utbl_row));
+                        let ucell = utbl.sheet.get_cell_mut((utbl_col, utbl_row));
                         if ucell.is_formula()
                         {
                             let formula: String = ucell.get_formula().to_string();
-                            // info!("Found formula({}) in '{} {}{}'", formula, utbl_name, index_to_column(utbl_col), utbl_row);
+                            // info!("Found formula({}) in '{} {}{}'", formula, utbl.get_name().to_string(), range_ops::index_to_column(utbl_col), utbl_row);
                             ucell.set_value("");
                             ucell.set_formula(formula);
                         }
@@ -1228,7 +1229,9 @@ mod tests {
         put_formula_cached(&mut ut, 2, 4, "A4+1", "stale4"); // row without a key
         put_formula_cached(&mut ut, 9, 1, "A9+1", "stale5"); // beyond MAX_COL(8)
 
-        apply_formulas(&rt, &mut ut, 1);
+        let wrt = range_ops::effective_bounds(&rt, 0, 0);
+        let mut wut = range_ops::effective_bounds_mut(&mut ut, 0, 0);
+        apply_formulas(&wrt, &mut wut, 1);
 
         // matching rows: formula kept, cached result cleared
         assert!(ut.get_cell((2, 1)).unwrap().is_formula());
@@ -1242,9 +1245,8 @@ mod tests {
         assert_eq!(ut.get_value((2, 3)), "stale3");
         assert_eq!(ut.get_value((2, 4)), "stale4");
 
-        // Documented current behavior: the column loop stops at MAX_COL=8,
-        // so col I is untouched even on a matching row.
-        assert_eq!(ut.get_value((9, 1)), "stale5");
+        assert_ne!(ut.get_value((9, 1)), "stale5"); 
+        assert_eq!(ut.get_cell((9, 1)).unwrap().get_formula(), "A9+1");
     }
 
     #[test]
@@ -1255,7 +1257,9 @@ mod tests {
         put(&mut ut, 1, 1, "key1");
         put_formula_cached(&mut ut, 2, 1, "A1+1", "stale");
 
-        apply_formulas(&rt, &mut ut, 1);
+        let wrt = range_ops::effective_bounds(&rt, 0, 0);
+        let mut wut = range_ops::effective_bounds_mut(&mut ut, 0, 0);
+        apply_formulas(&wrt, &mut wut, 1);
 
         assert!(ut.get_cell((2, 1)).unwrap().is_formula());
         assert!(ut.get_value((2, 1)).is_empty()); // matched despite case/spacing
@@ -1268,7 +1272,9 @@ mod tests {
         put(&mut ut, 1, 1, "K1");
         put_formula_cached(&mut ut, 2, 1, "A1+1", "stale");
 
-        apply_formulas(&rt, &mut ut, 1);
+        let wrt = range_ops::effective_bounds(&rt, 0, 0);
+        let mut wut = range_ops::effective_bounds_mut(&mut ut, 0, 0);
+        apply_formulas(&wrt, &mut wut, 1);
 
         assert!(ut.get_cell((2, 1)).unwrap().is_formula());
         assert_eq!(ut.get_value((2, 1)), "stale");
@@ -1497,6 +1503,12 @@ mod tests {
         }
         assert!(writer::xlsx::write(&book, std::path::Path::new(path)).is_ok());
     }
+
+    // fn write_sheet_to_xlsx(path: &str, sheet: &Worksheet)  {
+    //     let mut book = Spreadsheet::default();
+    //     book.add_sheet(sheet.clone()).unwrap();
+    //     umya_spreadsheet::writer::xlsx::write(&book, std::path::Path::new(path)).unwrap();
+    // }
 
     #[test]
     fn test_0177_get_worksheet_names_list_and_string() {
