@@ -450,14 +450,6 @@ pub fn filter_sheet_by_col_and_accum(
     let cmp_cols: Vec<u32> = col_filter.split(',').map(|s| range_ops::column_to_index(s.trim())).collect();
     let acc_cols: Vec<u32> = cols_accum.split(',').map(|s| range_ops::column_to_index(s.trim())).collect();
 
-    let sheet_in= wsheet_in.sheet;
-    // let mut sheet_out= wsheet_out.sheet;
-
-    // let max_row = wsheet_in.max_row;
-    // let max_col = wsheet_in.max_col;
-    let max_row = common::MAX_ROW; //sheet_in.get_highest_row();
-    let max_col = common::MAX_COL; //sheet_in.get_highest_column();
-
     match range_ops::IterRow::new(wsheet_in.sheet, wsheet_in.max_row, wsheet_in.max_col, 1, true, common::REGEX_MULTILINE, range_ops::Offsets::default())
     {
         Ok(iter_sheet) =>
@@ -472,15 +464,17 @@ pub fn filter_sheet_by_col_and_accum(
 
                         loop 
                         {
-                            // if let Some(found_range) = find_range_in_sheet(&it, wsheet_out.sheet, &cmp_cols, wsheet_out.max_row, wsheet_out.max_col)
-                            if let Some(found_range) = find_range_in_sheet(&it, wsheet_out.sheet, &cmp_cols, max_row, max_col)
+                            let wsheet_out = range_ops::effective_bounds_mut(&mut wsheet_out.sheet, 0, 0);
+
+                            if let Some(found_range) = find_range_in_sheet(&it, wsheet_out.sheet, &cmp_cols, wsheet_out.max_row, wsheet_out.max_col)
+                            // if let Some(found_range) = find_range_in_sheet(&it, wsheet_out.sheet, &cmp_cols, max_row, max_col)
                             { //accumulating
                                 let found_range_clone = found_range.get_range().clone();
                                 drop(found_range);
 
                                 info!("Range {} already exists in sheet {}! Accumulating data!", range_ops::range_to_string(it.get_range()), wsheet_out.sheet.get_name());
 
-                                if range_ops::accumulate_ranges(sheet_in, it.get_range(), wsheet_out.sheet, &found_range_clone, &cmp_cols, &acc_cols)
+                                if range_ops::accumulate_ranges(wsheet_in.sheet, it.get_range(), wsheet_out.sheet, &found_range_clone, &cmp_cols, &acc_cols)
                                 {
                                     info!("Accumulated in-range '{}' to out-range '{}'!", range_ops::range_to_string(it.get_range()), range_ops::range_to_string(&found_range_clone));
                                 }
@@ -489,7 +483,7 @@ pub fn filter_sheet_by_col_and_accum(
                             }
                             else
                             { //appending
-                                let sheet_largest_range = make_largest_range(&it, sheet_in, &cmp_cols, &acc_cols);
+                                let sheet_largest_range = make_largest_range(&it, wsheet_in.sheet, &cmp_cols, &acc_cols);
                                 let sheet_largest_range = range_ops::effective_bounds(&sheet_largest_range, 0, 0);
 
                                 match range_ops::IterRow::new(&sheet_largest_range, sheet_largest_range.max_row, sheet_largest_range.max_col, 1, true, common::REGEX_MULTILINE, range_ops::Offsets::default()) 
