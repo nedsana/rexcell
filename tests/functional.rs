@@ -3,6 +3,19 @@ use std::path::{Path, PathBuf};
 
 use rexcell::{common, excell, range_ops};
 
+static LOGGER: std::sync::Once = std::sync::Once::new();
+
+fn enable_logging() {
+    if std::env::var_os("TEST_LOGGING").is_none() { return; }
+    LOGGER.call_once(|| {
+        let _ = fern::Dispatch::new()
+            .format(|out, message, _record| out.finish(*message))
+            .level(log::LevelFilter::Debug)
+            .chain(std::io::stdout())
+            .apply();
+    });
+}
+
 fn create_folder(folder: &str)
 {
     fs::create_dir_all(folder)
@@ -307,7 +320,10 @@ fn test_autocomplete(afile_name: &str, tfile_name: &str) -> bool
 /* ----------------------------------------------------------------------------------------------- */
 
 #[test]
-fn corner_case() {
+fn corner_case() 
+{
+    enable_logging();
+
     let path = actual_file("corner_case.xlsx");
     write_workbook(&path, |book| {
         let mut s1 = umya_spreadsheet::Worksheet::default();
@@ -327,7 +343,10 @@ fn corner_case() {
 }
 
 #[test]
-fn corner_no_match() {
+fn corner_no_match() 
+{
+    enable_logging();
+
     let path = actual_file("corner_no_match.xlsx");
     write_workbook(&path, |book| {
         let mut s1 = umya_spreadsheet::Worksheet::default();
@@ -349,7 +368,10 @@ fn corner_no_match() {
 }
 
 #[test]
-fn corner_numeric() {
+fn corner_numeric() 
+{
+    enable_logging();
+
     let path = actual_file("corner_numeric.xlsx");
     write_workbook(&path, |book| {
         let mut s1 = umya_spreadsheet::Worksheet::default();
@@ -375,7 +397,10 @@ fn corner_numeric() {
 }
 
 #[test]
-fn corner_inplace() {
+fn corner_inplace() 
+{
+    enable_logging();
+
     let path = actual_file("corner_inplace.xlsx");
     write_workbook(&path, |book| {
         let mut s1 = umya_spreadsheet::Worksheet::default();
@@ -401,7 +426,10 @@ fn corner_inplace() {
 }
 
 #[test]
-fn corner_filter_accumulate() {
+fn corner_filter_accumulate() 
+{
+    enable_logging();
+
     let path = actual_file("corner_filter_accumulate.xlsx");
     write_workbook(&path, |book| {
         let mut s1 = umya_spreadsheet::Worksheet::default();
@@ -444,7 +472,9 @@ fn corner_filter_accumulate() {
 
 // EXPECTED TO FAIL: MAX_ROW boundary bug, keep until fixed!
 #[test]
-fn corner_max_row() {
+fn corner_max_row() 
+{
+    enable_logging();
     // Rows 1..4999 share key "K", row 5000 = K5000 (last scanned), rows
     // 5001/5002 = K5001/K5002 must be ignored (MAX_ROW = 5000).
     let path = actual_file("corner_max_row.xlsx");
@@ -479,6 +509,8 @@ fn corner_max_row() {
 #[test]
 fn test_autocomplete_0() 
 {
+    enable_logging();
+
     let afile_name = "Test_Excell_T1_Analysis.xlsx";
     let ref_files = ["Test_Excell_T0.xlsx", "Test_Excell_ref.xlsx", "Test_Excell_T1_small.xlsx", "Test_Excell_T1.xlsx", 
                                 "Test_Range_Basic.xlsx", "Test_Range_Multiline.xlsx", "Test_Range_Merged.xlsx"];
@@ -494,6 +526,8 @@ fn test_autocomplete_0()
 #[test]
 fn test_autocomplete_1() 
 {
+    enable_logging();
+
     let afile_name = "Test_Twins_Analysis.xlsx";
     let ref_files = ["Test_Twins.xlsx"];
     for ref_file in &ref_files {

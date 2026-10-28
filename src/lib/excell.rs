@@ -2065,7 +2065,7 @@ mod tests {
 
     #[test]
     fn test_0208_get_anaysis_data_copy_col_count_mismatch() {
-        let mut an = ws("GA8AN");
+        let an = ws("GA8AN");
         let mut f = ws("GA8F");
 
         // 2 source columns vs 1 destination column: rejected up front
