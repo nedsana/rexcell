@@ -465,17 +465,40 @@ pub struct WorkSheet<S>
     pub max_col: u32,
 }
 
-impl<S> WorkSheet<S> 
-{
-    pub fn new(ws: S, mr: u32, mc: u32) -> Self 
-    {
-        Self 
-        {
+impl<S> WorkSheet<S> {
+    pub fn new(ws: S, mr: u32, mc: u32) -> Self {
+        Self {
             sheet:   ws,
             max_row: mr,
             max_col: mc,
         }
     }
+}
+
+pub trait IWorkSheet<T> { 
+    fn sheet(&self) -> &T;
+    fn max_row(&self) -> u32;
+    fn max_col(&self) -> u32;
+}
+
+pub trait IWorkSheetMut<T>: IWorkSheet<T> { 
+    fn sheet_mut(&mut self) -> &mut T;
+}
+
+impl<T> IWorkSheet<T> for WorkSheet<T> 
+where
+    T: Deref<Target = Worksheet>,
+{ 
+    fn sheet(&self)   -> &T  { &self.sheet }
+    fn max_row(&self) -> u32 { self.max_row }
+    fn max_col(&self) -> u32 { self.max_col }
+}
+
+impl<T> IWorkSheetMut<T> for WorkSheet<T> 
+where
+    T: Deref<Target = Worksheet>,
+{ 
+    fn sheet_mut(&mut self) -> &mut T  { &mut self.sheet }
 }
 
 impl<S> Deref for WorkSheet<S>

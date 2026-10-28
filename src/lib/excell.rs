@@ -2,6 +2,7 @@
 use umya_spreadsheet::*;
 use std::collections::HashMap;
 use std::iter::Iterator;
+use std::ops::{Deref}; //, DerefMut};
 use crate::range_types::*;
 use log::{debug, info, warn, error};
 use super::common;
@@ -221,9 +222,11 @@ pub fn get_worksheet_names(path: &std::path::Path) -> Result<String, String> {
  * Find a matching range in the sheet.
  * Returns Some(range) when a matching range is found, otherwise None.
  */
-pub fn find_range_in_sheet<'a>(range: &'a dyn IRange, sheet: &'a Worksheet, cmp_cols: &'a Vec<u32>, max_row: u32, max_col: u32) -> Option<RangeType<'a>>
+pub fn find_range_in_sheet<'a,T>(range: &'a dyn IRange, wsheet: &'a WorkSheet<T>, cmp_cols: &'a Vec<u32>) -> Option<RangeType<'a>>
+where
+    T: Deref<Target = Worksheet>,
 {
-    match range_ops::IterRow::new(sheet, max_row, max_col, 1, true, common::REGEX_MULTILINE, range_ops::Offsets::default())
+    match range_ops::IterRow::new(wsheet.sheet(), wsheet.max_row(), wsheet.max_col(), 1, true, common::REGEX_MULTILINE, range_ops::Offsets::default())
     {
         Ok(iter_sheet) =>
         {
@@ -464,10 +467,10 @@ pub fn filter_sheet_by_col_and_accum(
 
                         loop 
                         {
-                            let wsheet_out = range_ops::effective_bounds_mut(&mut wsheet_out.sheet, 0, 0);
+                            let wsheet_out = range_ops::effective_bounds_mut(wsheet_out.sheet, 0, 0);
 
-                            if let Some(found_range) = find_range_in_sheet(&it, wsheet_out.sheet, &cmp_cols, wsheet_out.max_row, wsheet_out.max_col)
-                            // if let Some(found_range) = find_range_in_sheet(&it, wsheet_out.sheet, &cmp_cols, max_row, max_col)
+                            // if let Some(found_range) = find_range_in_sheet(&it, wsheet_out.sheet, &cmp_cols, wsheet_out.max_row, wsheet_out.max_col)
+                            if let Some(found_range) = find_range_in_sheet(&it, &wsheet_out, &cmp_cols)
                             { //accumulating
                                 let found_range_clone = found_range.get_range().clone();
                                 drop(found_range);
@@ -1547,7 +1550,7 @@ mod tests {
 
         let wsheet = range_ops::effective_bounds(&out, 0, 0);
         let cmp = vec![1];
-        let found = find_range_in_sheet(&pattern, &wsheet.sheet, &cmp, wsheet.max_row, wsheet.max_col).unwrap();
+        let found = find_range_in_sheet(&pattern, &wsheet, &cmp).unwrap();
         assert_eq!(found.get_type(), IterRowNextKind::Multiline);
         assert_eq!(found.get_range().get_range(), "A5:B8");
         assert_ne!(found.get_range().get_range(), "A5:I8"); // old behavior: detected items span pivot..pivot+MAX_COL, so the range is A5:I8
@@ -1567,7 +1570,7 @@ mod tests {
 
         let wsheet = range_ops::effective_bounds(&out, 0, 0);
         let cmp = vec![1];
-        let found = find_range_in_sheet(&pattern, &wsheet.sheet, &cmp, wsheet.max_row, wsheet.max_col).unwrap();
+        let found = find_range_in_sheet(&pattern, &wsheet, &cmp).unwrap();
         assert_eq!(found.get_type(), IterRowNextKind::Basic);
         assert_eq!(found.get_range().get_range(), "A3:B3");
         assert_ne!(found.get_range().get_range(), "A3:I3"); // old behavior: detected items span pivot..pivot+MAX_COL, so the range is A3:I3
@@ -1582,7 +1585,7 @@ mod tests {
         put(&mut pat, 1, 1, "nope");
         let pattern = RangeBasic::new(range_ops::make_range_from_strings("A1", "C1"), &pat);
         let wsheet = range_ops::effective_bounds(&out, 0, 0);
-        assert!(find_range_in_sheet(&pattern, &wsheet.sheet, &vec![1], wsheet.max_row, wsheet.max_col).is_none());
+        assert!(find_range_in_sheet(&pattern, &wsheet, &vec![1]).is_none());
     }
 
     #[test]
@@ -1596,7 +1599,7 @@ mod tests {
         // Documented current behavior: contains() requires the same range
         // type, so a Basic pattern can never match a Multiline item.
         let wsheet = range_ops::effective_bounds(&out, 0, 0);
-        assert!(find_range_in_sheet(&pattern, &wsheet.sheet, &vec![1], wsheet.max_row, wsheet.max_col).is_none());
+        assert!(find_range_in_sheet(&pattern, &wsheet, &vec![1]).is_none());
     }
 
     // ------------------------------------------------------------------
