@@ -439,8 +439,8 @@ pub fn make_largest_range<'a>(range_in: &'a dyn IRange, sheet_in: &'a Worksheet,
  * col_accum: when, we find item in col_filter, which is aleady present in sheet_out, we accumulate the data from col_accum
  */
 pub fn filter_sheet_by_col_and_accum(
-    sheet_in:  &Worksheet, 
-    sheet_out: &mut Worksheet,
+    wsheet_in:  &    WorkSheet<&Worksheet>, 
+    wsheet_out: &mut WorkSheet<&mut Worksheet>,
     col_filter: &String,
     cols_accum: &String
 ) -> bool 
@@ -450,10 +450,15 @@ pub fn filter_sheet_by_col_and_accum(
     let cmp_cols: Vec<u32> = col_filter.split(',').map(|s| range_ops::column_to_index(s.trim())).collect();
     let acc_cols: Vec<u32> = cols_accum.split(',').map(|s| range_ops::column_to_index(s.trim())).collect();
 
+    let sheet_in= wsheet_in.sheet;
+    // let mut sheet_out= wsheet_out.sheet;
+
+    // let max_row = wsheet_in.max_row;
+    // let max_col = wsheet_in.max_col;
     let max_row = common::MAX_ROW; //sheet_in.get_highest_row();
     let max_col = common::MAX_COL; //sheet_in.get_highest_column();
 
-    match range_ops::IterRow::new(sheet_in, max_row, max_col, 1, true, common::REGEX_MULTILINE, range_ops::Offsets::default())
+    match range_ops::IterRow::new(wsheet_in.sheet, wsheet_in.max_row, wsheet_in.max_col, 1, true, common::REGEX_MULTILINE, range_ops::Offsets::default())
     {
         Ok(iter_sheet) =>
         {
@@ -467,14 +472,15 @@ pub fn filter_sheet_by_col_and_accum(
 
                         loop 
                         {
-                            if let Some(found_range) = find_range_in_sheet(&it, sheet_out, &cmp_cols, max_row, max_col)
+                            // if let Some(found_range) = find_range_in_sheet(&it, wsheet_out.sheet, &cmp_cols, wsheet_out.max_row, wsheet_out.max_col)
+                            if let Some(found_range) = find_range_in_sheet(&it, wsheet_out.sheet, &cmp_cols, max_row, max_col)
                             { //accumulating
                                 let found_range_clone = found_range.get_range().clone();
                                 drop(found_range);
 
-                                info!("Range {} already exists in sheet {}! Accumulating data!", range_ops::range_to_string(it.get_range()), sheet_out.get_name());
+                                info!("Range {} already exists in sheet {}! Accumulating data!", range_ops::range_to_string(it.get_range()), wsheet_out.sheet.get_name());
 
-                                if range_ops::accumulate_ranges(sheet_in, it.get_range(), sheet_out, &found_range_clone, &cmp_cols, &acc_cols)
+                                if range_ops::accumulate_ranges(sheet_in, it.get_range(), wsheet_out.sheet, &found_range_clone, &cmp_cols, &acc_cols)
                                 {
                                     info!("Accumulated in-range '{}' to out-range '{}'!", range_ops::range_to_string(it.get_range()), range_ops::range_to_string(&found_range_clone));
                                 }
@@ -484,8 +490,9 @@ pub fn filter_sheet_by_col_and_accum(
                             else
                             { //appending
                                 let sheet_largest_range = make_largest_range(&it, sheet_in, &cmp_cols, &acc_cols);
+                                let sheet_largest_range = range_ops::effective_bounds(&sheet_largest_range, 0, 0);
 
-                                match range_ops::IterRow::new(&sheet_largest_range, max_row, max_col, 1, true, common::REGEX_MULTILINE, range_ops::Offsets::default()) 
+                                match range_ops::IterRow::new(&sheet_largest_range, sheet_largest_range.max_row, sheet_largest_range.max_col, 1, true, common::REGEX_MULTILINE, range_ops::Offsets::default()) 
                                 {
                                     Ok(iter_sheet_largest_range) => 
                                     {
@@ -501,9 +508,9 @@ pub fn filter_sheet_by_col_and_accum(
                                         {
                                             if 0 == loop_cnt
                                             {
-                                                res = range_ops::append_range(it_slr.get_sheet(), &it_slr.get_range(), sheet_out, &acc_cols);
+                                                res = range_ops::append_range(it_slr.get_sheet(), &it_slr.get_range(), wsheet_out.sheet, &acc_cols);
 
-                                                info!("Appended range {}:[{}] to {}: {}", it_slr.get_sheet().get_name(), range_ops::range_to_string(it_slr.get_range()), sheet_out.get_name(), res);
+                                                info!("Appended range {}:[{}] to {}: {}", it_slr.get_sheet().get_name(), range_ops::range_to_string(it_slr.get_range()), wsheet_out.sheet.get_name(), res);
                                             }
                                             loop_cnt += 1;
                                         }
@@ -870,7 +877,7 @@ pub fn execute(cfg: &common::Config) -> Result<(), String>
                 let mut wfotbl = range_ops::effective_bounds_mut(&mut fotbl, 0, 0);
 
                 // Create new table with unique values from cfg.tgt_src_col.When repetition is found, accumulate the values in cfg.tgt_acc_col.
-                let r = filter_sheet_by_col_and_accum(utbl, &mut fotbl, &cfg.tgt_src_col, &cfg.tgt_acc_col);
+                let r = filter_sheet_by_col_and_accum(&wutbl, &mut wfotbl, &cfg.tgt_src_col, &cfg.tgt_acc_col);
                 if !r 
                 {
                     error!("{}:{}", common::ERROR_FAILED_FILTER_SHEET, utbln);
@@ -992,7 +999,7 @@ pub fn execute(cfg: &common::Config) -> Result<(), String>
                 let mut wfotbl = range_ops::effective_bounds_mut(&mut fotbl, 0, 0);
 
                 //Filter (accumulate or append values) the data from initial sheet to filter sheet
-                let r = filter_sheet_by_col_and_accum(utbl, &mut fotbl, &cfg.tgt_src_col, &cfg.tgt_acc_col);
+                let r = filter_sheet_by_col_and_accum(&wutbl, &mut wfotbl, &cfg.tgt_src_col, &cfg.tgt_acc_col);
                 if !r 
                 {
                     error!("{}:{}", common::ERROR_FAILED_FILTER_SHEET, utbln);
@@ -1912,7 +1919,10 @@ mod tests {
         put_num(&mut sheet_in, 2, 5, 2.0); put_num(&mut sheet_in, 2, 6, 30.0); put_num(&mut sheet_in, 2, 7, 40.0);
         let mut sheet_out = ws("FA1OUT");
 
-        let res = filter_sheet_by_col_and_accum(&sheet_in, &mut sheet_out, &"A".to_string(), &"B".to_string());
+        let res = filter_sheet_by_col_and_accum(
+            &range_ops::effective_bounds(&sheet_in,0,0), 
+            &mut range_ops::effective_bounds_mut(&mut sheet_out,0,0), 
+            &"A".to_string(), &"B".to_string());
 
         assert!(res);
         // one merged table, accum column B summed over both source tables
@@ -1934,7 +1944,10 @@ mod tests {
         put_num(&mut sheet_in, 2, 5, 2.0); put_num(&mut sheet_in, 2, 6, 30.0); put_num(&mut sheet_in, 2, 7, 40.0);
         let mut sheet_out = ws("FA2OUT");
 
-        let res = filter_sheet_by_col_and_accum(&sheet_in, &mut sheet_out, &"A".to_string(), &"B".to_string());
+        let res = filter_sheet_by_col_and_accum(
+            &range_ops::effective_bounds(&sheet_in,0,0), 
+            &mut range_ops::effective_bounds_mut(&mut sheet_out,0,0), 
+            &"A".to_string(), &"B".to_string());
 
         assert!(res);
         // two separate tables in the output, values accumulated into each
@@ -1957,7 +1970,10 @@ mod tests {
         put(&mut sheet_in, 1, 2, "more");
         let mut sheet_out = ws("FA3OUT");
 
-        let res = filter_sheet_by_col_and_accum(&sheet_in, &mut sheet_out, &"A".to_string(), &"B".to_string());
+        let res = filter_sheet_by_col_and_accum(
+            &range_ops::effective_bounds(&sheet_in,0,0), 
+            &mut range_ops::effective_bounds_mut(&mut sheet_out,0,0), 
+            &"A".to_string(), &"B".to_string());
 
         // rows not starting with a numeric pivot cell are skipped entirely
         assert!(!res);
@@ -1977,7 +1993,10 @@ mod tests {
         put_num(&mut sheet_in, 2, 6, 40.0); put_num(&mut sheet_in, 2, 7, 50.0);
         let mut sheet_out = ws("FA4OUT");
 
-        let res = filter_sheet_by_col_and_accum(&sheet_in, &mut sheet_out, &"A".to_string(), &"B".to_string());
+        let res = filter_sheet_by_col_and_accum(
+            &range_ops::effective_bounds(&sheet_in,0,0), 
+            &mut range_ops::effective_bounds_mut(&mut sheet_out,0,0), 
+            &"A".to_string(), &"B".to_string());
 
         assert!(res);
         // the first (small) table is appended via make_largest_range, which
@@ -2004,7 +2023,10 @@ mod tests {
         put_num(&mut sheet_out, 1, 1, 100.0); put(&mut sheet_out, 1, 2, "- a"); put(&mut sheet_out, 1, 3, "- b");
         put_num(&mut sheet_out, 2, 1, 5.0); put_num(&mut sheet_out, 2, 2, 6.0); put_num(&mut sheet_out, 2, 3, 7.0);
 
-        let res = filter_sheet_by_col_and_accum(&sheet_in, &mut sheet_out, &"A".to_string(), &"B".to_string());
+        let res = filter_sheet_by_col_and_accum(
+            &range_ops::effective_bounds(&sheet_in,0,0), 
+            &mut range_ops::effective_bounds_mut(&mut sheet_out,0,0), 
+            &"A".to_string(), &"B".to_string());
 
         // Documented current behavior: res reflects only the append path;
         // a pure accumulation (no append) leaves it false.
