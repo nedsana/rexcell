@@ -111,60 +111,72 @@ fn compare_workbooks(actual: &Path, expected: &Path) -> Result<(), String> {
     }
 
     let mut diffs: Vec<String> = Vec::new();
-    'outer: for (asheet, bsheet) in a_sheets.iter().zip(b_sheets.iter()) {
-        let name = asheet.get_name().to_string();
-        for col in 1..=common::MAX_COL {
-            for row in 1..=common::MAX_ROW {
-                if diffs.len() >= 10 {
-                    break 'outer;
-                }
-                let acell = asheet.get_cell((col, row));
-                let bcell = bsheet.get_cell((col, row));
-                let a_formula = acell.map(|c| c.is_formula()).unwrap_or(false);
-                let b_formula = bcell.map(|c| c.is_formula()).unwrap_or(false);
+    'outer: for (asheet, bsheet) in a_sheets.iter().zip(b_sheets.iter()) 
+    {
+        let washeet = range_ops::effective_bounds(asheet, 0, 0);
+        let wbsheet = range_ops::effective_bounds(bsheet, 0, 0);
+        if washeet.max_col == wbsheet.max_col && washeet.max_row == wbsheet.max_row
+        {
+            let name = asheet.get_name().to_string();
+            for col in 1..=washeet.max_col {
+                for row in 1..=washeet.max_row {
+                    if diffs.len() >= 10 {
+                        break 'outer;
+                    }
+                    let acell = asheet.get_cell((col, row));
+                    let bcell = bsheet.get_cell((col, row));
+                    let a_formula = acell.map(|c| c.is_formula()).unwrap_or(false);
+                    let b_formula = bcell.map(|c| c.is_formula()).unwrap_or(false);
 
-                if a_formula || b_formula {
-                    let a_f = acell
-                        .filter(|c| c.is_formula())
-                        .map(|c| c.get_formula().to_string());
-                    let b_f = bcell
-                        .filter(|c| c.is_formula())
-                        .map(|c| c.get_formula().to_string());
-                    if a_f != b_f {
+                    if a_formula || b_formula {
+                        let a_f = acell
+                            .filter(|c| c.is_formula())
+                            .map(|c| c.get_formula().to_string());
+                        let b_f = bcell
+                            .filter(|c| c.is_formula())
+                            .map(|c| c.get_formula().to_string());
+                        if a_f != b_f {
+                            diffs.push(format!(
+                                "{}!{}{}: actual={:?} expected={:?} (formula)",
+                                name,
+                                range_ops::index_to_column(col),
+                                row,
+                                a_f,
+                                b_f
+                            ));
+                        }
+                        continue;
+                    }
+
+                    let a_val = acell.map(|c| c.get_value().to_string()).unwrap_or_default();
+                    let b_val = bcell.map(|c| c.get_value().to_string()).unwrap_or_default();
+                    if a_val.is_empty() && b_val.is_empty() {
+                        continue;
+                    }
+                    let equal = match (a_val.parse::<f64>(), b_val.parse::<f64>()) {
+                        (Ok(an), Ok(bn)) => {
+                            (an - bn).abs() <= 1e-6 * 1f64.max(an.abs()).max(bn.abs())
+                        }
+                        _ => range_ops::cmp_strs(&a_val, &b_val),
+                    };
+                    if !equal {
                         diffs.push(format!(
-                            "{}!{}{}: actual={:?} expected={:?} (formula)",
+                            "{}!{}{}: actual='{}' expected='{}'",
                             name,
                             range_ops::index_to_column(col),
                             row,
-                            a_f,
-                            b_f
+                            a_val,
+                            b_val
                         ));
                     }
-                    continue;
-                }
-
-                let a_val = acell.map(|c| c.get_value().to_string()).unwrap_or_default();
-                let b_val = bcell.map(|c| c.get_value().to_string()).unwrap_or_default();
-                if a_val.is_empty() && b_val.is_empty() {
-                    continue;
-                }
-                let equal = match (a_val.parse::<f64>(), b_val.parse::<f64>()) {
-                    (Ok(an), Ok(bn)) => {
-                        (an - bn).abs() <= 1e-6 * 1f64.max(an.abs()).max(bn.abs())
-                    }
-                    _ => range_ops::cmp_strs(&a_val, &b_val),
-                };
-                if !equal {
-                    diffs.push(format!(
-                        "{}!{}{}: actual='{}' expected='{}'",
-                        name,
-                        range_ops::index_to_column(col),
-                        row,
-                        a_val,
-                        b_val
-                    ));
                 }
             }
+        }
+        else
+        {
+            diffs.push(format!("Size missmatch! Sheet [{} rows:{} cols:{}] and [{} rows:{} cols:{}]!", 
+                asheet.get_name(), washeet.max_row, washeet.max_col,
+                bsheet.get_name(), wbsheet.max_row, wbsheet.max_col));
         }
     }
 
@@ -204,7 +216,8 @@ fn sheet_value(book: &umya_spreadsheet::Spreadsheet, sheet: &str, col: u32, row:
 fn prices_keys(out: &Path) -> Vec<String> {
     let book = umya_spreadsheet::reader::xlsx::read(out).expect("read output");
     let prices = book.get_sheet_by_name("Prices").expect("Prices sheet missing");
-    (1..=common::MAX_ROW)
+    let wprices = range_ops::effective_bounds(prices, 0, 0);
+    (1..=wprices.max_row)
         .map(|r| prices.get_value((3, r)).to_string())
         .filter(|v| !v.is_empty())
         .collect()
