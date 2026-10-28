@@ -324,7 +324,9 @@ pub fn find_missing_entries(find_where: & dyn IRange, find_what: & dyn IRange, c
  * Scan the workseet to find if there are ranges (Multiline or Merged), with same header, but with more rows than the provided range_out.
  * @return - return temporary Worksheet which contain a single IRange entry (Basic, Merged or Multiline) with all rows which should belong to it.
  */
-pub fn make_largest_range<'a>(range_in: &'a dyn IRange, sheet_in: &'a Worksheet, cmp_cols: &'a Vec<u32>, acc_cols: &'a Vec<u32>) -> Worksheet //DELETE_ME: Think of Option/Result return value
+pub fn make_largest_range<'a,T>(range_in: &'a dyn IRange, sheet_in: &'a WorkSheet<T>, cmp_cols: &'a Vec<u32>, acc_cols: &'a Vec<u32>) -> Worksheet //DELETE_ME: Think of Option/Result return value
+where
+    T: Deref<Target = Worksheet>,
 {
     let mut tmp_sheet = Worksheet::default();
     tmp_sheet.set_name("TMP_SHEET");
@@ -338,7 +340,7 @@ pub fn make_largest_range<'a>(range_in: &'a dyn IRange, sheet_in: &'a Worksheet,
 
             let mut range_tmp = make_range_inst_mut(range_in.get_type(), range_ops::make_range_from_indexes(1, 1, cols_in, rows_in), &mut tmp_sheet);
 
-            match range_ops::IterRow::new(sheet_in, common::MAX_ROW, common::MAX_COL, 1, true, common::REGEX_MULTILINE, range_ops::Offsets::default())
+            match range_ops::IterRow::new(sheet_in, sheet_in.max_row, sheet_in.max_col, 1, true, common::REGEX_MULTILINE, range_ops::Offsets::default())
             {
                 Ok(iter_sheet) =>
                 {
@@ -498,7 +500,7 @@ pub fn filter_sheet_by_col_and_accum(
                             }
                             else
                             { //appending
-                                let sheet_largest_range = make_largest_range(&it, wsheet_in.sheet, &cmp_cols, &acc_cols);
+                                let sheet_largest_range = make_largest_range(&it, wsheet_in, &cmp_cols, &acc_cols);
                                 let sheet_largest_range = range_ops::effective_bounds(&sheet_largest_range, 0, 0);
 
                                 match range_ops::IterRow::new(&sheet_largest_range, sheet_largest_range.max_row, sheet_largest_range.max_col, 1, true, common::REGEX_MULTILINE, range_ops::Offsets::default()) 
@@ -1767,7 +1769,7 @@ mod tests {
         let cmp = vec![1];
         let acc = vec![2];
 
-        let tmp = make_largest_range(&range_in, &sheet, &cmp, &acc);
+        let tmp = make_largest_range(&range_in,  &range_ops::effective_bounds(&sheet, 0, 0), &cmp, &acc);
 
         assert_eq!(tmp.get_name(), "TMP_SHEET");
         assert_eq!(tmp.get_value((1, 1)), "100"); // cmp column copied as-is
@@ -1794,7 +1796,7 @@ mod tests {
         let range_in = RangeMultiline::new(range_ops::make_range_from_indexes(1, 1, 9, 2), &sheet);
         let cmp = vec![1];
         let acc = Vec::new();
-        let tmp = make_largest_range(&range_in, &sheet, &cmp, &acc);
+        let tmp = make_largest_range(&range_in, &range_ops::effective_bounds(&sheet, 0, 0), &cmp, &acc);
 
         // header differs -> nothing appended
         assert_eq!(tmp.get_highest_row(), 2);
@@ -1816,7 +1818,7 @@ mod tests {
         let range_in = RangeMultiline::new(range_ops::make_range_from_indexes(1, 1, 9, 4), &sheet);
         let cmp = vec![1];
         let acc = Vec::new();
-        let tmp = make_largest_range(&range_in, &sheet, &cmp, &acc);
+        let tmp = make_largest_range(&range_in, &range_ops::effective_bounds(&sheet, 0, 0), &cmp, &acc);
 
         // rows_it > rows_in is false for the smaller table -> untouched
         assert_eq!(tmp.get_highest_row(), 4);
@@ -1839,7 +1841,7 @@ mod tests {
         let range_in = RangeMultiline::new(range_ops::make_range_from_indexes(1, 1, 9, 3), &sheet);
         let cmp = vec![1];
         let acc = Vec::new();
-        let tmp = make_largest_range(&range_in, &sheet, &cmp, &acc);
+        let tmp = make_largest_range(&range_in, &range_ops::effective_bounds(&sheet, 0, 0), &cmp, &acc);
 
         // Documented current behavior: only same-type ranges are
         // considered, so the larger Merged table is ignored.
@@ -1863,7 +1865,7 @@ mod tests {
         let range_in = RangeMergedCells::new(range_ops::make_range_from_indexes(1, 1, 9, 3), &sheet);
         let cmp = vec![1];
         let acc = Vec::new();
-        let tmp = make_largest_range(&range_in, &sheet, &cmp, &acc);
+        let tmp = make_largest_range(&range_in, &range_ops::effective_bounds(&sheet, 0, 0), &cmp, &acc);
 
         assert_eq!(tmp.get_value((1, 1)), "100");
         assert_eq!(tmp.get_value((1, 2)), "x");
@@ -1884,7 +1886,7 @@ mod tests {
         let range_in = RangeBasic::new(range_ops::make_range_from_indexes(1, 1, 9, 1), &sheet);
         let cmp = vec![1];
         let acc = Vec::new();
-        let tmp = make_largest_range(&range_in, &sheet, &cmp, &acc);
+        let tmp = make_largest_range(&range_in, &range_ops::effective_bounds(&sheet, 0, 0), &cmp, &acc);
 
         // Documented current behavior: Basic items are always single-row,
         // so rows_it > rows_in can never hold and nothing is appended.
