@@ -9,12 +9,15 @@ use super::common;
 use super::range_ops;
 
 
-pub fn get_ref_map_by_indexes(sheet: &Worksheet, col_key: u32, col_value: u32) -> HashMap<String, String> {
+pub fn get_ref_map_by_indexes<'a,T>(sheet: &'a WorkSheet<T>, col_key: u32, col_value: u32) -> HashMap<String, String> 
+where
+    T: Deref<Target = Worksheet>,
+{
     let mut ref_map: HashMap<String, String> = HashMap::new();
 
-    for row in 1..=common::MAX_ROW /*sheet.get_highest_row()*/ {
-        let cell_key = sheet.get_value((col_key, row));
-        let cell_value = sheet.get_value((col_value, row));
+    for row in 1..=sheet.max_row /*sheet.get_highest_row()*/ {
+        let cell_key = sheet.sheet.get_value((col_key, row));
+        let cell_value = sheet.sheet.get_value((col_value, row));
 
         if !cell_value.is_empty() && !cell_key.is_empty() {
             ref_map.insert(cell_value.clone(), cell_key.clone());
@@ -24,7 +27,10 @@ pub fn get_ref_map_by_indexes(sheet: &Worksheet, col_key: u32, col_value: u32) -
     ref_map
 }
 
-pub fn get_ref_map_by_strings(sheet: &Worksheet, col_key: &String, col_value: &String) -> HashMap<String, String> {
+pub fn get_ref_map_by_strings<'a,T>(sheet: &'a WorkSheet<T>, col_key: &String, col_value: &String) -> HashMap<String, String>
+where
+    T: Deref<Target = Worksheet>,
+{
     get_ref_map_by_indexes(sheet, range_ops::column_to_index(col_key),range_ops::column_to_index(col_value))
 }
 
@@ -469,7 +475,6 @@ pub fn filter_sheet_by_col_and_accum(
                         {
                             let wsheet_out = range_ops::effective_bounds_mut(wsheet_out.sheet, 0, 0);
 
-                            // if let Some(found_range) = find_range_in_sheet(&it, wsheet_out.sheet, &cmp_cols, wsheet_out.max_row, wsheet_out.max_col)
                             if let Some(found_range) = find_range_in_sheet(&it, &wsheet_out, &cmp_cols)
                             { //accumulating
                                 let found_range_clone = found_range.get_range().clone();
@@ -1153,7 +1158,7 @@ mod tests {
         put(&mut s, 2, 2, "K2"); put(&mut s, 3, 2, "V2");
         put(&mut s, 2, 3, "K3"); put(&mut s, 3, 3, "V3");
 
-        let m = get_ref_map_by_indexes(&s, 2, 3);
+        let m = get_ref_map_by_indexes(&range_ops::effective_bounds(&s, 0, 0), 2, 3);
         // Documented current behavior: the map is keyed by the VALUE column
         // and holds the KEY column content (reversed vs the parameter names).
         assert_eq!(m.len(), 3);
@@ -1169,7 +1174,7 @@ mod tests {
         put(&mut s, 3, 2, "V2"); // value only
         put(&mut s, 2, 3, "K3"); put(&mut s, 3, 3, "V3"); // complete
 
-        let m = get_ref_map_by_indexes(&s, 2, 3);
+        let m = get_ref_map_by_indexes(&range_ops::effective_bounds(&s, 0, 0), 2, 3);
         assert_eq!(m.len(), 1);
         assert_eq!(m.get("V3"), Some(&"K3".to_string()));
     }
@@ -1184,7 +1189,7 @@ mod tests {
         put(&mut s, 2, 3, "K3"); put(&mut s, 3, 3, "VA");
         put(&mut s, 2, 4, "K3"); put(&mut s, 3, 4, "VB");
 
-        let m = get_ref_map_by_indexes(&s, 2, 3);
+        let m = get_ref_map_by_indexes(&range_ops::effective_bounds(&s, 0, 0), 2, 3);
         assert_eq!(m.len(), 3);
         assert_eq!(m.get("V"), Some(&"K2".to_string()));
         assert_eq!(m.get("VA"), Some(&"K3".to_string()));
@@ -1196,8 +1201,8 @@ mod tests {
         let mut s = ws("RM4");
         put(&mut s, 2, 1, "K1"); put(&mut s, 3, 1, "V1");
 
-        let by_idx = get_ref_map_by_indexes(&s, 2, 3);
-        let by_str = get_ref_map_by_strings(&s, &"B".to_string(), &"C".to_string());
+        let by_idx = get_ref_map_by_indexes(&range_ops::effective_bounds(&s, 0, 0), 2, 3);
+        let by_str = get_ref_map_by_strings(&range_ops::effective_bounds(&s, 0, 0), &"B".to_string(), &"C".to_string());
         assert_eq!(by_idx, by_str);
     }
 
