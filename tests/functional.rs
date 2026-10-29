@@ -488,8 +488,10 @@ fn corner_filter_accumulate()
 fn corner_max_row() 
 {
     enable_logging();
-    // Rows 1..4999 share key "K", row 5000 = K5000 (last scanned), rows
-    // 5001/5002 = K5001/K5002 must be ignored (MAX_ROW = 5000).
+    // Rows 1..4999 share key "K".
+    // Rows 5000 = K5000 used to be the last row in "Prices" tab, because we used to be limited by (MAX_ROW = 5000).
+    // Rows 5001/5002 = K5001/K5002 used to be ignored by (MAX_ROW = 5000).
+    // NOTE: after removing MAX_ROW/COL limitation all rows must be present!
     let path = actual_file("corner_max_row.xlsx");
     write_workbook(&path, |book| {
         let mut s1 = umya_spreadsheet::Worksheet::default();
@@ -514,9 +516,9 @@ fn corner_max_row()
     let out = run(&mut cfg).expect("execute failed");
     let keys = prices_keys(&out);
     assert!(keys.iter().any(|k| k == "K"), "expected accumulated key K in Prices");
-    assert!(keys.iter().any(|k| k == "K5000"), "expected K5000 in Prices");
-    assert!(!keys.iter().any(|k| k == "K5001"), "K5001 must not be processed (MAX_ROW)");
-    assert!(!keys.iter().any(|k| k == "K5002"), "K5002 must not be processed (MAX_ROW)");
+    assert!(keys.iter().any(|k| k == "K5000"), "expected K5000 in Prices"); //used to be last row when (MAX_ROW = 5000) limitation existed
+    assert!(keys.iter().any(|k| k == "K5001"), "expected K5001 in Prices"); //used to be ignored when (MAX_ROW = 5000) limitation existed
+    assert!(keys.iter().any(|k| k == "K5002"), "expected K5002 in Prices"); //used to be ignored when (MAX_ROW = 5000) limitation existed
 }
 
 #[test]
