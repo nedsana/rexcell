@@ -239,7 +239,7 @@ pub fn find_range_in_sheet<'a,T>(range: &'a dyn IRange, wsheet: &'a WorkSheet<T>
 where
     T: Deref<Target = Worksheet>,
 {
-    match range_ops::IterRow::new(&wsheet.sheet, wsheet.max_row, wsheet.max_col, 1, true, common::REGEX_MULTILINE, range_ops::Offsets::default())
+    match range_ops::IterRow::new(wsheet, 1, true, common::REGEX_MULTILINE, range_ops::Offsets::default())
     {
         Ok(iter_sheet) =>
         {
@@ -340,7 +340,7 @@ where
 
             let mut range_tmp = make_range_inst_mut(range_in.get_type(), range_ops::make_range_from_indexes(1, 1, cols_in, rows_in), &mut tmp_sheet);
 
-            match range_ops::IterRow::new(&sheet_in.sheet, sheet_in.max_row, sheet_in.max_col, 1, true, common::REGEX_MULTILINE, range_ops::Offsets::default())
+            match range_ops::IterRow::new(sheet_in, 1, true, common::REGEX_MULTILINE, range_ops::Offsets::default())
             {
                 Ok(iter_sheet) =>
                 {
@@ -468,7 +468,7 @@ pub fn filter_sheet_by_col_and_accum(
     let cmp_cols: Vec<u32> = col_filter.split(',').map(|s| range_ops::column_to_index(s.trim())).collect();
     let acc_cols: Vec<u32> = cols_accum.split(',').map(|s| range_ops::column_to_index(s.trim())).collect();
 
-    match range_ops::IterRow::new(wsheet_in.sheet, wsheet_in.max_row, wsheet_in.max_col, 1, true, common::REGEX_MULTILINE, range_ops::Offsets::default())
+    match range_ops::IterRow::new(wsheet_in, 1, true, common::REGEX_MULTILINE, range_ops::Offsets::default())
     {
         Ok(iter_sheet) =>
         {
@@ -504,7 +504,7 @@ pub fn filter_sheet_by_col_and_accum(
                                 let sheet_largest_range = make_largest_range(&it, wsheet_in, &cmp_cols, &acc_cols);
                                 let sheet_largest_range = range_ops::effective_bounds(&sheet_largest_range, 0, 0);
 
-                                match range_ops::IterRow::new(&sheet_largest_range.sheet, sheet_largest_range.max_row, sheet_largest_range.max_col, 1, true, common::REGEX_MULTILINE, range_ops::Offsets::default()) 
+                                match range_ops::IterRow::new(&sheet_largest_range, 1, true, common::REGEX_MULTILINE, range_ops::Offsets::default()) 
                                 {
                                     Ok(iter_sheet_largest_range) => 
                                     {
@@ -674,9 +674,7 @@ where
 
     let fsrch_col = range_ops::column_to_index(filtered_col_srch);
 
-    let max_row = filtered_sheet.max_row;
-    let max_col = filtered_sheet.max_col;
-    match range_ops::IterRowMut::new(&mut filtered_sheet.sheet, max_row, max_col, 1, true, common::REGEX_MULTILINE, range_ops::Offsets::default())
+    match range_ops::IterRowMut::new(filtered_sheet, 1, true, common::REGEX_MULTILINE, range_ops::Offsets::default())
     {
         Ok(mut filtered_sheet_it) => 
         {
@@ -698,7 +696,7 @@ where
                         {
                             let filtered_cell_value = fit.get_sheet().get_cell_value((fsrch_col, fbr)).get_value();
 
-                            match range_ops::IterRow::new(&analysis_sheet.sheet, analysis_sheet.max_row, analysis_sheet.max_col, 1, false, analysis_srch_pat, range_ops::Offsets::new(0,0,-1,-1))
+                            match range_ops::IterRow::new(analysis_sheet, 1, false, analysis_srch_pat, range_ops::Offsets::new(0,0,-1,-1))
                             {
                                 Ok(analysis_sheet_it) => 
                                 {

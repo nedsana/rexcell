@@ -1,5 +1,6 @@
 use std::vec;
 use umya_spreadsheet::{Worksheet, Range, Cell};
+use std::ops::{Deref, DerefMut};
 use super::range_types;
 // use super::common;
 use log::{info, warn, error};
@@ -1117,8 +1118,6 @@ pub struct IterRowGeneric<S>
 {
     pub sheet:          S,
     pub current_row:    u32,
-    pub max_row:        u32,
-    pub max_col:        u32,
     pub pivot_col:      u32,
     pub pivot_numeric:  bool,
     pub pivot_re:       Regex,
@@ -1126,14 +1125,12 @@ pub struct IterRowGeneric<S>
 }
 
 impl<S> IterRowGeneric<S> {
-    pub fn new(sheet: S, mrow: u32, mcol: u32, pivot: u32, numeric: bool, re: &str, offs: Offsets) -> Result<Self, regex::Error> {
+    pub fn new(sheet: S, pivot: u32, numeric: bool, re: &str, offs: Offsets) -> Result<Self, regex::Error> {
         let pivot_re = Regex::new(re)?;
         
         Ok(Self {
             sheet,
             current_row:    1,
-            max_row:        mrow,
-            max_col:        mcol,
             pivot_col:      pivot,
             pivot_numeric:  numeric,
             pivot_re,
@@ -1146,16 +1143,18 @@ impl<S> IterRowGeneric<S> {
 // ITERATOR, NONE-MUTABLE, FOR LOOPING OVER WORKSHEET ROWS
 // =========================================================
 
-pub type IterRow<'a> = IterRowGeneric<&'a Worksheet>;
+pub type IterRow<'a, R> = IterRowGeneric<&'a range_types::WorkSheet<R>>;
 
-impl<'a> Iterator for IterRow<'a> 
+impl<'a, R> Iterator for IterRow<'a, R> 
+where
+    R: Deref<Target = Worksheet>,
 {
     type Item = range_types::RangeType<'a>;
 
     fn next(&mut self) -> Option<Self::Item> 
     {
         let mut ret: Option<Self::Item> = None;
-        match iter_row_next_impl(self.sheet, &mut self.current_row, self.max_row, self.max_col, self.pivot_col, self.pivot_numeric, &self.pivot_re, &self.offsets) {
+        match iter_row_next_impl(&self.sheet.sheet, &mut self.current_row, self.sheet.max_row, self.sheet.max_col, self.pivot_col, self.pivot_numeric, &self.pivot_re, &self.offsets) {
             Some(range) => ret = Some(range),
             None => (),
         }
@@ -1167,7 +1166,7 @@ impl<'a> Iterator for IterRow<'a>
 // ITERATOR, MUTABLE, FOR LOOPING OVER WORKSHEET ROWS
 // =========================================================
 
-pub type IterRowMut<'a> = IterRowGeneric<&'a mut Worksheet>;
+pub type IterRowMut<'a, R> = IterRowGeneric<&'a mut range_types::WorkSheet<R>>;
 
 //The statandart iterators, can no be mutable. So we need this specific iterator. NOTE: can't be used in for loops, but works with while!
 pub trait LendingIterator 
@@ -1177,14 +1176,16 @@ pub trait LendingIterator
     fn next(&mut self) -> Option<Self::Item<'_>>;
 }
 
-impl LendingIterator for IterRowMut<'_> 
+impl<'a, R> LendingIterator for IterRowMut<'a, R>
+where
+    R: DerefMut<Target = Worksheet>,
 {
     type Item<'this> = range_types::RangeTypeMut<'this> where Self: 'this;
     
     fn next(&mut self) -> Option<Self::Item<'_>> 
     {
         let mut ret: Option<Self::Item<'_>> = None;
-        match iter_row_next_impl_mut(self.sheet, &mut self.current_row, self.max_row, self.max_col, self.pivot_col, self.pivot_numeric, &self.pivot_re, &self.offsets) {
+        match iter_row_next_impl_mut(&mut self.sheet.sheet, &mut self.current_row, self.sheet.max_row, self.sheet.max_col, self.pivot_col, self.pivot_numeric, &self.pivot_re, &self.offsets) {
             Some(range) => ret = Some(range),
             None => (),
         }
@@ -2353,33 +2354,35 @@ mod tests {
     #[test]
     fn test_0098_iter_row_new_invalid_regex() {
         let sheet = ir_sheet("IR23", &[], &[]);
-        assert!(IterRow::new(&sheet, 10, 2, 1, false, "[", Offsets::default()).is_err());
+        let wsheet = effective_bounds(&sheet, 0, 0);
+        assert!(IterRow::new(&wsheet, 1, false, "[", Offsets::default()).is_err());
     }
 
     #[test]
     fn test_0099_iter_row_collects_basic_rows() {
         let sheet = ir_sheet("IR24", &[(1, 1, "a"), (1, 2, "b"), (1, 3, "c")], &[]);
-        let mut iter = IterRow::new(&sheet, 10, 2, 1, false, "^-", Offsets::default()).unwrap();
+        let wsheet = effective_bounds(&sheet, 0, 0);
+        let mut iter = IterRow::new(&wsheet, 1, false, "^-", Offsets::default()).unwrap();
         let mut ranges = vec![];
         for rt in iter.by_ref() {
             ranges.push(rt.get_range().get_range());
         }
-        assert_eq!(ranges, vec!["A1:C1".to_string(), "A2:C2".to_string(), "A3:C3".to_string()]);
-        // the final next() that returned None (EOF row 4) still advances the counter
-        assert_eq!(iter.current_row, 5);
+        assert_eq!(ranges, vec!["A1:B1".to_string(), "A2:B2".to_string(), "A3:B3".to_string()]);
+        assert_eq!(iter.current_row, 4);
     }
 
     #[test]
     fn test_0100_iter_row_multiline_kinds() {
         let sheet = ir_sheet("IR25", &[(1, 1, "-s"), (1, 2, "x"), (1, 3, "-n"), (1, 4, "t")], &[]);
-        let iter = IterRow::new(&sheet, 4, 2, 1, false, "^-", Offsets::default()).unwrap();
+        let wsheet = effective_bounds(&sheet, 0, 0);
+        let iter = IterRow::new(&wsheet, 1, false, "^-", Offsets::default()).unwrap();
         let mut ranges = vec![];
         let mut kinds = vec![];
         for rt in iter {
             kinds.push(rt.get_type());
             ranges.push(rt.get_range().get_range());
         }
-        assert_eq!(ranges, vec!["A1:C2".to_string(), "A3:C5".to_string()]);
+        assert_eq!(ranges, vec!["A1:B2".to_string(), "A3:B5".to_string()]);
         assert_eq!(kinds, vec![range_types::IterRowNextKind::Multiline, range_types::IterRowNextKind::Multiline]);
     }
 
@@ -2387,39 +2390,42 @@ mod tests {
     fn test_0101_iter_row_merged_in_middle() {
         let mut sheet = ir_sheet("IR26", &[(1, 1, "a"), (1, 5, "e")], &[]);
         sheet.add_merge_cells("A2:C4");
-        let iter = IterRow::new(&sheet, 10, 2, 1, false, "^-", Offsets::default()).unwrap();
+        let wsheet = effective_bounds(&sheet, 0, 0);
+        let iter = IterRow::new(&wsheet, 1, false, "^-", Offsets::default()).unwrap();
         let mut ranges = vec![];
         let mut kinds = vec![];
         for rt in iter {
             kinds.push(rt.get_type());
             ranges.push(rt.get_range().get_range());
         }
-        assert_eq!(ranges, vec!["A1:C1".to_string(), "A2:C4".to_string(), "A5:C5".to_string()]);
+        assert_eq!(ranges, vec!["A1:B1".to_string(), "A2:B4".to_string(), "A5:B5".to_string()]);
         assert_eq!(kinds, vec![range_types::IterRowNextKind::Basic, range_types::IterRowNextKind::Merged, range_types::IterRowNextKind::Basic]);
     }
 
     #[test]
     fn test_0102_iter_row_empty_sheet() {
         let sheet = ir_sheet("IR27", &[], &[]);
-        let mut iter = IterRow::new(&sheet, 10, 2, 1, false, "^-", Offsets::default()).unwrap();
+        let wsheet = effective_bounds(&sheet, 0, 0);
+        let mut iter = IterRow::new(&wsheet, 1, false, "^-", Offsets::default()).unwrap();
         let mut ranges = vec![];
         for rt in iter.by_ref() {
             ranges.push(rt.get_range().get_range());
         }
         assert!(ranges.is_empty());
-        assert_eq!(iter.current_row, 2);
+        assert_eq!(iter.current_row, 1);
     }
 
     #[test]
     fn test_0103_iter_row_mut_iteration_and_mutation() {
         let mut sheet = ir_sheet("IR28", &[(1, 1, "a"), (1, 2, "b"), (1, 3, "c")], &[]);
-        let mut iter = IterRowMut::new(&mut sheet, 10, 2, 1, false, "^-", Offsets::default()).unwrap();
+        let mut wsheet = effective_bounds_mut(&mut sheet, 0, 0);
+        let mut iter = IterRowMut::new(&mut wsheet, 1, false, "^-", Offsets::default()).unwrap();
         let mut ranges = vec![];
         while let Some(mut rt) = iter.next() {
             ranges.push(rt.get_range().get_range());
             rt.get_sheet_mut().set_name("renamed");
         }
-        assert_eq!(ranges, vec!["A1:C1".to_string(), "A2:C2".to_string(), "A3:C3".to_string()]);
+        assert_eq!(ranges, vec!["A1:B1".to_string(), "A2:B2".to_string(), "A3:B3".to_string()]);
         drop(iter);
         assert_eq!(sheet.get_name(), "renamed");
     }
@@ -2427,14 +2433,15 @@ mod tests {
     #[test]
     fn test_0104_iter_row_mut_multiline_kinds() {
         let mut sheet = ir_sheet("IR29", &[(1, 1, "-s"), (1, 2, "x"), (1, 3, "-n"), (1, 4, "t")], &[]);
-        let mut iter = IterRowMut::new(&mut sheet, 4, 2, 1, false, "^-", Offsets::default()).unwrap();
+        let mut wsheet = effective_bounds_mut(&mut sheet, 0, 0);
+        let mut iter = IterRowMut::new(&mut wsheet, 1, false, "^-", Offsets::default()).unwrap();
         let mut ranges = vec![];
         let mut kinds = vec![];
         while let Some(rt) = iter.next() {
             kinds.push(rt.get_type());
             ranges.push(rt.get_range().get_range());
         }
-        assert_eq!(ranges, vec!["A1:C2".to_string(), "A3:C5".to_string()]);
+        assert_eq!(ranges, vec!["A1:B2".to_string(), "A3:B5".to_string()]);
         assert_eq!(kinds, vec![range_types::IterRowNextKind::Multiline, range_types::IterRowNextKind::Multiline]);
         assert_eq!(iter.current_row, 5);
     }
@@ -2442,12 +2449,13 @@ mod tests {
     #[test]
     fn test_0105_iter_row_mut_empty_sheet() {
         let mut sheet = ir_sheet("IR30", &[], &[]);
-        let mut iter = IterRowMut::new(&mut sheet, 10, 2, 1, false, "^-", Offsets::default()).unwrap();
+        let mut wsheet = effective_bounds_mut(&mut sheet, 0, 0);
+        let mut iter = IterRowMut::new(&mut wsheet, 1, false, "^-", Offsets::default()).unwrap();
         let mut count = 0;
         while let Some(_rt) = iter.next() {
             count += 1;
         }
         assert_eq!(count, 0);
-        assert_eq!(iter.current_row, 2);
+        assert_eq!(iter.current_row, 1);
     }
 }
