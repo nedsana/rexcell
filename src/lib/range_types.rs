@@ -1,7 +1,7 @@
 use umya_spreadsheet::{Range, Worksheet};
 use super::range_ops;
 use std::vec;
-use std::ops::{Deref, DerefMut};
+use std::ops::{Deref};//, DerefMut};
 use std::marker::PhantomData;
 use log::{info, error};
 
@@ -465,12 +465,9 @@ pub struct WorkSheet<S>
     pub max_col: u32,
 }
 
-impl<S> WorkSheet<S> 
-{
-    pub fn new(ws: S, mr: u32, mc: u32) -> Self 
-    {
-        Self 
-        {
+impl<S> WorkSheet<S> {
+    pub fn new(ws: S, mr: u32, mc: u32) -> Self {
+        Self {
             sheet:   ws,
             max_row: mr,
             max_col: mc,
@@ -478,26 +475,53 @@ impl<S> WorkSheet<S>
     }
 }
 
-impl<S> Deref for WorkSheet<S>
-where
-    S: Deref<Target = Worksheet>,
-{
-    type Target = Worksheet;
-
-    fn deref(&self) -> &Worksheet {
-        &*self.sheet
-    }
+pub trait IWorkSheet<T> { 
+    fn sheet(&self) -> &T;
+    fn max_row(&self) -> u32;
+    fn max_col(&self) -> u32;
 }
 
-impl<S> DerefMut for WorkSheet<S>
-where
-    S: DerefMut<Target = Worksheet>,
-{
-    fn deref_mut(&mut self) -> &mut Worksheet {
-        &mut *self.sheet
-    }
+pub trait IWorkSheetMut<T>: IWorkSheet<T> { 
+    fn sheet_mut(&mut self) -> &mut T;
 }
 
+impl<T> IWorkSheet<T> for WorkSheet<T> 
+// where
+//     T: Deref<Target = Worksheet>,
+{ 
+    fn sheet(&self)   -> &T  { &self.sheet }
+    fn max_row(&self) -> u32 { self.max_row }
+    fn max_col(&self) -> u32 { self.max_col }
+}
+
+impl<T> IWorkSheetMut<T> for WorkSheet<T> 
+// where
+//     T: DerefMut<Target = Worksheet>,
+{ 
+    fn sheet_mut(&mut self) -> &mut T  { &mut self.sheet }
+}
+
+// //Allows direct access to Worksheet interface. If no present, we will have to access ".sheet" member everywhere!
+// impl<S> Deref for WorkSheet<S>
+// where
+//     S: Deref<Target = Worksheet>,
+// {
+//     type Target = Worksheet;
+
+//     fn deref(&self) -> &Worksheet {
+//         &*self.sheet
+//     }
+// }
+
+// //Allows direct access to Worksheet interface. If no present, we will have to access ".sheet" member everywhere!
+// impl<S> DerefMut for WorkSheet<S>
+// where
+//     S: DerefMut<Target = Worksheet>,
+// {
+//     fn deref_mut(&mut self) -> &mut Worksheet {
+//         &mut *self.sheet
+//     }
+// }
 
 pub struct TagRangeBasic;
 pub struct TagRangeMergedCells;

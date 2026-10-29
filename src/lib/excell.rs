@@ -2,18 +2,22 @@
 use umya_spreadsheet::*;
 use std::collections::HashMap;
 use std::iter::Iterator;
+use std::ops::{Deref, DerefMut};
 use crate::range_types::*;
 use log::{debug, info, warn, error};
 use super::common;
 use super::range_ops;
 
 
-pub fn get_ref_map_by_indexes(sheet: &Worksheet, col_key: u32, col_value: u32) -> HashMap<String, String> {
+pub fn get_ref_map_by_indexes<'a,T>(sheet: &'a WorkSheet<T>, col_key: u32, col_value: u32) -> HashMap<String, String> 
+where
+    T: Deref<Target = Worksheet>,
+{
     let mut ref_map: HashMap<String, String> = HashMap::new();
 
-    for row in 1..=common::MAX_ROW /*sheet.get_highest_row()*/ {
-        let cell_key = sheet.get_value((col_key, row));
-        let cell_value = sheet.get_value((col_value, row));
+    for row in 1..=sheet.max_row /*sheet.get_highest_row()*/ {
+        let cell_key = sheet.sheet.get_value((col_key, row));
+        let cell_value = sheet.sheet.get_value((col_value, row));
 
         if !cell_value.is_empty() && !cell_key.is_empty() {
             ref_map.insert(cell_value.clone(), cell_key.clone());
@@ -23,40 +27,44 @@ pub fn get_ref_map_by_indexes(sheet: &Worksheet, col_key: u32, col_value: u32) -
     ref_map
 }
 
-pub fn get_ref_map_by_strings(sheet: &Worksheet, col_key: &String, col_value: &String) -> HashMap<String, String> {
+pub fn get_ref_map_by_strings<'a,T>(sheet: &'a WorkSheet<T>, col_key: &String, col_value: &String) -> HashMap<String, String>
+where
+    T: Deref<Target = Worksheet>,
+{
     get_ref_map_by_indexes(sheet, range_ops::column_to_index(col_key),range_ops::column_to_index(col_value))
 }
 
-pub fn apply_formulas(
-    rtbl: &Worksheet,
-    utbl: &mut Worksheet,
+/**
+ * Try to trigger the formula execution
+ */
+pub fn apply_formulas<'a, R, U>(
+    rtbl: &'a WorkSheet<R>,
+    utbl: &'a mut WorkSheet<U>,
     col_key: u32,
 )
+where
+    R: Deref<Target = Worksheet>,
+    U: DerefMut<Target = Worksheet>,
 {
-    let utbl_max_row = common::MAX_ROW; //utbl.get_highest_row();
-    let rtbl_max_row = common::MAX_ROW; //rtbl.get_highest_row();
-
-    for rtbl_row in 1..=rtbl_max_row //loop over the reference table rows
+    for rtbl_row in 1..=rtbl.max_row //loop over the reference table rows
     {
-        let rtbl_key_value = rtbl.get_value((col_key, rtbl_row));
+        let rtbl_key_value = rtbl.sheet.get_value((col_key, rtbl_row));
         
         if !rtbl_key_value.is_empty()
         {
-            for utbl_row in 1..=utbl_max_row //loop over the update table rows
+            for utbl_row in 1..=utbl.max_row //loop over the update table rows
             {
-                let utbl_key_value = utbl.get_value((col_key, utbl_row));
+                let utbl_key_value = utbl.sheet.get_value((col_key, utbl_row));
 
                 if !utbl_key_value.is_empty() && range_ops::cmp_strs(&utbl_key_value, &rtbl_key_value) 
                 {
-                    // let utbl_name = utbl.get_name().to_string();
-                    let utbl_max_col = common::MAX_COL; //utbl.get_highest_column();
-                    for utbl_col in 1..=utbl_max_col
+                    for utbl_col in 1..=utbl.max_col
                     {
-                        let ucell = utbl.get_cell_mut((utbl_col, utbl_row));
+                        let ucell = utbl.sheet.get_cell_mut((utbl_col, utbl_row));
                         if ucell.is_formula()
                         {
                             let formula: String = ucell.get_formula().to_string();
-                            // info!("Found formula({}) in '{} {}{}'", formula, utbl_name, index_to_column(utbl_col), utbl_row);
+                            // info!("Found formula({}) in '{} {}{}'", formula, utbl.get_name().to_string(), range_ops::index_to_column(utbl_col), utbl_row);
                             ucell.set_value("");
                             ucell.set_formula(formula);
                         }
@@ -67,17 +75,17 @@ pub fn apply_formulas(
     }
 }
 
-pub fn reset_formulas(
-    utbl: &mut Worksheet,
+pub fn reset_formulas<'a, U>(
+    utbl: &'a mut WorkSheet<U>,
 )
+where
+    U: DerefMut<Target = Worksheet>,
 {
-    let utbl_max_row = common::MAX_ROW; //utbl.get_highest_row();
-    let utbl_max_col = common::MAX_COL; //utbl.get_highest_column();
-    for utbl_col in 1..=utbl_max_col //loop over the update table rows
+    for utbl_col in 1..=utbl.max_col //loop over the update table rows
     {
-        for utbl_row in 1..=utbl_max_row //loop over the update table rows
+        for utbl_row in 1..=utbl.max_row //loop over the update table rows
         {
-            let ucell = utbl.get_cell_mut((utbl_col, utbl_row));
+            let ucell = utbl.sheet.get_cell_mut((utbl_col, utbl_row));
             if ucell.is_formula()
             {
                 let formula: String = ucell.get_formula().to_string();
@@ -89,39 +97,42 @@ pub fn reset_formulas(
     }
 }
 
-pub fn apply_key_value_data_by_indexes(
-    rtbl:       &Worksheet,
-    utbl:       &mut Worksheet,
+pub fn apply_key_value_data_by_indexes<'a, R, U>(
+    rtbl: &'a WorkSheet<R>,
+    utbl: &'a mut WorkSheet<U>,
     col_key:    u32,
     col_upd:    u32,
     calcs:      &String,
 ) -> Result<(), String> 
+where
+    R: Deref<Target = Worksheet>,
+    U: DerefMut<Target = Worksheet>,
 {
     // info!("rtbl:{} utbl:{} col_key:{} col_upd:{}", rtbl.get_name(), utbl.get_name(), col_key, col_upd);
 
     let mut found = false;
     
-    let utbl_max_row = common::MAX_ROW; //utbl.get_highest_row();
-    let rtbl_max_row = common::MAX_ROW; //rtbl.get_highest_row();
+    let utbl_max_row = utbl.max_row;
+    let rtbl_max_row = rtbl.max_row;
 
     for utbl_row in 1..=utbl_max_row //loop over the update table rows
     {
-        let utbl_key_value = utbl.get_value((col_key, utbl_row));
+        let utbl_key_value = utbl.sheet.get_value((col_key, utbl_row));
 
         if !utbl_key_value.is_empty() 
         {
             for rtbl_row in 1..=rtbl_max_row //loop over the reference table rows
             {
-                let rtbl_key_value = rtbl.get_value((col_key, rtbl_row));
+                let rtbl_key_value = rtbl.sheet.get_value((col_key, rtbl_row));
 
                 if range_ops::cmp_strs(&utbl_key_value, &rtbl_key_value) 
                 {
-                    let rtbl_upd_value = rtbl.get_value((col_upd, rtbl_row));
-                    let rtbl_upd_cell = rtbl.get_cell((col_upd, rtbl_row));
+                    let rtbl_upd_value = rtbl.sheet.get_value((col_upd, rtbl_row));
+                    let rtbl_upd_cell = rtbl.sheet.get_cell((col_upd, rtbl_row));
 
                     if let Some(upd_cell) = rtbl_upd_cell 
                     {
-                        let dst_cell = utbl.get_cell_mut((col_upd, utbl_row));
+                        let dst_cell = utbl.sheet.get_cell_mut((col_upd, utbl_row));
 
                         // info!("dst_cell({}{}).get_data_type()={}", index_to_column(col_upd), utbl_row, upd_cell.get_data_type());
 
@@ -138,19 +149,19 @@ pub fn apply_key_value_data_by_indexes(
                     } 
                     else 
                     {
-                        utbl.get_cell_mut((col_upd, utbl_row)).set_value(rtbl_upd_value.clone());
+                        utbl.sheet.get_cell_mut((col_upd, utbl_row)).set_value(rtbl_upd_value.clone());
                     }
 
                     //apply calculations after the update of the table
-                    if let Err(err_msg) = apply_calculations(utbl, utbl_row, &calcs) 
+                    if let Err(err_msg) = apply_calculations(&mut utbl.sheet, utbl_row, &calcs) 
                     {
                         log::error!("Failed to apply formula for row {}: {}", utbl_row, err_msg);
                         return Err(err_msg);
                     }
 
                     info!("Updated '{} {}{}' with '{}' from '{} {}{}'!", 
-                                        utbl.get_name(), range_ops::index_to_column(col_upd), utbl_row, rtbl_upd_value,
-                                        rtbl.get_name(), range_ops::index_to_column(col_upd), rtbl_row);
+                                        utbl.sheet.get_name(), range_ops::index_to_column(col_upd), utbl_row, rtbl_upd_value,
+                                        rtbl.sheet.get_name(), range_ops::index_to_column(col_upd), rtbl_row);
 
                     found = true;
                     
@@ -160,8 +171,8 @@ pub fn apply_key_value_data_by_indexes(
 
             if !found
             {
-                error!("Can't find '{} {}{}' '{}' in '{}'!", utbl.get_name(), range_ops::index_to_column(col_upd), 
-                                    utbl_row, utbl_key_value, rtbl.get_name());
+                error!("Can't find '{} {}{}' '{}' in '{}'!", utbl.sheet.get_name(), range_ops::index_to_column(col_upd), 
+                                    utbl_row, utbl_key_value, rtbl.sheet.get_name());
             }
         }
     }
@@ -175,13 +186,16 @@ pub fn apply_key_value_data_by_indexes(
     Ok(())
 }
 
-pub fn apply_key_value_data_by_strings(
-    rtbl:       &Worksheet,
-    utbl:       &mut Worksheet,
+pub fn apply_key_value_data_by_strings<'a, R, U>(
+    rtbl:       &'a WorkSheet<R>,
+    utbl:       &'a mut WorkSheet<U>,
     col_key:    &String,
     cols_upd:   &String,
     calcs:      &String,
 ) -> Result<(), String>
+where
+    R: Deref<Target = Worksheet>,
+    U: DerefMut<Target = Worksheet>,
 {
     if cols_upd.len() == 0 
     {
@@ -221,9 +235,11 @@ pub fn get_worksheet_names(path: &std::path::Path) -> Result<String, String> {
  * Find a matching range in the sheet.
  * Returns Some(range) when a matching range is found, otherwise None.
  */
-pub fn find_range_in_sheet<'a>(range: &'a dyn IRange, sheet: &'a Worksheet, cmp_cols: &'a Vec<u32>) -> Option<RangeType<'a>>
+pub fn find_range_in_sheet<'a,T>(range: &'a dyn IRange, wsheet: &'a WorkSheet<T>, cmp_cols: &'a Vec<u32>) -> Option<RangeType<'a>>
+where
+    T: Deref<Target = Worksheet>,
 {
-    match range_ops::IterRow::new(sheet, common::MAX_ROW, common::MAX_COL, 1, true, common::REGEX_MULTILINE, range_ops::Offsets::default())
+    match range_ops::IterRow::new(&wsheet.sheet, wsheet.max_row, wsheet.max_col, 1, true, common::REGEX_MULTILINE, range_ops::Offsets::default())
     {
         Ok(iter_sheet) =>
         {
@@ -244,6 +260,7 @@ pub fn find_range_in_sheet<'a>(range: &'a dyn IRange, sheet: &'a Worksheet, cmp_
     None
 }
 
+/** */
 pub fn clear_worksheet(sheet: &mut Worksheet) 
 {
     let (_, max_row) = sheet.get_highest_column_and_row();
@@ -307,7 +324,9 @@ pub fn find_missing_entries(find_where: & dyn IRange, find_what: & dyn IRange, c
  * Scan the workseet to find if there are ranges (Multiline or Merged), with same header, but with more rows than the provided range_out.
  * @return - return temporary Worksheet which contain a single IRange entry (Basic, Merged or Multiline) with all rows which should belong to it.
  */
-pub fn make_largest_range<'a>(range_in: &'a dyn IRange, sheet_in: &'a Worksheet, cmp_cols: &'a Vec<u32>, acc_cols: &'a Vec<u32>) -> Worksheet //DELETE_ME: Think of Option/Result return value
+pub fn make_largest_range<'a,T>(range_in: &'a dyn IRange, sheet_in: &'a WorkSheet<T>, cmp_cols: &'a Vec<u32>, acc_cols: &'a Vec<u32>) -> Worksheet //DELETE_ME: Think of Option/Result return value
+where
+    T: Deref<Target = Worksheet>,
 {
     let mut tmp_sheet = Worksheet::default();
     tmp_sheet.set_name("TMP_SHEET");
@@ -315,13 +334,13 @@ pub fn make_largest_range<'a>(range_in: &'a dyn IRange, sheet_in: &'a Worksheet,
     if let Some((_, _, _, _, rows_in, cols_in)) = range_ops::range_bounds(range_in.get_range())
     {
         //Add the input range to the temporary sheet. Any rows, which belong to this group will be appened
-        if range_ops::append_range(sheet_in, range_in.get_range(), &mut tmp_sheet, acc_cols) 
+        if range_ops::append_range(&sheet_in.sheet, range_in.get_range(), &mut tmp_sheet, acc_cols) 
         {
-            info!("Appended range {}:[{}] to {}", sheet_in.get_name(), range_ops::range_to_string(range_in.get_range()), tmp_sheet.get_name());
+            info!("Appended range {}:[{}] to {}", sheet_in.sheet.get_name(), range_ops::range_to_string(range_in.get_range()), tmp_sheet.get_name());
 
             let mut range_tmp = make_range_inst_mut(range_in.get_type(), range_ops::make_range_from_indexes(1, 1, cols_in, rows_in), &mut tmp_sheet);
 
-            match range_ops::IterRow::new(sheet_in, common::MAX_ROW, common::MAX_COL, 1, true, common::REGEX_MULTILINE, range_ops::Offsets::default())
+            match range_ops::IterRow::new(&sheet_in.sheet, sheet_in.max_row, sheet_in.max_col, 1, true, common::REGEX_MULTILINE, range_ops::Offsets::default())
             {
                 Ok(iter_sheet) =>
                 {
@@ -424,7 +443,7 @@ pub fn make_largest_range<'a>(range_in: &'a dyn IRange, sheet_in: &'a Worksheet,
         }
         else
         {
-            error!("Failed to append range {}:[{}] to {}!", sheet_in.get_name(), range_ops::range_to_string(range_in.get_range()), tmp_sheet.get_name());
+            error!("Failed to append range {}:[{}] to {}!", sheet_in.sheet.get_name(), range_ops::range_to_string(range_in.get_range()), tmp_sheet.get_name());
         }
     }
     tmp_sheet
@@ -449,13 +468,7 @@ pub fn filter_sheet_by_col_and_accum(
     let cmp_cols: Vec<u32> = col_filter.split(',').map(|s| range_ops::column_to_index(s.trim())).collect();
     let acc_cols: Vec<u32> = cols_accum.split(',').map(|s| range_ops::column_to_index(s.trim())).collect();
 
-    let sheet_in= wsheet_in.sheet;
-    // let mut sheet_out= wsheet_out.sheet;
-
-    let max_row = common::MAX_ROW; //sheet_in.get_highest_row();
-    let max_col = common::MAX_COL; //sheet_in.get_highest_column();
-
-    match range_ops::IterRow::new(sheet_in, common::MAX_ROW, common::MAX_COL, 1, true, common::REGEX_MULTILINE, range_ops::Offsets::default())
+    match range_ops::IterRow::new(wsheet_in.sheet, wsheet_in.max_row, wsheet_in.max_col, 1, true, common::REGEX_MULTILINE, range_ops::Offsets::default())
     {
         Ok(iter_sheet) =>
         {
@@ -469,14 +482,17 @@ pub fn filter_sheet_by_col_and_accum(
 
                         loop 
                         {
-                            if let Some(found_range) = find_range_in_sheet(&it, wsheet_out.sheet, &cmp_cols)
+                            let wsheet_out = range_ops::effective_bounds_mut(wsheet_out.sheet, 0, 0);
+
+                            if let Some(found_range) = find_range_in_sheet(&it, &wsheet_out, &cmp_cols)
+
                             { //accumulating
                                 let found_range_clone = found_range.get_range().clone();
                                 drop(found_range);
 
                                 info!("Range {} already exists in sheet {}! Accumulating data!", range_ops::range_to_string(it.get_range()), wsheet_out.sheet.get_name());
 
-                                if range_ops::accumulate_ranges(sheet_in, it.get_range(), wsheet_out.sheet, &found_range_clone, &cmp_cols, &acc_cols)
+                                if range_ops::accumulate_ranges(wsheet_in.sheet, it.get_range(), wsheet_out.sheet, &found_range_clone, &cmp_cols, &acc_cols)
                                 {
                                     info!("Accumulated in-range '{}' to out-range '{}'!", range_ops::range_to_string(it.get_range()), range_ops::range_to_string(&found_range_clone));
                                 }
@@ -485,9 +501,10 @@ pub fn filter_sheet_by_col_and_accum(
                             }
                             else
                             { //appending
-                                let sheet_largest_range = make_largest_range(&it, sheet_in, &cmp_cols, &acc_cols);
+                                let sheet_largest_range = make_largest_range(&it, wsheet_in, &cmp_cols, &acc_cols);
+                                let sheet_largest_range = range_ops::effective_bounds(&sheet_largest_range, 0, 0);
 
-                                match range_ops::IterRow::new(&sheet_largest_range, max_row, max_col, 1, true, common::REGEX_MULTILINE, range_ops::Offsets::default()) 
+                                match range_ops::IterRow::new(&sheet_largest_range.sheet, sheet_largest_range.max_row, sheet_largest_range.max_col, 1, true, common::REGEX_MULTILINE, range_ops::Offsets::default()) 
                                 {
                                     Ok(iter_sheet_largest_range) => 
                                     {
@@ -625,22 +642,22 @@ pub fn apply_calculations(
  * filtered_cols_copy_dst - the columns (comma separated), we want to copy from the analysis sheet
  * filtered_calculations  - calculations (comma separated), we want to apply to the filtered sheet
  */
-pub fn get_anaysis_data(
-    analysis_sheet:          &Worksheet, 
+pub fn get_anaysis_data<'a, R, U>(
+    analysis_sheet:          &'a WorkSheet<R>,
     analysis_col_srch:       &String,
     analysis_col_term:       &String,
-    analysis_cols_cp_src:  &String,
+    analysis_cols_cp_src:    &String,
     analysis_srch_pat:       &String,
     analysis_term_pat:       &String,
-    filtered_sheet:          &mut Worksheet,
+    filtered_sheet:          &'a mut WorkSheet<U>,
     filtered_col_srch:       &String,
     filtered_cols_copy_dst:  &String,
     filtered_calculations:   &String,
 ) -> bool 
+where
+    R: Deref<Target = Worksheet>,
+    U: DerefMut<Target = Worksheet>,
 {
-    let max_row = common::MAX_ROW; //sheet_in.get_highest_row();
-    let max_col = common::MAX_COL; //sheet_in.get_highest_column();
-
     let mut res: bool = false;
 
     let aloop_col = range_ops::column_to_index(analysis_col_srch);
@@ -657,7 +674,9 @@ pub fn get_anaysis_data(
 
     let fsrch_col = range_ops::column_to_index(filtered_col_srch);
 
-    match range_ops::IterRowMut::new(filtered_sheet, max_row, max_col, 1, true, common::REGEX_MULTILINE, range_ops::Offsets::default())
+    let max_row = filtered_sheet.max_row;
+    let max_col = filtered_sheet.max_col;
+    match range_ops::IterRowMut::new(&mut filtered_sheet.sheet, max_row, max_col, 1, true, common::REGEX_MULTILINE, range_ops::Offsets::default())
     {
         Ok(mut filtered_sheet_it) => 
         {
@@ -679,7 +698,7 @@ pub fn get_anaysis_data(
                         {
                             let filtered_cell_value = fit.get_sheet().get_cell_value((fsrch_col, fbr)).get_value();
 
-                            match range_ops::IterRow::new(analysis_sheet, max_row, max_col, 1, false, analysis_srch_pat, range_ops::Offsets::new(0,0,-1,-1))
+                            match range_ops::IterRow::new(&analysis_sheet.sheet, analysis_sheet.max_row, analysis_sheet.max_col, 1, false, analysis_srch_pat, range_ops::Offsets::new(0,0,-1,-1))
                             {
                                 Ok(analysis_sheet_it) => 
                                 {
@@ -937,7 +956,10 @@ pub fn execute(cfg: &common::Config) -> Result<(), String>
                     }
                 };
                 
-                if let Err(err) = apply_key_value_data_by_strings(rtbl, utbl, &cfg.tgt_src_col, &cfg.tgt_dest_col, &"".to_string())
+                let     wrtbl = range_ops::effective_bounds(rtbl, 0, 0);
+                let mut wutbl = range_ops::effective_bounds_mut(utbl, 0, 0);
+
+                if let Err(err) = apply_key_value_data_by_strings(&wrtbl, &mut wutbl, &cfg.tgt_src_col, &cfg.tgt_dest_col, &"".to_string())
                 {
                     error!("{}:{}", common::MESSAGE_NO_KEY_VALUE_MAPPING, err);
                     return Err(format!("{}:{}", common::MESSAGE_NO_KEY_VALUE_MAPPING, err));
@@ -1008,15 +1030,18 @@ pub fn execute(cfg: &common::Config) -> Result<(), String>
                 }
             }
 
+            let     watbl = range_ops::effective_bounds(atbl, 0, 0);
+            let mut wfotbl = range_ops::effective_bounds_mut(&mut fotbl, 0, 0);
+
             //The entries are filtered in the filter sheet. Now get the needed values from analysis table and update the filter sheet.
             if false == get_anaysis_data(
-                atbl, 
+                &watbl, 
                 &cfg.analysis_col_srch,                   //&"A".to_string(), 
                 &cfg.analysis_col_term,                   //&"B".to_string(), 
                 &cfg.analysis_cols_cp_src,                //&"A,G".to_string(), 
                 &cfg.analysis_srch_pat,                   //&"Позиция: *, *Основание:(.*)".to_string(),
                 &cfg.analysis_term_pat,                   //&"Общо".to_string(), 
-                &mut fotbl, 
+                &mut wfotbl, 
                 &cfg.tgt_src_col,       //&"C".to_string(), 
                 &cfg.tgt_dest_col, //&"B,F".to_string(), 
                 &cfg.tgt_calcs)     //&"G=E*F".to_string()
@@ -1039,8 +1064,11 @@ pub fn execute(cfg: &common::Config) -> Result<(), String>
                         return Err(format!("{}:{}", common::ERROR_UPDATE_SHEET_NOT_FOUND, utbln));
                     }
                 };
-                
-                if let Err(err) = apply_key_value_data_by_strings(&fotbl, utbl, &cfg.tgt_src_col, &cfg.tgt_dest_col, &cfg.tgt_calcs)
+
+                let     wfotbl = range_ops::effective_bounds(&fotbl, 0, 0);
+                let mut wutbl = range_ops::effective_bounds_mut(utbl, 0, 0);
+
+                if let Err(err) = apply_key_value_data_by_strings(&wfotbl, &mut wutbl, &cfg.tgt_src_col, &cfg.tgt_dest_col, &cfg.tgt_calcs)
                 {
                     error!("{}:{}", common::MESSAGE_NO_KEY_VALUE_MAPPING, err);
                     return Err(format!("{}:{}", common::MESSAGE_NO_KEY_VALUE_MAPPING, err));
@@ -1151,7 +1179,7 @@ mod tests {
         put(&mut s, 2, 2, "K2"); put(&mut s, 3, 2, "V2");
         put(&mut s, 2, 3, "K3"); put(&mut s, 3, 3, "V3");
 
-        let m = get_ref_map_by_indexes(&s, 2, 3);
+        let m = get_ref_map_by_indexes(&range_ops::effective_bounds(&s, 0, 0), 2, 3);
         // Documented current behavior: the map is keyed by the VALUE column
         // and holds the KEY column content (reversed vs the parameter names).
         assert_eq!(m.len(), 3);
@@ -1167,7 +1195,7 @@ mod tests {
         put(&mut s, 3, 2, "V2"); // value only
         put(&mut s, 2, 3, "K3"); put(&mut s, 3, 3, "V3"); // complete
 
-        let m = get_ref_map_by_indexes(&s, 2, 3);
+        let m = get_ref_map_by_indexes(&range_ops::effective_bounds(&s, 0, 0), 2, 3);
         assert_eq!(m.len(), 1);
         assert_eq!(m.get("V3"), Some(&"K3".to_string()));
     }
@@ -1182,7 +1210,7 @@ mod tests {
         put(&mut s, 2, 3, "K3"); put(&mut s, 3, 3, "VA");
         put(&mut s, 2, 4, "K3"); put(&mut s, 3, 4, "VB");
 
-        let m = get_ref_map_by_indexes(&s, 2, 3);
+        let m = get_ref_map_by_indexes(&range_ops::effective_bounds(&s, 0, 0), 2, 3);
         assert_eq!(m.len(), 3);
         assert_eq!(m.get("V"), Some(&"K2".to_string()));
         assert_eq!(m.get("VA"), Some(&"K3".to_string()));
@@ -1194,8 +1222,8 @@ mod tests {
         let mut s = ws("RM4");
         put(&mut s, 2, 1, "K1"); put(&mut s, 3, 1, "V1");
 
-        let by_idx = get_ref_map_by_indexes(&s, 2, 3);
-        let by_str = get_ref_map_by_strings(&s, &"B".to_string(), &"C".to_string());
+        let by_idx = get_ref_map_by_indexes(&range_ops::effective_bounds(&s, 0, 0), 2, 3);
+        let by_str = get_ref_map_by_strings(&range_ops::effective_bounds(&s, 0, 0), &"B".to_string(), &"C".to_string());
         assert_eq!(by_idx, by_str);
     }
 
@@ -1219,9 +1247,11 @@ mod tests {
         put(&mut ut, 1, 2, "K2"); put_formula_cached(&mut ut, 2, 2, "A2*2", "stale2");
         put(&mut ut, 1, 3, "ZZ"); put_formula_cached(&mut ut, 2, 3, "A3+1", "stale3"); // not in ref
         put_formula_cached(&mut ut, 2, 4, "A4+1", "stale4"); // row without a key
-        put_formula_cached(&mut ut, 9, 1, "A9+1", "stale5"); // beyond MAX_COL(8)
+        put_formula_cached(&mut ut, 9, 1, "A9+1", "stale5");
 
-        apply_formulas(&rt, &mut ut, 1);
+        let wrt = range_ops::effective_bounds(&rt, 0, 0);
+        let mut wut = range_ops::effective_bounds_mut(&mut ut, 0, 0);
+        apply_formulas(&wrt, &mut wut, 1);
 
         // matching rows: formula kept, cached result cleared
         assert!(ut.get_cell((2, 1)).unwrap().is_formula());
@@ -1235,9 +1265,8 @@ mod tests {
         assert_eq!(ut.get_value((2, 3)), "stale3");
         assert_eq!(ut.get_value((2, 4)), "stale4");
 
-        // Documented current behavior: the column loop stops at MAX_COL=8,
-        // so col I is untouched even on a matching row.
-        assert_eq!(ut.get_value((9, 1)), "stale5");
+        assert_ne!(ut.get_value((9, 1)), "stale5"); 
+        assert_eq!(ut.get_cell((9, 1)).unwrap().get_formula(), "A9+1");
     }
 
     #[test]
@@ -1248,7 +1277,9 @@ mod tests {
         put(&mut ut, 1, 1, "key1");
         put_formula_cached(&mut ut, 2, 1, "A1+1", "stale");
 
-        apply_formulas(&rt, &mut ut, 1);
+        let wrt = range_ops::effective_bounds(&rt, 0, 0);
+        let mut wut = range_ops::effective_bounds_mut(&mut ut, 0, 0);
+        apply_formulas(&wrt, &mut wut, 1);
 
         assert!(ut.get_cell((2, 1)).unwrap().is_formula());
         assert!(ut.get_value((2, 1)).is_empty()); // matched despite case/spacing
@@ -1261,7 +1292,9 @@ mod tests {
         put(&mut ut, 1, 1, "K1");
         put_formula_cached(&mut ut, 2, 1, "A1+1", "stale");
 
-        apply_formulas(&rt, &mut ut, 1);
+        let wrt = range_ops::effective_bounds(&rt, 0, 0);
+        let mut wut = range_ops::effective_bounds_mut(&mut ut, 0, 0);
+        apply_formulas(&wrt, &mut wut, 1);
 
         assert!(ut.get_cell((2, 1)).unwrap().is_formula());
         assert_eq!(ut.get_value((2, 1)), "stale");
@@ -1275,7 +1308,8 @@ mod tests {
         put(&mut s, 1, 2, "plain");
         put(&mut s, 2, 1, "text");
 
-        reset_formulas(&mut s);
+        let mut ws = range_ops::effective_bounds_mut(&mut s, 0, 0);
+        reset_formulas(&mut ws);
 
         // formulas kept, cached results cleared
         assert!(s.get_cell((1, 1)).unwrap().is_formula());
@@ -1334,7 +1368,10 @@ mod tests {
         put(&mut ut, 1, 2, "K2");
         put(&mut ut, 3, 3, "keep"); // row without a key -> skipped
 
-        assert!(apply_key_value_data_by_indexes(&rt, &mut ut, 1, 3, &"".to_string()).is_ok());
+        let     wrt = range_ops::effective_bounds(&rt, 0, 0);
+        let mut wut = range_ops::effective_bounds_mut(&mut ut, 0, 0);
+        assert!(apply_key_value_data_by_indexes(&wrt, &mut wut, 1, 3, &"".to_string()).is_ok());
+
         assert_eq!(ut.get_value((3, 1)), "val1");
         assert_eq!(ut.get_value((3, 2)), "val2");
         assert_eq!(ut.get_value((3, 3)), "keep");
@@ -1351,7 +1388,10 @@ mod tests {
         put(&mut ut, 1, 1, "K1");
         put(&mut ut, 1, 2, "K2");
 
-        assert!(apply_key_value_data_by_indexes(&rt, &mut ut, 1, 3, &"".to_string()).is_ok());
+        let     wrt = range_ops::effective_bounds(&rt, 0, 0);
+        let mut wut = range_ops::effective_bounds_mut(&mut ut, 0, 0);
+        assert!(apply_key_value_data_by_indexes(&wrt, &mut wut, 1, 3, &"".to_string()).is_ok());
+
         // numeric source cell is copied as a number, not as its text
         assert_eq!(ut.get_cell((3, 1)).unwrap().get_data_type(), "n");
         assert_eq!(ut.get_cell((3, 1)).unwrap().get_value_number(), Some(42.5));
@@ -1367,7 +1407,10 @@ mod tests {
         put(&mut ut, 1, 1, "no-such-key");
         put(&mut ut, 3, 1, "keep");
 
-        let err = apply_key_value_data_by_indexes(&rt, &mut ut, 1, 3, &"".to_string()).unwrap_err();
+        let     wrt = range_ops::effective_bounds(&rt, 0, 0);
+        let mut wut = range_ops::effective_bounds_mut(&mut ut, 0, 0);
+        let err = apply_key_value_data_by_indexes(&wrt, &mut wut, 1, 3, &"".to_string()).unwrap_err();
+
         assert_eq!(err, common::MESSAGE_NO_KEY_VALUE_MAPPING);
         assert_eq!(ut.get_value((3, 1)), "keep"); // nothing was written
     }
@@ -1380,10 +1423,12 @@ mod tests {
         put(&mut ut, 1, 1, "K1");
         put(&mut ut, 1, 2, "orphan"); // no match in reference
 
+        let     wrt = range_ops::effective_bounds(&rt, 0, 0);
+        let mut wut = range_ops::effective_bounds_mut(&mut ut, 0, 0);
         // Documented current behavior: the `found` flag is never reset per
         // row, so a single matched row makes the whole call succeed and the
         // orphan row is skipped without an Err.
-        assert!(apply_key_value_data_by_indexes(&rt, &mut ut, 1, 3, &"".to_string()).is_ok());
+        assert!(apply_key_value_data_by_indexes(&wrt, &mut wut, 1, 3, &"".to_string()).is_ok());
         assert_eq!(ut.get_value((3, 1)), "val1");
         assert!(ut.get_value((3, 2)).is_empty()); // orphan row untouched
     }
@@ -1397,7 +1442,11 @@ mod tests {
         let mut ut = ws("KV5U");
         put(&mut ut, 1, 1, "K1");
         put_formula_cached(&mut ut, 4, 1, "B1+1", "stale");
-        assert!(apply_key_value_data_by_indexes(&rt, &mut ut, 1, 3, &"".to_string()).is_ok());
+
+        let     wrt = range_ops::effective_bounds(&rt, 0, 0);
+        let mut wut = range_ops::effective_bounds_mut(&mut ut, 0, 0);
+
+        assert!(apply_key_value_data_by_indexes(&wrt, &mut wut, 1, 3, &"".to_string()).is_ok());
         assert!(ut.get_cell((4, 1)).unwrap().is_formula());
         assert!(ut.get_value((4, 1)).is_empty());
 
@@ -1405,7 +1454,10 @@ mod tests {
         let mut ut2 = ws("KV5U2");
         put(&mut ut2, 1, 1, "orphan");
         put_formula_cached(&mut ut2, 4, 1, "B1+1", "stale");
-        assert!(apply_key_value_data_by_indexes(&rt, &mut ut2, 1, 3, &"".to_string()).is_err());
+
+        let mut wut2 = range_ops::effective_bounds_mut(&mut ut2, 0, 0);
+
+        assert!(apply_key_value_data_by_indexes(&wrt, &mut wut2, 1, 3, &"".to_string()).is_err());
         assert_eq!(ut2.get_value((4, 1)), "stale");
     }
 
@@ -1415,9 +1467,12 @@ mod tests {
         put(&mut rt, 1, 2, "K2"); put(&mut rt, 3, 2, "val2"); // reference data in row 2
         let mut ut = ws("KV6U");
         put(&mut ut, 1, 2, "K2");
-
         let calcs = "D=B*C".to_string(); // user formula, single-letter columns
-        assert!(apply_key_value_data_by_indexes(&rt, &mut ut, 1, 3, &calcs).is_ok());
+
+        let     wrt = range_ops::effective_bounds(&rt, 0, 0);
+        let mut wut = range_ops::effective_bounds_mut(&mut ut, 0, 0);
+
+        assert!(apply_key_value_data_by_indexes(&wrt, &mut wut, 1, 3, &calcs).is_ok());
         // every column letter gets the matched update row appended:
         // "D=B*C" -> "D2=B2*C2" -> formula "B2*C2" written to D2
         let c = ut.get_cell((4, 2)).unwrap();
@@ -1431,9 +1486,12 @@ mod tests {
         put(&mut rt, 1, 1, "K1"); put(&mut rt, 3, 1, "val1");
         let mut ut = ws("KV7U");
         put(&mut ut, 1, 1, "K1");
-
         let calcs = "D B*C".to_string(); // no '=' sign
-        let err = apply_key_value_data_by_indexes(&rt, &mut ut, 1, 3, &calcs).unwrap_err();
+
+        let     wrt = range_ops::effective_bounds(&rt, 0, 0);
+        let mut wut = range_ops::effective_bounds_mut(&mut ut, 0, 0);
+
+        let err = apply_key_value_data_by_indexes(&wrt, &mut wut, 1, 3, &calcs).unwrap_err();
         assert_eq!(err, "Missing sign '='!");
         // Documented current behavior: the value copy happens before the
         // calcs error, so the sheet is left partially updated.
@@ -1444,7 +1502,11 @@ mod tests {
     fn test_0174_apply_key_value_data_by_strings_empty_cols_error() {
         let rt = ws("KV8R");
         let mut ut = ws("KV8U");
-        let err = apply_key_value_data_by_strings(&rt, &mut ut, &"A".to_string(), &"".to_string(), &"".to_string()).unwrap_err();
+        
+        let     wrt = range_ops::effective_bounds(&rt, 0, 0);
+        let mut wut = range_ops::effective_bounds_mut(&mut ut, 0, 0);
+
+        let err = apply_key_value_data_by_strings(&wrt, &mut wut, &"A".to_string(), &"".to_string(), &"".to_string()).unwrap_err();
         assert_eq!(err, common::ERROR_DEST_COL_NOT_DEFINED);
     }
 
@@ -1457,7 +1519,10 @@ mod tests {
         let mut ut = ws("KV9U");
         put(&mut ut, 1, 1, "K1");
 
-        assert!(apply_key_value_data_by_strings(&rt, &mut ut, &"A".to_string(), &"B,C".to_string(), &"".to_string()).is_ok());
+        let     wrt = range_ops::effective_bounds(&rt, 0, 0);
+        let mut wut = range_ops::effective_bounds_mut(&mut ut, 0, 0);
+
+        assert!(apply_key_value_data_by_strings(&wrt, &mut wut, &"A".to_string(), &"B,C".to_string(), &"".to_string()).is_ok());
         assert_eq!(ut.get_value((2, 1)), "vb");
         assert_eq!(ut.get_value((3, 1)), "vc");
     }
@@ -1470,7 +1535,10 @@ mod tests {
         let mut ut = ws("KV10U");
         put(&mut ut, 1, 1, "K1");
 
-        assert!(apply_key_value_data_by_indexes(&rt, &mut ut, 1, 3, &"".to_string()).is_ok());
+        let     wrt = range_ops::effective_bounds(&rt, 0, 0);
+        let mut wut = range_ops::effective_bounds_mut(&mut ut, 0, 0);
+
+        assert!(apply_key_value_data_by_indexes(&wrt, &mut wut, 1, 3, &"".to_string()).is_ok());
         // Documented current behavior: the reference scan breaks on the
         // FIRST matching row, so "first" wins.
         assert_eq!(ut.get_value((3, 1)), "first");
@@ -1490,6 +1558,12 @@ mod tests {
         }
         assert!(writer::xlsx::write(&book, std::path::Path::new(path)).is_ok());
     }
+
+    // fn write_sheet_to_xlsx(path: &str, sheet: &Worksheet)  {
+    //     let mut book = Spreadsheet::default();
+    //     book.add_sheet(sheet.clone()).unwrap();
+    //     umya_spreadsheet::writer::xlsx::write(&book, std::path::Path::new(path)).unwrap();
+    // }
 
     #[test]
     fn test_0177_get_worksheet_names_list_and_string() {
@@ -1546,11 +1620,12 @@ mod tests {
         put(&mut pat, 1, 3, "- x");
         let pattern = RangeMultiline::new(range_ops::make_range_from_strings("A1", "C3"), &pat);
 
+        let wsheet = range_ops::effective_bounds(&out, 0, 0);
         let cmp = vec![1];
-        let found = find_range_in_sheet(&pattern, &out, &cmp).unwrap();
+        let found = find_range_in_sheet(&pattern, &wsheet, &cmp).unwrap();
         assert_eq!(found.get_type(), IterRowNextKind::Multiline);
-        // detected items span pivot..pivot+MAX_COL, so the range is A5:I8
-        assert_eq!(found.get_range().get_range(), "A5:I8");
+        assert_eq!(found.get_range().get_range(), "A5:B8");
+        assert_ne!(found.get_range().get_range(), "A5:I8"); // old behavior: detected items span pivot..pivot+MAX_COL, so the range is A5:I8
     }
 
     #[test]
@@ -1565,10 +1640,12 @@ mod tests {
         put(&mut pat, 1, 1, "bar");
         let pattern = RangeBasic::new(range_ops::make_range_from_strings("A1", "C1"), &pat);
 
+        let wsheet = range_ops::effective_bounds(&out, 0, 0);
         let cmp = vec![1];
-        let found = find_range_in_sheet(&pattern, &out, &cmp).unwrap();
+        let found = find_range_in_sheet(&pattern, &wsheet, &cmp).unwrap();
         assert_eq!(found.get_type(), IterRowNextKind::Basic);
-        assert_eq!(found.get_range().get_range(), "A3:I3");
+        assert_eq!(found.get_range().get_range(), "A3:B3");
+        assert_ne!(found.get_range().get_range(), "A3:I3"); // old behavior: detected items span pivot..pivot+MAX_COL, so the range is A3:I3
     }
 
     #[test]
@@ -1579,7 +1656,8 @@ mod tests {
         let mut pat = ws("FR3P");
         put(&mut pat, 1, 1, "nope");
         let pattern = RangeBasic::new(range_ops::make_range_from_strings("A1", "C1"), &pat);
-        assert!(find_range_in_sheet(&pattern, &out, &vec![1]).is_none());
+        let wsheet = range_ops::effective_bounds(&out, 0, 0);
+        assert!(find_range_in_sheet(&pattern, &wsheet, &vec![1]).is_none());
     }
 
     #[test]
@@ -1592,7 +1670,8 @@ mod tests {
         let pattern = RangeBasic::new(range_ops::make_range_from_strings("A1", "C1"), &pat);
         // Documented current behavior: contains() requires the same range
         // type, so a Basic pattern can never match a Multiline item.
-        assert!(find_range_in_sheet(&pattern, &out, &vec![1]).is_none());
+        let wsheet = range_ops::effective_bounds(&out, 0, 0);
+        assert!(find_range_in_sheet(&pattern, &wsheet, &vec![1]).is_none());
     }
 
     // ------------------------------------------------------------------
@@ -1696,7 +1775,7 @@ mod tests {
         let cmp = vec![1];
         let acc = vec![2];
 
-        let tmp = make_largest_range(&range_in, &sheet, &cmp, &acc);
+        let tmp = make_largest_range(&range_in,  &range_ops::effective_bounds(&sheet, 0, 0), &cmp, &acc);
 
         assert_eq!(tmp.get_name(), "TMP_SHEET");
         assert_eq!(tmp.get_value((1, 1)), "100"); // cmp column copied as-is
@@ -1723,7 +1802,7 @@ mod tests {
         let range_in = RangeMultiline::new(range_ops::make_range_from_indexes(1, 1, 9, 2), &sheet);
         let cmp = vec![1];
         let acc = Vec::new();
-        let tmp = make_largest_range(&range_in, &sheet, &cmp, &acc);
+        let tmp = make_largest_range(&range_in, &range_ops::effective_bounds(&sheet, 0, 0), &cmp, &acc);
 
         // header differs -> nothing appended
         assert_eq!(tmp.get_highest_row(), 2);
@@ -1745,7 +1824,7 @@ mod tests {
         let range_in = RangeMultiline::new(range_ops::make_range_from_indexes(1, 1, 9, 4), &sheet);
         let cmp = vec![1];
         let acc = Vec::new();
-        let tmp = make_largest_range(&range_in, &sheet, &cmp, &acc);
+        let tmp = make_largest_range(&range_in, &range_ops::effective_bounds(&sheet, 0, 0), &cmp, &acc);
 
         // rows_it > rows_in is false for the smaller table -> untouched
         assert_eq!(tmp.get_highest_row(), 4);
@@ -1768,7 +1847,7 @@ mod tests {
         let range_in = RangeMultiline::new(range_ops::make_range_from_indexes(1, 1, 9, 3), &sheet);
         let cmp = vec![1];
         let acc = Vec::new();
-        let tmp = make_largest_range(&range_in, &sheet, &cmp, &acc);
+        let tmp = make_largest_range(&range_in, &range_ops::effective_bounds(&sheet, 0, 0), &cmp, &acc);
 
         // Documented current behavior: only same-type ranges are
         // considered, so the larger Merged table is ignored.
@@ -1792,7 +1871,7 @@ mod tests {
         let range_in = RangeMergedCells::new(range_ops::make_range_from_indexes(1, 1, 9, 3), &sheet);
         let cmp = vec![1];
         let acc = Vec::new();
-        let tmp = make_largest_range(&range_in, &sheet, &cmp, &acc);
+        let tmp = make_largest_range(&range_in, &range_ops::effective_bounds(&sheet, 0, 0), &cmp, &acc);
 
         assert_eq!(tmp.get_value((1, 1)), "100");
         assert_eq!(tmp.get_value((1, 2)), "x");
@@ -1813,7 +1892,7 @@ mod tests {
         let range_in = RangeBasic::new(range_ops::make_range_from_indexes(1, 1, 9, 1), &sheet);
         let cmp = vec![1];
         let acc = Vec::new();
-        let tmp = make_largest_range(&range_in, &sheet, &cmp, &acc);
+        let tmp = make_largest_range(&range_in, &range_ops::effective_bounds(&sheet, 0, 0), &cmp, &acc);
 
         // Documented current behavior: Basic items are always single-row,
         // so rows_it > rows_in can never hold and nothing is appended.
@@ -2053,9 +2132,12 @@ mod tests {
         put_num(&mut f, 1, 1, 10.0);
         put(&mut f, 2, 1, "K1");             // search value
 
-        let res = get_anaysis_data(&an, &"A".to_string(), &"B".to_string(), &"A,G".to_string(),
+        let     wan = range_ops::effective_bounds(&an, 0, 0);
+        let mut wf = range_ops::effective_bounds_mut(&mut f, 0, 0);
+
+        let res = get_anaysis_data(&wan, &"A".to_string(), &"B".to_string(), &"A,G".to_string(),
             &"^SEC:".to_string(), &"EndMark".to_string(),
-            &mut f, &"B".to_string(), &"C,D".to_string(), &"E=C*D".to_string());
+            &mut wf, &"B".to_string(), &"C,D".to_string(), &"E=C*D".to_string());
 
         assert!(res);
         // col A copy = marker row "SEC: alpha" -> after last ':' -> "alpha"
@@ -2076,9 +2158,12 @@ mod tests {
         put_num(&mut f, 1, 1, 10.0);
         put(&mut f, 2, 1, "KX");             // no section has this above its marker
 
-        let res = get_anaysis_data(&an, &"A".to_string(), &"B".to_string(), &"A,G".to_string(),
+        let     wan = range_ops::effective_bounds(&an, 0, 0);
+        let mut wf = range_ops::effective_bounds_mut(&mut f, 0, 0);
+
+        let res = get_anaysis_data(&wan, &"A".to_string(), &"B".to_string(), &"A,G".to_string(),
             &"^SEC:".to_string(), &"EndMark".to_string(),
-            &mut f, &"B".to_string(), &"C,D".to_string(), &"E=C*D".to_string());
+            &mut wf, &"B".to_string(), &"C,D".to_string(), &"E=C*D".to_string());
 
         // no section found: nothing is written
         assert!(!res);
@@ -2092,10 +2177,13 @@ mod tests {
         let an = ws("GA8AN");
         let mut f = ws("GA8F");
 
+        let     wan = range_ops::effective_bounds(&an, 0, 0);
+        let mut wf = range_ops::effective_bounds_mut(&mut f, 0, 0);
+
         // 2 source columns vs 1 destination column: rejected up front
-        let res = get_anaysis_data(&an, &"A".to_string(), &"B".to_string(), &"A,G".to_string(),
+        let res = get_anaysis_data(&wan, &"A".to_string(), &"B".to_string(), &"A,G".to_string(),
             &"^SEC:".to_string(), &"EndMark".to_string(),
-            &mut f, &"B".to_string(), &"C".to_string(), &"".to_string());
+            &mut wf, &"B".to_string(), &"C".to_string(), &"".to_string());
 
         assert!(!res);
         assert_eq!(f.get_highest_row(), 0);
@@ -2118,9 +2206,12 @@ mod tests {
         put_num(&mut f, 1, 2, 20.0);
         put(&mut f, 2, 2, "K2");
 
-        let res = get_anaysis_data(&an, &"A".to_string(), &"B".to_string(), &"A,G".to_string(),
+        let     wan = range_ops::effective_bounds(&an, 0, 0);
+        let mut wf = range_ops::effective_bounds_mut(&mut f, 0, 0);
+
+        let res = get_anaysis_data(&wan, &"A".to_string(), &"B".to_string(), &"A,G".to_string(),
             &"^SEC:".to_string(), &"EndMark".to_string(),
-            &mut f, &"B".to_string(), &"C,D".to_string(), &"E=C*D".to_string());
+            &mut wf, &"B".to_string(), &"C,D".to_string(), &"E=C*D".to_string());
 
         assert!(res);
         assert_eq!(f.get_value((3, 1)), "one");
@@ -2142,9 +2233,12 @@ mod tests {
         put_num(&mut f, 1, 1, 10.0);
         put(&mut f, 2, 1, "K1");
 
-        let res = get_anaysis_data(&an, &"A".to_string(), &"B".to_string(), &"A,G".to_string(),
+        let     wan = range_ops::effective_bounds(&an, 0, 0);
+        let mut wf = range_ops::effective_bounds_mut(&mut f, 0, 0);
+
+        let res = get_anaysis_data(&wan, &"A".to_string(), &"B".to_string(), &"A,G".to_string(),
             &"^SEC:".to_string(), &"EndMark".to_string(),
-            &mut f, &"B".to_string(), &"C,D".to_string(), &"E=C*D".to_string());
+            &mut wf, &"B".to_string(), &"C,D".to_string(), &"E=C*D".to_string());
 
         // section header matched, but no term row: nothing is copied
         assert!(!res);
@@ -2164,10 +2258,13 @@ mod tests {
         put_num(&mut f, 1, 1, 10.0);
         put(&mut f, 2, 1, "K1");
 
+        let     wan = range_ops::effective_bounds(&an, 0, 0);
+        let mut wf = range_ops::effective_bounds_mut(&mut f, 0, 0);
+
         // calcs without '=' -> apply_calculations errors after the copy is done
-        let res = get_anaysis_data(&an, &"A".to_string(), &"B".to_string(), &"A,G".to_string(),
+        let res = get_anaysis_data(&wan, &"A".to_string(), &"B".to_string(), &"A,G".to_string(),
             &"^SEC:".to_string(), &"EndMark".to_string(),
-            &mut f, &"B".to_string(), &"C,D".to_string(), &"ABC".to_string());
+            &mut wf, &"B".to_string(), &"C,D".to_string(), &"ABC".to_string());
 
         // Documented current behavior: the copied values are already in the
         // sheet when the calculation failure aborts the call.

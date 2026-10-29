@@ -722,7 +722,7 @@ fn iter_row_next_impl_shared<'a>(
 
     let is_first_line = if 1 == *current_row  { true } else { false };
 
-    if max_row > *current_row 
+    if max_row >= *current_row 
     {
         let sheet_merged_cells = sheet.get_merge_cells();
         let mut cells_range: Range;
