@@ -4,7 +4,7 @@ Rust CLI + eframe/egui GUI for updating Excel (`.xlsx`) files. Reads a target wo
 
 ## Ground Rules
 - Never commit any changes and do not change 'tests/fixtures/reference' folder.
-- Answer short.
+- Answer as strict as possible. Show code, instead of extensive explanations.
 - Always run `cargo check` after any code change, before saying work is done.
 - Do not change `MAX_ROW`/`MAX_COL` in `src/lib/common.rs` without asking.
 - The non-inplace default (`_new.xlsx` output) is a feature; never make `-i` required.
