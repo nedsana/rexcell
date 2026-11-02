@@ -96,6 +96,7 @@ pub const BUTTON_RUN_UNDEFINED: &str = "Undefined";
 pub const BUTTON_RUN_UPDATES: &str = "Update File";
 pub const BUTTON_FILTER_DATA: &str = "Filter Data";
 pub const BUTTON_APPLY_ANALYSIS: &str = "Apply Analysis";
+pub const BUTTON_COPY: &str = "Copy";
 pub const WINDOW_TITLE: &str = "rexcell GUI";
 pub const PANEL_DESCRIPTION: &str = "The top section has two identical panels.";
 
