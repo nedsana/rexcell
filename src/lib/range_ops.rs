@@ -1114,28 +1114,29 @@ impl Default for Offsets {
 }
 
 //Generic IterRow type
-pub struct IterRowGeneric<S>
+pub struct IterRowGeneric<'a, S>
 {
     pub sheet:          S,
     pub current_row:    u32,
     pub pivot_col:      u32,
     pub pivot_numeric:  bool,
-    pub pivot_re:       Regex,
+    pub pivot_re:       &'a Regex,
     pub offsets:        Offsets,
 }
 
-impl<S> IterRowGeneric<S> {
-    pub fn new(sheet: S, pivot: u32, numeric: bool, re: &str, offs: Offsets) -> Result<Self, regex::Error> {
-        let pivot_re = Regex::new(re)?;
-        
+impl<'a, S> IterRowGeneric<'a, S> 
+{
+    pub fn new(sheet: S, pivot: u32, numeric: bool, re: &'a Regex, offs: Offsets) -> Result<Self, regex::Error> 
+    {
         Ok(Self {
             sheet,
             current_row:    1,
             pivot_col:      pivot,
             pivot_numeric:  numeric,
-            pivot_re,
+            pivot_re:       re,
             offsets:        offs
         })
+        //When should we return Err()?
     }
 }
 
@@ -1143,7 +1144,7 @@ impl<S> IterRowGeneric<S> {
 // ITERATOR, NONE-MUTABLE, FOR LOOPING OVER WORKSHEET ROWS
 // =========================================================
 
-pub type IterRow<'a, R> = IterRowGeneric<&'a range_types::WorkSheet<R>>;
+pub type IterRow<'a, R> = IterRowGeneric<'a, &'a range_types::WorkSheet<R>>;
 
 impl<'a, R> Iterator for IterRow<'a, R> 
 where
@@ -1166,7 +1167,7 @@ where
 // ITERATOR, MUTABLE, FOR LOOPING OVER WORKSHEET ROWS
 // =========================================================
 
-pub type IterRowMut<'a, R> = IterRowGeneric<&'a mut range_types::WorkSheet<R>>;
+pub type IterRowMut<'a, R> = IterRowGeneric<'a, &'a mut range_types::WorkSheet<R>>;
 
 //The statandart iterators, can no be mutable. So we need this specific iterator. NOTE: can't be used in for loops, but works with while!
 pub trait LendingIterator 
@@ -2353,16 +2354,19 @@ mod tests {
 
     #[test]
     fn test_0098_iter_row_new_invalid_regex() {
+        assert!((Regex::new("[")).is_err()); //should fail
         let sheet = ir_sheet("IR23", &[], &[]);
         let wsheet = effective_bounds(&sheet, 0, 0);
-        assert!(IterRow::new(&wsheet, 1, false, "[", Offsets::default()).is_err());
+        let re = Regex::new("[a-z]").unwrap();
+        assert!(IterRow::new(&wsheet, 1, false, &re, Offsets::default()).is_ok());
     }
 
     #[test]
     fn test_0099_iter_row_collects_basic_rows() {
         let sheet = ir_sheet("IR24", &[(1, 1, "a"), (1, 2, "b"), (1, 3, "c")], &[]);
         let wsheet = effective_bounds(&sheet, 0, 0);
-        let mut iter = IterRow::new(&wsheet, 1, false, "^-", Offsets::default()).unwrap();
+        let re = Regex::new("^-").unwrap();
+        let mut iter = IterRow::new(&wsheet, 1, false, &re, Offsets::default()).unwrap();
         let mut ranges = vec![];
         for rt in iter.by_ref() {
             ranges.push(rt.get_range().get_range());
@@ -2375,7 +2379,8 @@ mod tests {
     fn test_0100_iter_row_multiline_kinds() {
         let sheet = ir_sheet("IR25", &[(1, 1, "-s"), (1, 2, "x"), (1, 3, "-n"), (1, 4, "t")], &[]);
         let wsheet = effective_bounds(&sheet, 0, 0);
-        let iter = IterRow::new(&wsheet, 1, false, "^-", Offsets::default()).unwrap();
+        let re = Regex::new("^-").unwrap();
+        let iter = IterRow::new(&wsheet, 1, false, &re, Offsets::default()).unwrap();
         let mut ranges = vec![];
         let mut kinds = vec![];
         for rt in iter {
@@ -2391,7 +2396,8 @@ mod tests {
         let mut sheet = ir_sheet("IR26", &[(1, 1, "a"), (1, 5, "e")], &[]);
         sheet.add_merge_cells("A2:C4");
         let wsheet = effective_bounds(&sheet, 0, 0);
-        let iter = IterRow::new(&wsheet, 1, false, "^-", Offsets::default()).unwrap();
+        let re = Regex::new("^-").unwrap();
+        let iter = IterRow::new(&wsheet, 1, false, &re, Offsets::default()).unwrap();
         let mut ranges = vec![];
         let mut kinds = vec![];
         for rt in iter {
@@ -2406,7 +2412,8 @@ mod tests {
     fn test_0102_iter_row_empty_sheet() {
         let sheet = ir_sheet("IR27", &[], &[]);
         let wsheet = effective_bounds(&sheet, 0, 0);
-        let mut iter = IterRow::new(&wsheet, 1, false, "^-", Offsets::default()).unwrap();
+        let re = Regex::new("^-").unwrap();
+        let mut iter = IterRow::new(&wsheet, 1, false, &re, Offsets::default()).unwrap();
         let mut ranges = vec![];
         for rt in iter.by_ref() {
             ranges.push(rt.get_range().get_range());
@@ -2419,7 +2426,8 @@ mod tests {
     fn test_0103_iter_row_mut_iteration_and_mutation() {
         let mut sheet = ir_sheet("IR28", &[(1, 1, "a"), (1, 2, "b"), (1, 3, "c")], &[]);
         let mut wsheet = effective_bounds_mut(&mut sheet, 0, 0);
-        let mut iter = IterRowMut::new(&mut wsheet, 1, false, "^-", Offsets::default()).unwrap();
+        let re = Regex::new("^-").unwrap();
+        let mut iter = IterRowMut::new(&mut wsheet, 1, false, &re, Offsets::default()).unwrap();
         let mut ranges = vec![];
         while let Some(mut rt) = iter.next() {
             ranges.push(rt.get_range().get_range());
@@ -2434,7 +2442,8 @@ mod tests {
     fn test_0104_iter_row_mut_multiline_kinds() {
         let mut sheet = ir_sheet("IR29", &[(1, 1, "-s"), (1, 2, "x"), (1, 3, "-n"), (1, 4, "t")], &[]);
         let mut wsheet = effective_bounds_mut(&mut sheet, 0, 0);
-        let mut iter = IterRowMut::new(&mut wsheet, 1, false, "^-", Offsets::default()).unwrap();
+        let re = Regex::new("^-").unwrap();
+        let mut iter = IterRowMut::new(&mut wsheet, 1, false, &re, Offsets::default()).unwrap();
         let mut ranges = vec![];
         let mut kinds = vec![];
         while let Some(rt) = iter.next() {
@@ -2450,7 +2459,8 @@ mod tests {
     fn test_0105_iter_row_mut_empty_sheet() {
         let mut sheet = ir_sheet("IR30", &[], &[]);
         let mut wsheet = effective_bounds_mut(&mut sheet, 0, 0);
-        let mut iter = IterRowMut::new(&mut wsheet, 1, false, "^-", Offsets::default()).unwrap();
+        let re = Regex::new("^-").unwrap();
+        let mut iter = IterRowMut::new(&mut wsheet, 1, false, &re, Offsets::default()).unwrap();
         let mut count = 0;
         while let Some(_rt) = iter.next() {
             count += 1;

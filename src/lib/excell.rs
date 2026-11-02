@@ -7,6 +7,7 @@ use crate::range_types::*;
 use log::{debug, info, warn, error};
 use super::common;
 use super::range_ops;
+use regex::Regex;
 
 
 pub fn get_ref_map_by_indexes<'a,T>(sheet: &'a WorkSheet<T>, col_key: u32, col_value: u32) -> HashMap<String, String> 
@@ -235,11 +236,11 @@ pub fn get_worksheet_names(path: &std::path::Path) -> Result<String, String> {
  * Find a matching range in the sheet.
  * Returns Some(range) when a matching range is found, otherwise None.
  */
-pub fn find_range_in_sheet<'a,T>(range: &'a dyn IRange, wsheet: &'a WorkSheet<T>, cmp_cols: &'a Vec<u32>) -> Option<RangeType<'a>>
+pub fn find_range_in_sheet<'a,T>(range: &'a dyn IRange, wsheet: &'a WorkSheet<T>, re: &'a Regex, cmp_cols: &'a Vec<u32>) -> Option<RangeType<'a>>
 where
     T: Deref<Target = Worksheet>,
 {
-    match range_ops::IterRow::new(wsheet, 1, true, common::REGEX_MULTILINE, range_ops::Offsets::default())
+    match range_ops::IterRow::new(wsheet, 1, true, &re, range_ops::Offsets::default())
     {
         Ok(iter_sheet) =>
         {
@@ -324,7 +325,12 @@ pub fn find_missing_entries(find_where: & dyn IRange, find_what: & dyn IRange, c
  * Scan the workseet to find if there are ranges (Multiline or Merged), with same header, but with more rows than the provided range_out.
  * @return - return temporary Worksheet which contain a single IRange entry (Basic, Merged or Multiline) with all rows which should belong to it.
  */
-pub fn make_largest_range<'a,T>(range_in: &'a dyn IRange, sheet_in: &'a WorkSheet<T>, cmp_cols: &'a Vec<u32>, acc_cols: &'a Vec<u32>) -> Worksheet //DELETE_ME: Think of Option/Result return value
+pub fn make_largest_range<'a,T>(
+    range_in: &'a dyn IRange, 
+    sheet_in: &'a WorkSheet<T>, 
+    re      : &'a Regex,
+    cmp_cols: &'a Vec<u32>, 
+    acc_cols: &'a Vec<u32>) -> Worksheet //DELETE_ME: Think of Option/Result return value
 where
     T: Deref<Target = Worksheet>,
 {
@@ -340,7 +346,7 @@ where
 
             let mut range_tmp = make_range_inst_mut(range_in.get_type(), range_ops::make_range_from_indexes(1, 1, cols_in, rows_in), &mut tmp_sheet);
 
-            match range_ops::IterRow::new(sheet_in, 1, true, common::REGEX_MULTILINE, range_ops::Offsets::default())
+            match range_ops::IterRow::new(sheet_in, 1, true, &re, range_ops::Offsets::default())
             {
                 Ok(iter_sheet) =>
                 {
@@ -468,7 +474,13 @@ pub fn filter_sheet_by_col_and_accum(
     let cmp_cols: Vec<u32> = col_filter.split(',').map(|s| range_ops::column_to_index(s.trim())).collect();
     let acc_cols: Vec<u32> = cols_accum.split(',').map(|s| range_ops::column_to_index(s.trim())).collect();
 
-    match range_ops::IterRow::new(wsheet_in, 1, true, common::REGEX_MULTILINE, range_ops::Offsets::default())
+    let Ok(re) = Regex::new(common::REGEX_MULTILINE) else 
+    {
+        error!("Failed to construct regex from '{}'", common::REGEX_MULTILINE);
+        return res;
+    };
+
+    match range_ops::IterRow::new(wsheet_in, 1, true, &re, range_ops::Offsets::default())
     {
         Ok(iter_sheet) =>
         {
@@ -484,7 +496,7 @@ pub fn filter_sheet_by_col_and_accum(
                         {
                             let wsheet_out = range_ops::effective_bounds_mut(wsheet_out.sheet, 0, 0);
 
-                            if let Some(found_range) = find_range_in_sheet(&it, &wsheet_out, &cmp_cols)
+                            if let Some(found_range) = find_range_in_sheet(&it, &wsheet_out, &re, &cmp_cols)
 
                             { //accumulating
                                 let found_range_clone = found_range.get_range().clone();
@@ -501,10 +513,10 @@ pub fn filter_sheet_by_col_and_accum(
                             }
                             else
                             { //appending
-                                let sheet_largest_range = make_largest_range(&it, wsheet_in, &cmp_cols, &acc_cols);
+                                let sheet_largest_range = make_largest_range(&it, wsheet_in, &re, &cmp_cols, &acc_cols);
                                 let sheet_largest_range = range_ops::effective_bounds(&sheet_largest_range, 0, 0);
 
-                                match range_ops::IterRow::new(&sheet_largest_range, 1, true, common::REGEX_MULTILINE, range_ops::Offsets::default()) 
+                                match range_ops::IterRow::new(&sheet_largest_range, 1, true, &re, range_ops::Offsets::default()) 
                                 {
                                     Ok(iter_sheet_largest_range) => 
                                     {
@@ -674,7 +686,19 @@ where
 
     let fsrch_col = range_ops::column_to_index(filtered_col_srch);
 
-    match range_ops::IterRowMut::new(filtered_sheet, 1, true, common::REGEX_MULTILINE, range_ops::Offsets::default())
+    let Ok(re) = Regex::new(common::REGEX_MULTILINE) else 
+    {
+        error!("Failed to construct regex from '{}'", common::REGEX_MULTILINE);
+        return res;
+    };
+
+    let Ok(rea) = Regex::new(analysis_srch_pat) else 
+    {
+        error!("Failed to construct regex from '{}'", analysis_srch_pat);
+        return res;
+    };
+
+    match range_ops::IterRowMut::new(filtered_sheet, 1, true, &re, range_ops::Offsets::default())
     {
         Ok(mut filtered_sheet_it) => 
         {
@@ -696,7 +720,7 @@ where
                         {
                             let filtered_cell_value = fit.get_sheet().get_cell_value((fsrch_col, fbr)).get_value();
 
-                            match range_ops::IterRow::new(analysis_sheet, 1, false, analysis_srch_pat, range_ops::Offsets::new(0,0,-1,-1))
+                            match range_ops::IterRow::new(analysis_sheet, 1, false, &rea, range_ops::Offsets::new(0,0,-1,-1))
                             {
                                 Ok(analysis_sheet_it) => 
                                 {
@@ -1620,7 +1644,8 @@ mod tests {
 
         let wsheet = range_ops::effective_bounds(&out, 0, 0);
         let cmp = vec![1];
-        let found = find_range_in_sheet(&pattern, &wsheet, &cmp).unwrap();
+        let re = Regex::new(common::REGEX_MULTILINE).unwrap();
+        let found = find_range_in_sheet(&pattern, &wsheet, &re, &cmp).unwrap();
         assert_eq!(found.get_type(), IterRowNextKind::Multiline);
         assert_eq!(found.get_range().get_range(), "A5:B8");
         assert_ne!(found.get_range().get_range(), "A5:I8"); // old behavior: detected items span pivot..pivot+MAX_COL, so the range is A5:I8
@@ -1640,7 +1665,8 @@ mod tests {
 
         let wsheet = range_ops::effective_bounds(&out, 0, 0);
         let cmp = vec![1];
-        let found = find_range_in_sheet(&pattern, &wsheet, &cmp).unwrap();
+        let re = Regex::new(common::REGEX_MULTILINE).unwrap();
+        let found = find_range_in_sheet(&pattern, &wsheet, &re, &cmp).unwrap();
         assert_eq!(found.get_type(), IterRowNextKind::Basic);
         assert_eq!(found.get_range().get_range(), "A3:B3");
         assert_ne!(found.get_range().get_range(), "A3:I3"); // old behavior: detected items span pivot..pivot+MAX_COL, so the range is A3:I3
@@ -1655,7 +1681,8 @@ mod tests {
         put(&mut pat, 1, 1, "nope");
         let pattern = RangeBasic::new(range_ops::make_range_from_strings("A1", "C1"), &pat);
         let wsheet = range_ops::effective_bounds(&out, 0, 0);
-        assert!(find_range_in_sheet(&pattern, &wsheet, &vec![1]).is_none());
+        let re = Regex::new(common::REGEX_MULTILINE).unwrap();
+        assert!(find_range_in_sheet(&pattern, &wsheet, &re, &vec![1]).is_none());
     }
 
     #[test]
@@ -1669,7 +1696,8 @@ mod tests {
         // Documented current behavior: contains() requires the same range
         // type, so a Basic pattern can never match a Multiline item.
         let wsheet = range_ops::effective_bounds(&out, 0, 0);
-        assert!(find_range_in_sheet(&pattern, &wsheet, &vec![1]).is_none());
+        let re = Regex::new(common::REGEX_MULTILINE).unwrap();
+        assert!(find_range_in_sheet(&pattern, &wsheet, &re, &vec![1]).is_none());
     }
 
     // ------------------------------------------------------------------
@@ -1772,8 +1800,9 @@ mod tests {
         let range_in = RangeMultiline::new(range_ops::make_range_from_indexes(1, 1, 9, 3), &sheet);
         let cmp = vec![1];
         let acc = vec![2];
+        let re = Regex::new(common::REGEX_MULTILINE).unwrap();
 
-        let tmp = make_largest_range(&range_in,  &range_ops::effective_bounds(&sheet, 0, 0), &cmp, &acc);
+        let tmp = make_largest_range(&range_in,  &range_ops::effective_bounds(&sheet, 0, 0), &re, &cmp, &acc);
 
         assert_eq!(tmp.get_name(), "TMP_SHEET");
         assert_eq!(tmp.get_value((1, 1)), "100"); // cmp column copied as-is
@@ -1800,7 +1829,9 @@ mod tests {
         let range_in = RangeMultiline::new(range_ops::make_range_from_indexes(1, 1, 9, 2), &sheet);
         let cmp = vec![1];
         let acc = Vec::new();
-        let tmp = make_largest_range(&range_in, &range_ops::effective_bounds(&sheet, 0, 0), &cmp, &acc);
+        let re = Regex::new(common::REGEX_MULTILINE).unwrap();
+
+        let tmp = make_largest_range(&range_in, &range_ops::effective_bounds(&sheet, 0, 0), &re, &cmp, &acc);
 
         // header differs -> nothing appended
         assert_eq!(tmp.get_highest_row(), 2);
@@ -1822,7 +1853,9 @@ mod tests {
         let range_in = RangeMultiline::new(range_ops::make_range_from_indexes(1, 1, 9, 4), &sheet);
         let cmp = vec![1];
         let acc = Vec::new();
-        let tmp = make_largest_range(&range_in, &range_ops::effective_bounds(&sheet, 0, 0), &cmp, &acc);
+        let re = Regex::new(common::REGEX_MULTILINE).unwrap();
+
+        let tmp = make_largest_range(&range_in, &range_ops::effective_bounds(&sheet, 0, 0), &re, &cmp, &acc);
 
         // rows_it > rows_in is false for the smaller table -> untouched
         assert_eq!(tmp.get_highest_row(), 4);
@@ -1845,7 +1878,9 @@ mod tests {
         let range_in = RangeMultiline::new(range_ops::make_range_from_indexes(1, 1, 9, 3), &sheet);
         let cmp = vec![1];
         let acc = Vec::new();
-        let tmp = make_largest_range(&range_in, &range_ops::effective_bounds(&sheet, 0, 0), &cmp, &acc);
+        let re = Regex::new(common::REGEX_MULTILINE).unwrap();
+
+        let tmp = make_largest_range(&range_in, &range_ops::effective_bounds(&sheet, 0, 0), &re, &cmp, &acc);
 
         // Documented current behavior: only same-type ranges are
         // considered, so the larger Merged table is ignored.
@@ -1869,7 +1904,9 @@ mod tests {
         let range_in = RangeMergedCells::new(range_ops::make_range_from_indexes(1, 1, 9, 3), &sheet);
         let cmp = vec![1];
         let acc = Vec::new();
-        let tmp = make_largest_range(&range_in, &range_ops::effective_bounds(&sheet, 0, 0), &cmp, &acc);
+        let re = Regex::new(common::REGEX_MULTILINE).unwrap();
+
+        let tmp = make_largest_range(&range_in, &range_ops::effective_bounds(&sheet, 0, 0), &re, &cmp, &acc);
 
         assert_eq!(tmp.get_value((1, 1)), "100");
         assert_eq!(tmp.get_value((1, 2)), "x");
@@ -1890,7 +1927,9 @@ mod tests {
         let range_in = RangeBasic::new(range_ops::make_range_from_indexes(1, 1, 9, 1), &sheet);
         let cmp = vec![1];
         let acc = Vec::new();
-        let tmp = make_largest_range(&range_in, &range_ops::effective_bounds(&sheet, 0, 0), &cmp, &acc);
+        let re = Regex::new(common::REGEX_MULTILINE).unwrap();
+
+        let tmp = make_largest_range(&range_in, &range_ops::effective_bounds(&sheet, 0, 0), &re, &cmp, &acc);
 
         // Documented current behavior: Basic items are always single-row,
         // so rows_it > rows_in can never hold and nothing is appended.
