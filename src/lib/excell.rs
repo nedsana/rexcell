@@ -115,6 +115,7 @@ where
     
     let utbl_max_row = utbl.max_row;
     let rtbl_max_row = rtbl.max_row;
+    let t = std::time::Instant::now();
 
     for utbl_row in 1..=utbl_max_row //loop over the update table rows
     {
@@ -177,6 +178,7 @@ where
             }
         }
     }
+    info!("PROFILE apply_key_value_data N={} M={} bound={} {:?}", utbl_max_row, rtbl_max_row, utbl_max_row.saturating_mul(rtbl_max_row), t.elapsed());
 
     if !found
     {
@@ -484,6 +486,7 @@ pub fn filter_sheet_by_col_and_accum(
     {
         Ok(iter_sheet) =>
         {
+            let t = std::time::Instant::now();
             for it in iter_sheet 
             {
                 if let Some((brow_it, _, _, _, _, _)) = range_ops::range_bounds(it.get_range())
@@ -570,6 +573,7 @@ pub fn filter_sheet_by_col_and_accum(
                     break;
                 }
             }
+            info!("PROFILE filter_sheet elapsed={:?}", t.elapsed());
             info!("Finished filtering loop, exiting");
         }
         Err(err) =>
@@ -702,6 +706,7 @@ where
     {
         Ok(mut filtered_sheet_it) => 
         {
+            let t = std::time::Instant::now();
             while let Some(mut fit) = range_ops::LendingIterator::next(&mut filtered_sheet_it)
             {
                 if let Some((ffbr, _, _, _, _, _)) = range_ops::range_bounds(fit.get_range()) //(brow, erow, bcol, ecol, rows, cols)
@@ -832,6 +837,7 @@ where
                     error!("Failed to get analysis range dimenstions!");
                 }
             }
+            info!("PROFILE get_analysis elapsed={:?}", t.elapsed());
             info!("Finished analysis loop, exiting");
         },
         Err(err) => 
@@ -852,6 +858,7 @@ pub fn execute(cfg: &common::Config) -> Result<(), String>
 
     // Load the update Excel file
     let target_path = std::path::Path::new(&cfg.tgt_file);
+    let t_read = std::time::Instant::now();
     let result = reader::xlsx::read(target_path);
     let mut ubook = match result
     {
@@ -861,8 +868,10 @@ pub fn execute(cfg: &common::Config) -> Result<(), String>
             return Err(format!("{}:'{}' {}", common::ERROR_CANT_READ_TGT_FILE, target_path.display(), err));
         }
     };
+    info!("PROFILE read_target {:?}", t_read.elapsed());
 
-    match cfg.command 
+    let t_proc = std::time::Instant::now();
+    match cfg.command
     {
         common::Command::CmdListSheets => 
         {
@@ -1120,6 +1129,7 @@ pub fn execute(cfg: &common::Config) -> Result<(), String>
             res_error = format!("{}:{:?}", common::ERROR_INVALID_COMMAND, cfg.command);
         },
     }
+    info!("PROFILE process {:?}", t_proc.elapsed());
 
     // Save the changes if there are any successful updates, otherwise return the error message
 
@@ -1137,8 +1147,9 @@ pub fn execute(cfg: &common::Config) -> Result<(), String>
         };
         let mut outfile = val.to_string();
 
+        let t_write = std::time::Instant::now();
         // Save changes
-        if cfg.inplace 
+        if cfg.inplace
         {
             let result = writer::xlsx::write(&ubook, target_path);
             if let Err(err) = result 
@@ -1158,6 +1169,7 @@ pub fn execute(cfg: &common::Config) -> Result<(), String>
             }
             outfile = new_file;
         }
+        info!("PROFILE write {:?}", t_write.elapsed());
         info!("Saved file {}!", outfile);
     }
     Ok(())

@@ -249,6 +249,8 @@ fn test_autocomplete(afile_name: &str, tfile_name: &str) -> bool
 
     if afile_path.exists() && tfile_path.exists()
     {
+        let profile_setup = std::time::Instant::now();
+
         let act_file_path = actual_file(tfile_name);
         let exp_file_path = expected_file(tfile_name);
 
@@ -294,7 +296,17 @@ fn test_autocomplete(afile_name: &str, tfile_name: &str) -> bool
                     //use inplace update, as we've already set correct path for tgt_file
                     cfg.inplace = true;
 
-                    if let Err(err) = excell::execute(&cfg)
+                    println!("PROFILE test setup: {:?}", profile_setup.elapsed());
+                                        
+                    let profile_execution = std::time::Instant::now();
+
+                    let test_result = excell::execute(&cfg);
+
+                    println!("PROFILE test execution: {:?}", profile_execution.elapsed());
+
+                    let profile_validation = std::time::Instant::now();
+
+                    if let Err(err) = test_result
                     {
                         eprintln!("Failed to process file:{} sheets:{}! {}", tfile, swsheets, err);
                     }
@@ -323,6 +335,8 @@ fn test_autocomplete(afile_name: &str, tfile_name: &str) -> bool
                             ret = true;    
                         }
                     }
+
+                    println!("PROFILE test validation: {:?}", profile_validation.elapsed());
                 }
             }
         }

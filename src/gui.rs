@@ -438,7 +438,8 @@ impl eframe::App for GuiApp
 {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) 
     {
-        let drawing_time = Instant::now();
+        // let drawing_time = Instant::now();
+        // let mut msg_cntr = 0;
 
         const MAX_HEIGHT: f32 = 400.0;
         const SCALE_FACTOR: f32 = 1.0;
@@ -449,17 +450,17 @@ impl eframe::App for GuiApp
         let mut exec_cmd = common::Command::CmdUndefined;
 
         //Get current logs and copy them to buffer
-        let mut msg_cntr = 0;
+        
         while let Ok(new_log) = self.log_rx.try_recv() 
         {
-            msg_cntr += 1;
+            // msg_cntr += 1; //for time measurement only
             self.log_buffer.push_str(&new_log);
             self.view_buffer.push_str(&new_log);
         }
         trim_tail(&mut self.log_buffer, LOG_FULL_CAP);
         trim_tail(&mut self.view_buffer, LOG_VIEW_CAP);
-        let view_len = self.view_buffer.len();
-        let log_buffer_len = self.log_buffer.len();
+        // let view_len = self.view_buffer.len(); //for time measurement only
+        // let log_buffer_len = self.log_buffer.len(); //for time measurement only
 
         egui::CentralPanel::default().show(ctx, |ui| 
         {
@@ -648,8 +649,7 @@ impl eframe::App for GuiApp
             });
         });
 
-        let dt = drawing_time.elapsed().as_millis();
-        println!("Redrawing:{}ms; Messages:{}; VIEW CHARS:{} LOG CHARS:{}", dt, msg_cntr, view_len, log_buffer_len);
+        // println!("Redrawing:{}ms; Messages:{}; VIEW CHARS:{} LOG CHARS:{}", drawing_time.elapsed().as_millis(), msg_cntr, view_len, log_buffer_len);
     }
 
 }
