@@ -145,7 +145,8 @@ struct GuiApp
 
     active_tab: Tab,
 
-    log_buffer: String, // Buffer to hold the logs for the GUI field
+    log_buffer: String, // Full log buffer (source for the Copy button), capped at LOG_FULL_CAP
+    view_buffer: String, // Bounded tail shown in the GUI field (small => cheap redraws)
     is_working: Arc<AtomicBool>,   // Flag to indicate if processing is on
     log_rx: mpsc::Receiver<String>, // Channel to receive logs
 }
@@ -184,6 +185,8 @@ impl Default for GuiApp
             active_tab: Tab::AutoComplete,
 
             log_buffer: String::default(),
+
+            view_buffer: String::default(),
 
             is_working: Arc::new(AtomicBool::new(false)),
           
@@ -418,7 +421,20 @@ const UPDATE_SECTION_REF_HEADERS: [&str; 7] = [
     common::BUTTON_RUN_UPDATES
 ];
 
-impl eframe::App for GuiApp 
+/// Max chars kept in the pane that is actually laid out every frame (small => cheap redraws).
+const LOG_VIEW_CAP: usize = 64 * 1024;
+/// Max chars kept in the full log buffer (what the Copy button can grab).
+const LOG_FULL_CAP: usize = 2 * 1024 * 1024;
+
+/// Keep only the last `cap` bytes of `s`, cutting on a char boundary.
+fn trim_tail(s: &mut String, cap: usize) {
+    if s.len() > cap {
+        let start = s.floor_char_boundary(s.len() - cap);
+        s.drain(0..start);
+    }
+}
+
+impl eframe::App for GuiApp
 {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) 
     {
@@ -432,17 +448,17 @@ impl eframe::App for GuiApp
 
         let mut exec_cmd = common::Command::CmdUndefined;
 
-        let queue_time = Instant::now();
         //Get current logs and copy them to buffer
         let mut msg_cntr = 0;
         while let Ok(new_log) = self.log_rx.try_recv() 
         {
             msg_cntr += 1;
             self.log_buffer.push_str(&new_log);
+            self.view_buffer.push_str(&new_log);
         }
-        let qt = queue_time.elapsed().as_micros();
-        let all_lines: Vec<&str> = self.log_buffer.lines().collect();
-        let lines_cnt = all_lines.len();
+        trim_tail(&mut self.log_buffer, LOG_FULL_CAP);
+        trim_tail(&mut self.view_buffer, LOG_VIEW_CAP);
+        let view_len = self.view_buffer.len();
         let log_buffer_len = self.log_buffer.len();
 
         egui::CentralPanel::default().show(ctx, |ui| 
@@ -528,6 +544,7 @@ impl eframe::App for GuiApp
                     if false == self.is_working.load(Ordering::SeqCst)
                     {
                         self.log_buffer.clear();
+                        self.view_buffer.clear();
 
                         // cargo run --bin rexcell -- -c cmd-filter-sheets -t ../Test_Excell.xlsx -u "Лист1,Лист2,Лист3" -s C -d E -n "Test"
                         let cfg: common::Config = common::Config 
@@ -589,7 +606,13 @@ impl eframe::App for GuiApp
                 ui.add_space(12.0);
 
                 egui::Frame::group(ui.style()).show(ui, |ui| {
-                    ui.label(common::LABEL_EXECUTION_RESULT);
+                    ui.horizontal(|ui| {
+                        ui.label(common::LABEL_EXECUTION_RESULT);
+                        if ui.button(common::BUTTON_COPY).clicked() {
+                            let copied = self.log_buffer.clone();
+                            ui.output_mut(|o| o.copied_text = copied);
+                        }
+                    });
                     ui.add_space(4.0);
 
                     // let max_visible_lines = 64;
@@ -598,7 +621,7 @@ impl eframe::App for GuiApp
                     // let mut visible_text = all_lines[start_idx..].join("\n");
                     // let buffer = &mut visible_text;
 
-                    let buffer = &mut self.log_buffer;
+                    let buffer = &mut self.view_buffer;
 
                     egui::ScrollArea::vertical()
                         .id_source("execution_result_scroll") 
@@ -625,10 +648,8 @@ impl eframe::App for GuiApp
             });
         });
 
-        let dt = drawing_time.elapsed().as_micros();
-        let qp = (100*qt)/dt;
-        println!("Redrawing:{}us; Queue :{}us for {} msgs; (Usage:{}%) LOG BUFFER CHARS:{} LINES:{}", 
-            dt, qt, msg_cntr, qp, log_buffer_len, lines_cnt);
+        let dt = drawing_time.elapsed().as_millis();
+        println!("Redrawing:{}ms; Messages:{}; VIEW CHARS:{} LOG CHARS:{}", dt, msg_cntr, view_len, log_buffer_len);
     }
 
 }
